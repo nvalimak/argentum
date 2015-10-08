@@ -7,3 +7,4 @@ To get started:
 
 1) Compile the software by issuing the command `make'.
 
+2) Issue the test by './main --input test.input --plaintext --verbose --debug --dot test'

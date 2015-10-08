@@ -5,16 +5,20 @@
 #include <cassert>
 using namespace std;
 
+// Default flag values
 const InputLabel PointerTree::nonreducible = (InputLabel)~0u;
+const InputLabel PointerTree::ghostnode = ((InputLabel)~0u)-1;
+const LeafId PointerTree::nonleaf = (LeafId)~0u;
+const unsigned PointerTree::nohistory = ~0u;
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : r(), n(ic.size())
+    : r(), n(ic.size()), history()
 {
-    LeafId id = 0;    
+    history.reserve(HISTORY_INIT_SIZE);
+    LeafId id = 0;
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
         r.insert(new PointerNode(id++, 0.0, &r));
 }
-
 
 /**
  * Create a new internal node above the given node
@@ -33,52 +37,104 @@ PointerTree::PointerNode * PointerTree::createDest(PointerNode *pn)
 }
 
 /**
+ * Truncate the given internal node if there are no active references to it.
+ */
+void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
+{
+    assert(pn->size() < 2);
+    assert(!pn->root());
+    if (pn->numberOfRefs() > 0)
+        return; // Cannot be removed since one or more references appear in history
+
+    // Safe to truncate 'pn' out from the tree
+    PointerNode *parent = pn->parent();
+    parent->erase(pn);
+    if (pn->size() == 1)
+    {
+        // Rewire the only child of pn:
+        PointerNode *only_chld = *(pn->begin());
+        pn->erase(only_chld);      // Release the only child from src
+        parent->insert(only_chld); // Rewire pn's parent to point to the only child
+        only_chld->setParent(parent);
+    }
+    // Now safe to delete 'pn' out from the tree
+    assert(pn->size() == 0); // pn does not own any objects
+    delete pn;
+}
+
+/**
  * Relocate subtree 'pn' as a new child of 'dest'.
+ * Adds an event into the history queue.
  * Cleans up the source subtree.
  */
-void PointerTree::relocate(PointerNode *pn, PointerNode *dest)
+void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory)
 {
     PointerNode *src = pn->parent();
     src->erase(pn);
 
+    // Update history event queue
+    if (keephistory)
+    {
+        pn->previousEvent(history.size());
+        history.push_back(Event(src, pn));
+    }
+    
     // Clean source subtree if needed
     if (src->size() == 1 && !src->root())
-    {
-        // Discard 'src' as non-branching internal node
-        PointerNode *parent = src->parent();
-        PointerNode *only_chld = *(src->begin());
-        parent->erase(src);
-        src->erase(only_chld);     // Release the only child from src
-        parent->insert(only_chld); // Rewire source's parent to point to the only child
-        only_chld->setParent(parent);
-        assert(src->size() == 0);
-        delete src;
-    }
+        PointerTree::clearNonBranchingInternalNode(src);
 
     dest->insert(pn);
     pn->setParent(dest);
 }
 
+/**
+ * Rewind the given event
+ */
+void PointerTree::rewind(Event &e)
+{
+    PointerNode *dest = e.getSource();
+    PointerNode *pn = e.getNode();
+    PointerNode *src = pn->parent();
+    dest->insert(pn);
+
+    // Clean source subtree if needed
+    if (src->size() == 1 && !src->root())
+        PointerTree::clearNonBranchingInternalNode(src);
+
+    dest->insert(pn);
+    pn->setParent(dest);
+
+    e.rewind(); // May delete dest (truncated if pn is the only child)
+}
+
+/**
+ * Validate the integrity of the tree structure
+ */
 void validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p)
 {
     assert (p == pn->parent());
     if (pn->leaf())
     {
-        assert (pn->leafId() != (LeafId)~0u);
+        assert (pn->leafId() != PointerTree::nonleaf);
+        assert (pn->numberOfRefs() == 0);
         return;
     }
     
-    assert (pn->root() || pn->size() > 1);
+    if (!pn->root())
+    {
+        assert(pn->size() > 1 || pn->numberOfRefs() > 0);
+    }    
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         validate(*it, pn);
 }
-        
-
 void PointerTree::validate()
 {
     ::validate(&r, 0);
 }
 
+/**
+ * Graphical output. Requires Graphwiz DOT.
+ */
 unsigned outputDOT(PointerTree::PointerNode *pn, unsigned id, ostream &of)
 {    
     unsigned cur_id = id;
@@ -93,7 +149,7 @@ unsigned outputDOT(PointerTree::PointerNode *pn, unsigned id, ostream &of)
             of << (int) (*it)->reducedLabel() << "\",shape=box";
         else
         {
-            of << (*it)->depth();
+            of << (*it)->depth() << " " << (int)(*it)->reducedLabel();
             if ((*it)->reduced())
                 of << "R";
             of << "\"";
@@ -103,7 +159,6 @@ unsigned outputDOT(PointerTree::PointerNode *pn, unsigned id, ostream &of)
     }
     return id;
 }
-
 void PointerTree::outputDOT(string const &filename, unsigned step)
 {
     /**
@@ -125,5 +180,6 @@ void PointerTree::outputDOT(string const &filename, unsigned step)
     (*of) << "digraph G {" << endl;
     ::outputDOT(&r, 0, *of);
     (*of) << "}" << endl;
-    
+    if (of != &std::cout)
+        delete of;
 }

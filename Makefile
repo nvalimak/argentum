@@ -3,7 +3,7 @@ CPPFLAGS = -std=c++0x -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = InputReader.o Tree.o TreeController.o
 
-all: main test dot
+all: main test
 
 main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)

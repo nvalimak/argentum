@@ -17,8 +17,9 @@ public:
 
 protected:
     InputLabel reduce(PointerTree::PointerNode *, InputColumn const &);
+    void resolveNonBinary(PointerTree::PointerNode *);
     void collectRecombine(PointerTree::PointerNode *);
-    void recombineSubtrees();
+    void recombineSubtrees(bool);
     PointerTree &t;
     std::vector<PointerTree::PointerNode *> recombine;
     bool debug;
