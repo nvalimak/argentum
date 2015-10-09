@@ -58,7 +58,21 @@ private:
 };
 
 /**
- * VCF input reader (TODO)
+ * Simple VCF input reader
  */
-
+class SimpleVCFInputReader : public InputReader
+{
+public:
+    bool next(InputColumn &);
+    virtual ~SimpleVCFInputReader()
+    { }
+    
+    explicit SimpleVCFInputReader(std::string);
+    
+private:
+    static char upcasedna[256];
+    // No copy constructor or assignment
+    SimpleVCFInputReader(SimpleVCFInputReader const&);
+    SimpleVCFInputReader& operator = (SimpleVCFInputReader const&);
+};
 #endif

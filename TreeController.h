@@ -15,8 +15,14 @@ public:
     { }
     void process(InputColumn const &, unsigned);
 
+    // Debug functionality
+    unsigned countGhostBranches(PointerTree::PointerNode *);
+    unsigned countUnaryGhosts(PointerTree::PointerNode *);
+    unsigned countBranchingGhosts(PointerTree::PointerNode *);
+        
 protected:
     InputLabel reduce(PointerTree::PointerNode *, InputColumn const &);
+    InputLabel reduceGhosts(PointerTree::PointerNode *);
     void resolveNonBinary(PointerTree::PointerNode *);
     void collectRecombine(PointerTree::PointerNode *);
     void recombineSubtrees(bool);

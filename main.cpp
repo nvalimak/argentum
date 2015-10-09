@@ -28,7 +28,7 @@ int atoi_min(char const *value, int min, char const *parameter, char const *name
 
 int main(int argc, char ** argv)
 {
-    string inputfile, dotfile;
+    string inputfile = "", dotfile = "";
     InputReader::input_format_t inputformat = InputReader::input_unset;
     unsigned nrows = ~0u;
     bool verbose = false;
@@ -39,6 +39,7 @@ int main(int argc, char ** argv)
             {"input",     required_argument, 0, 'i'},
             {"nrows",     required_argument, 0, 'n'},
             {"plaintext", no_argument,       0, 's'},
+            {"VCF", no_argument,             0, 'V'},
             {"dot",       required_argument, 0, 'd'},
             {"verbose",   no_argument,       0, 'v'},
             {"debug",     no_argument,       0, 'D'},
@@ -46,7 +47,7 @@ int main(int argc, char ** argv)
         };
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "i:n:sd:vD",
+    while ((c = getopt_long(argc, argv, "i:n:sVd:vD",
                             long_options, &option_index)) != -1) 
     {
         switch(c) 
@@ -57,6 +58,8 @@ int main(int argc, char ** argv)
             nrows = atoi_min(optarg, 1, "-n,--nrows", argv[0]); break;
         case 's': 
             inputformat = InputReader::input_plaintext; break;
+        case 'V': 
+            inputformat = InputReader::input_vcf; break;
         case 'd':
             dotfile = string(optarg); break;
         case 'v':
@@ -69,6 +72,12 @@ int main(int argc, char ** argv)
         }
     }
 
+    if (inputformat == InputReader::input_unset)
+    {
+        cerr << "error: input format needs to be specified (-s,--plaintext or -V,--vcf)" << endl;
+        return 1;
+    } 
+    
     unsigned step = 0;
     InputColumn ic;
     InputReader *inputr = InputReader::build(inputformat, inputfile);
@@ -86,13 +95,17 @@ int main(int argc, char ** argv)
     TreeController tc(tree, debug);
     do
     {
-        if (debug)
+        if (verbose && step%1000 == 0)
+            cerr << "at step " << step << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
+                 << tc.countGhostBranches(&tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(&tree.root()) << " unaryghosts, "
+                 << tc.countBranchingGhosts(&tree.root()) << " branchingghost)" << endl;
+        /*if (debug)
         {
             cout << "step " << step << ": ";
             for (InputColumn::const_iterator it = ic.begin(); it!= ic.end(); ++it)
                 cout << (int)*it;
             cout << endl;
-        }
+            }*/
 
         tc.process(ic, step);
 

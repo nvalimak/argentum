@@ -8,8 +8,10 @@ using namespace std;
 // Default flag values
 const InputLabel PointerTree::nonreducible = (InputLabel)~0u;
 const InputLabel PointerTree::ghostnode = ((InputLabel)~0u)-1;
+const InputLabel PointerTree::ghostbranch = ((InputLabel)~0u)-2;
 const LeafId PointerTree::nonleaf = (LeafId)~0u;
 const unsigned PointerTree::nohistory = ~0u;
+size_t PointerTree::N = 0;
 
 PointerTree::PointerTree(InputColumn const &ic)
     : r(), n(ic.size()), history()
@@ -18,6 +20,7 @@ PointerTree::PointerTree(InputColumn const &ic)
     LeafId id = 0;
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
         r.insert(new PointerNode(id++, 0.0, &r));
+    PointerTree::N = ic.size()+1;
 }
 
 /**
@@ -25,6 +28,7 @@ PointerTree::PointerTree(InputColumn const &ic)
  */
 PointerTree::PointerNode * PointerTree::createDest(PointerNode *pn)
 {
+    ++N;
     PointerNode *parent = pn->parent();
     assert (parent != 0);
     parent->erase(pn);
@@ -44,8 +48,20 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
     assert(pn->size() < 2);
     assert(!pn->root());
     if (pn->numberOfRefs() > 0)
-        return; // Cannot be removed since one or more references appear in history
-
+    {
+        // Cannot be removed since one or more references appear in history
+        if (pn->size() == 1)
+        {
+            // Update the descendant shortcut
+            PointerNode *only_chld = *(pn->begin());
+            if (only_chld->hasShortcut())
+                pn->descendantShortcut(only_chld->descendantShortcut());
+            else
+                pn->descendantShortcut(only_chld);
+        }
+        return;
+    }
+    
     // Safe to truncate 'pn' out from the tree
     PointerNode *parent = pn->parent();
     parent->erase(pn);
@@ -58,6 +74,7 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
         only_chld->setParent(parent);
     }
     // Now safe to delete 'pn' out from the tree
+    PointerTree::N--;
     assert(pn->size() == 0); // pn does not own any objects
     delete pn;
 }
