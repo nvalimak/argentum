@@ -13,10 +13,14 @@ You will need the Graphwiz DOT software package to compile the *.dot files with:
 
 3) 'make dot'
 
+VCF files can be processed as, for example:
+
+4) './main --vcf --input <(gunzip -c input.vcf.gz) --verbose'
+
+Modify the 'Makefile' to turn on compiler optimizations, if needed.
+
 TODO
 ----
 
-* Optimize the second reduce() call in TreeController::process().
 * Choose target by subtree size (number of leaves)
-* VCF format
-* 
+* Choose targets by 0-1-genotype count values

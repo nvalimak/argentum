@@ -4,6 +4,7 @@
 #include "Tree.h"
 #include <vector>
 #include <string>
+#include <utility>
 
 /**
  * Controller to handle tree updates
@@ -23,11 +24,11 @@ public:
     unsigned countActive(PointerTree::PointerNode *);
         
 protected:
-    InputLabel reduce(PointerTree::PointerNode *, InputColumn const &);
-    InputLabel reduceGhosts(PointerTree::PointerNode *);
+    std::pair<unsigned, unsigned> reduce(PointerTree::PointerNode *, InputColumn const &);
+//    InputLabel reduceGhosts(PointerTree::PointerNode *);
     void resolveNonBinary(PointerTree::PointerNode *);
     void collectRecombine(PointerTree::PointerNode *);
-    void recombineSubtrees(bool);
+    void recombineSubtrees(bool, bool);
     PointerTree &t;
     std::vector<PointerTree::PointerNode *> recombine;
     bool debug;

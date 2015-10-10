@@ -39,7 +39,7 @@ int main(int argc, char ** argv)
             {"input",     required_argument, 0, 'i'},
             {"nrows",     required_argument, 0, 'n'},
             {"plaintext", no_argument,       0, 's'},
-            {"VCF", no_argument,             0, 'V'},
+            {"vcf",       no_argument,       0, 'V'},
             {"dot",       required_argument, 0, 'd'},
             {"verbose",   no_argument,       0, 'v'},
             {"debug",     no_argument,       0, 'D'},
@@ -111,8 +111,6 @@ int main(int argc, char ** argv)
 
         if (!dotfile.empty())
             tree.outputDOT(dotfile, step);
-        if (debug)
-            tree.validate();
         ++step;
     } while (inputr->next(ic) && step < nrows);
 

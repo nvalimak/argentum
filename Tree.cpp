@@ -6,12 +6,10 @@
 using namespace std;
 
 // Default flag values
-const InputLabel PointerTree::nonreducible = (InputLabel)~0u;
-const InputLabel PointerTree::ghostnode = ((InputLabel)~0u)-1;
-const InputLabel PointerTree::ghostbranch = ((InputLabel)~0u)-2;
 const LeafId PointerTree::nonleaf = (LeafId)~0u;
 const unsigned PointerTree::nohistory = ~0u;
-size_t PointerTree::N = 0;
+const unsigned PointerTree::unknown = ~0u;
+size_t PointerTree::N = 0; // Total number of nodes
 
 PointerTree::PointerTree(InputColumn const &ic)
     : r(), n(ic.size()), history(), validationReachable()
@@ -20,7 +18,8 @@ PointerTree::PointerTree(InputColumn const &ic)
     LeafId id = 0;
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
         r.insert(new PointerNode(id++, 0.0, &r));
-    PointerTree::N = ic.size()+1;
+
+    PointerTree::N = ic.size()+1; // Initial size of the tree
     validationReachable.resize(n);
 }
 
@@ -38,6 +37,8 @@ PointerTree::PointerNode * PointerTree::createDest(PointerNode *pn)
     parent->insert(dest);
     dest->insert(pn);
     pn->setParent(dest);
+    dest->nZeros(pn->nZeros());
+    dest->nOnes(pn->nOnes());
     return dest;
 }
 
@@ -71,7 +72,7 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
     {
         // Rewire the only child of pn:
         PointerNode *only_chld = *(pn->begin());
-        pn->erase(only_chld);      // Release the only child from src
+        pn->erase(only_chld);      // Release the only child from pn
         parent->insert(only_chld); // Rewire pn's parent to point to the only child
         only_chld->setParent(parent);
     }
@@ -86,16 +87,21 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
  * Adds an event into the history queue.
  * Cleans up the source subtree.
  */
-void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory)
+void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory, bool keepparentcounts)
 {
     PointerNode *src = pn->parent();
     src->erase(pn);
+    if (!keepparentcounts)
+    {
+        src->addZeros(-(pn->nZeros()));
+        src->addOnes(-(pn->nOnes()));
+    }
 
     // Update history event queue
     if (keephistory)
     {
-        pn->previousEvent(history.size());
-        history.push_back(Event(src, pn));
+//              pn->previousEvent(history.size());
+// FIXME        history.push_back(Event(src, pn));
     }
     
     // Clean source subtree if needed
@@ -104,6 +110,8 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory)
 
     dest->insert(pn);
     pn->setParent(dest);
+    dest->addZeros(pn->nZeros());
+    dest->addOnes(pn->nOnes());
 }
 
 /**
@@ -115,52 +123,67 @@ void PointerTree::rewind(Event &e)
     PointerNode *pn = e.getNode();
     PointerNode *src = pn->parent();
     dest->insert(pn);
+    dest->addZeros(pn->nZeros());
+    dest->addOnes(pn->nOnes());
+    pn->setParent(dest);
 
     // Clean source subtree if needed
+    src->erase(pn);
     if (src->size() == 1 && !src->root())
         PointerTree::clearNonBranchingInternalNode(src);
 
-    dest->insert(pn);
-    pn->setParent(dest);
-
-    e.rewind(); // May delete dest (truncated if pn is the only child)
+    e.rewind(); // May delete src (truncated if pn is the only child)
 }
 
 /**
  * Validate the integrity of the tree structure
  */
-void validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
+pair<unsigned,unsigned> validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
 {
+    assert (pn->nZeros() != PointerTree::unknown);
+    assert (pn->nOnes() != PointerTree::unknown);
     assert (p == pn->parent());
     if (pn->leaf())
     {
         assert (pn->leafId() != PointerTree::nonleaf);
+        assert (pn->reduced());
         assert (pn->numberOfRefs() == 0);
 	validationReachable[pn->leafId()] = true;
-        return;
+        if (pn->reducedLabel() == 1)
+            return make_pair(0,1);
+        else
+            return make_pair(1,0);
     }
-    if (pn->hasShortcut()){
-        validate(pn->descendantShortcut(), pn->descendantShortcut()->parent(), validationReachable);
-	return;
-    }
+    if (pn->hasShortcut())
+        return validate(pn->descendantShortcut(), pn->descendantShortcut()->parent(), validationReachable);
     
     if (!pn->root())
     {
         assert(pn->size() > 1 || pn->numberOfRefs() > 0);
-    }    
+    }
+    unsigned nzeros = 0;
+    unsigned nones = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        validate(*it, pn, validationReachable);
+    {
+        pair<unsigned,unsigned> tmp = validate(*it, pn, validationReachable);
+        nzeros += tmp.first;
+        nones += tmp.second;
+    }
+    assert(nzeros == pn->nZeros());
+    assert(nones == pn->nOnes());
+    return make_pair(nzeros, nones);
 }
 void PointerTree::validate()
 {
     for (unsigned i = 0; i<n; ++i)
 	validationReachable[i]=false;
-    ::validate(&r, 0, validationReachable);
+    pair<unsigned,unsigned> count = ::validate(&r, 0, validationReachable);
     unsigned reachable=0;
     for (unsigned i = 0; i<n; ++i)
 	if(validationReachable[i])
             ++reachable;
     assert(reachable == n);
+    assert(count.first + count.second == n); // Number of ones and zeros at root
 }
 
 /**
@@ -177,12 +200,12 @@ unsigned outputDOT(PointerTree::PointerNode *pn, unsigned id, ostream &of)
         of << " n" << cur_id << " -> n" << ++id  << endl;
         of << " n" << id << " [label=\"";
         if ((*it)->leaf())
-            of << (int) (*it)->reducedLabel() << "\",shape=box";
+            of << (*it)->nZeros() << "v" << (*it)->nOnes() << "\",shape=box";
         else
         {
-            of << (*it)->depth() << " " << (int)(*it)->reducedLabel();
+            of << (*it)->depth() << " " << (*it)->nZeros() << "v" << (*it)->nOnes();
             if ((*it)->reduced())
-                of << "R";
+                of << "R" << (int) (*it)->reducedLabel();
             of << "\"";
         }
         of << "]" << endl;

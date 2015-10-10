@@ -3,6 +3,7 @@
 #include "default.h"
 #include <unordered_set>
 #include <iostream>
+#include <cassert>
 /**
  * Base class for trees
  *
@@ -58,15 +59,15 @@ public:
     {
     public:
         PointerNode() // Root node constructor
-            : ch(), id(PointerTree::nonleaf), d(1.0), p(0), reducel(PointerTree::nonreducible), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
+            : ch(), id(PointerTree::nonleaf), d(1.0), p(0), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
         { }
         // Internal node constructor
         PointerNode(TreeDepth d_, PointerNode *p_)
-            : ch(), id(PointerTree::nonleaf), d(d_), p(p_), reducel(PointerTree::nonreducible), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
+            : ch(), id(PointerTree::nonleaf), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
         { }
         // Leaf node constructor
         PointerNode(LeafId id_, TreeDepth d_, PointerNode *p_)
-            : ch(), id(id_), d(d_), p(p_), reducel(PointerTree::nonreducible), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
+            : ch(), id(id_), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
         { }
 
         // General accessors
@@ -80,6 +81,10 @@ public:
         { return ch.size(); }
         inline TreeDepth depth() const
         { return d; }
+
+        // History tracking
+        inline bool hasPreviousEvent() const
+        { return preve != PointerTree::nohistory; }
         inline unsigned previousEvent() const
         { return preve; }
         inline void previousEvent(unsigned e)
@@ -87,13 +92,31 @@ public:
         
         // Accessors to recuded tree representation
         inline bool ghostbranch() const
-        { return reducel == PointerTree::ghostbranch; }
+        { return (nones == 0 && nzeros == 0); }
         inline bool reduced() const
-        { return reducel < PointerTree::ghostbranch; }
+        { return (nones == 0 || nzeros == 0) && nones+nzeros>0; }
         inline InputLabel reducedLabel() const
-        { return reducel; }
-        inline void setReduced(InputLabel il)
-        { reducel = il; }
+        { return (nones > 0 && nzeros == 0); }
+        inline void nZeros(unsigned zeros_)
+        { nzeros = zeros_; }
+        inline void nOnes(unsigned nones_)
+        { nones = nones_; }
+        inline void addZeros(unsigned zeros_)
+        { nzeros += zeros_; }
+        inline void addOnes(unsigned nones_)
+        { nones += nones_; }
+        inline unsigned nZeros() const
+        { return nzeros; }
+        inline unsigned nOnes() const
+        { return nones; }
+        void setLabel(InputLabel il)
+        {
+            nzeros = 0; nones = 0;
+            if (il == 1)
+                nones ++;
+            else
+                nzeros ++;
+        } 
         
         // Iterator to child nodes
         typedef std::unordered_set<PointerNode *>::iterator iterator;
@@ -159,7 +182,8 @@ public:
         LeafId id;          // Leaf identifier (unique)
         TreeDepth d;        // Given depth
         PointerNode * p;    // Parent node
-        InputLabel reducel; // Label of the reduced subtree
+        unsigned nzeros;    // Number of zero labels in the subtree
+        unsigned nones;     // Number of one labels in the subtree
         unsigned nrefs;     // Number of active history references.
         unsigned preve;     // Previous event number (refers to the history vector)
         PointerNode *descentNonGhost; // Short-cut descent to next non-ghost node below.
@@ -227,23 +251,21 @@ public:
 
     // Tree modification (used in the class TreeController)
     PointerNode * createDest(PointerNode *);
-    void relocate(PointerNode *, PointerNode *, bool);
+    void relocate(PointerNode *, PointerNode *, bool, bool);
     void rewind(Event &);
     
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);
     
     // Flags for nonreducible subtrees etc.
-    static const InputLabel nonreducible;
-    static const InputLabel ghostnode;
-    static const InputLabel ghostbranch;
     static const LeafId nonleaf;
     static const unsigned nohistory;
+    static const unsigned unknown;
 private:
     PointerNode r;
     std::size_t n; // Number of leaves
     static std::size_t N; // Number of nodes
     std::vector<Event> history;
-std::vector<bool> validationReachable;
+    std::vector<bool> validationReachable;
 };
 #endif
