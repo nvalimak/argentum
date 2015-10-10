@@ -90,7 +90,11 @@ int main(int argc, char ** argv)
     /**
      * Main loop over input data
      */
-    inputr->next(ic);
+    if (!inputr->next(ic))
+    {
+        cerr << "error: empty input file?!" << endl;
+        return 1;
+    }
     PointerTree tree(ic);
     TreeController tc(tree, debug, dotfile);
     do
