@@ -7,11 +7,11 @@ void TreeController::process(InputColumn const &ic, unsigned step)
 {
     PointerTree::PointerNode &root = t.root();
     reduce(&root, ic);
-//    if (debug)
-//        t.outputDOT("reduced", step); // Debug
+    if (debug && !dotfile.empty())
+        t.outputDOT("reduced", step);
     resolveNonBinary(&root);
-//    if (debug)
-//        t.outputDOT("resolvednonbinaryr", step); // Debug
+    if (debug && !dotfile.empty())
+        t.outputDOT("resolvednonbinaryr", step);
 
     recombine.clear();
     recombine.reserve(2 * t.size());
@@ -23,11 +23,12 @@ void TreeController::process(InputColumn const &ic, unsigned step)
 
 // Reduce the tree (updates all the 'reduce' values in the given tree)
 // Note: Returns PointerTree::nonreducible if the subtree cannot be reduced.
+// Ghost nodes inherit the child node's status
 InputLabel TreeController::reduce(PointerTree::PointerNode *pn, InputColumn const &ic)
 {
     assert(!pn->leaf() || pn->leafId() != ~0u);
     if (pn->ghostbranch())
-        return PointerTree::ghostnode;
+        return PointerTree::ghostbranch;
 
     if (pn->hasShortcut())
         return reduce(pn->descendantShortcut(), ic);
@@ -41,28 +42,33 @@ InputLabel TreeController::reduce(PointerTree::PointerNode *pn, InputColumn cons
     }
     if (pn->size() == 0)
     {
-        // Ghost node
+        // Ghost branch
         assert(pn->numberOfRefs() > 0);
-        pn->setReduced(PointerTree::ghostnode);
-        return PointerTree::ghostnode;
+        pn->setReduced(PointerTree::ghostbranch);
+        return PointerTree::ghostbranch;
     }
-    
+
+    unsigned nnonghostbranch = 0;
     PointerTree::PointerNode::iterator it = pn->begin();
     InputLabel il = reduce(*it, ic); // Label of first child
+    if (il != PointerTree::ghostbranch)
+        nnonghostbranch ++;
     while (++it != pn->end())
     {
         // Process rest of the children
         InputLabel tmp = reduce(*it, ic);
-        if (il != tmp)
+        if (tmp != PointerTree::ghostbranch)
+            nnonghostbranch ++;
+        if (il == PointerTree::ghostbranch)
+            il = tmp;
+        if (il != tmp && tmp != PointerTree::ghostbranch)
             il = PointerTree::nonreducible;
     }
-    // All children labels are equal to il
-    if (il != PointerTree::nonreducible)
-        pn->setReduced(il);
-    if (pn->size() == 1)
+    // All nonghost children labels are equal to il (or il == nonreducible)
+    pn->setReduced(il);
+    if (nnonghostbranch == 1)
     {
         // Ghost node
-        assert(pn->numberOfRefs() > 0);
         pn->setReduced(PointerTree::ghostnode);
         return PointerTree::ghostnode;
     }
@@ -121,7 +127,8 @@ InputLabel TreeController::reduceGhosts(PointerTree::PointerNode *pn)
         if (nonghost_chld->hasShortcut())
             pn->descendantShortcut(nonghost_chld->descendantShortcut());
         else
-            pn->descendantShortcut(nonghost_chld);
+            if (nonghost_chld->size() < 2 && !nonghost_chld->leaf())
+                pn->descendantShortcut(nonghost_chld);
     }
         
     return il;
@@ -172,7 +179,6 @@ void TreeController::collectRecombine(PointerTree::PointerNode *pn)
         collectRecombine(pn->descendantShortcut());
         return;
     }
-
     
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         collectRecombine(*it);
@@ -180,7 +186,7 @@ void TreeController::collectRecombine(PointerTree::PointerNode *pn)
 
 
 // Counts the number of active nodes
-/*unsigned TreeController::countActive(PointerTree::PointerNode *pn)
+unsigned TreeController::countActive(PointerTree::PointerNode *pn)
 {
     unsigned g = 0;
     if (pn->leaf())
@@ -188,12 +194,13 @@ void TreeController::collectRecombine(PointerTree::PointerNode *pn)
     if (pn->ghostbranch())
         return 0;
 
-//    if (pn->hasShortcut(
-    
+    if (pn->hasShortcut())
+        return countActive(pn->descendantShortcut());
+    g++;    
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         g += countActive(*it);
     return g;
-    }*/
+}
 
 
 // Counts the number of ghostbranch nodes (1 or 0 children)
@@ -241,14 +248,14 @@ unsigned TreeController::countBranchingGhosts(PointerTree::PointerNode *pn)
             g += countBranchingGhosts(*it);
     else
     {
-        bool bg = true;
+        unsigned nonghosts = 0;
         for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         {
             if ((*it)->reducedLabel() != PointerTree::ghostnode && (*it)->reducedLabel() != PointerTree::ghostbranch)
-                bg = false;
+                nonghosts++;
             g += countBranchingGhosts(*it);
         }
-        if (bg)
+        if (nonghosts==1)
             g++;
     }
     return g;

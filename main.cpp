@@ -92,13 +92,13 @@ int main(int argc, char ** argv)
      */
     inputr->next(ic);
     PointerTree tree(ic);
-    TreeController tc(tree, debug);
+    TreeController tc(tree, debug, dotfile);
     do
     {
         if (verbose && step%1000 == 0)
             cerr << "at step " << step << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(&tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(&tree.root()) << " unaryghosts, "
-                 << tc.countBranchingGhosts(&tree.root()) << " branchingghost)" << endl;
+                 << tc.countBranchingGhosts(&tree.root()) << " branchingghost, " << tc.countActive(&tree.root()) << " active)" << endl;
         /*if (debug)
         {
             cout << "step " << step << ": ";

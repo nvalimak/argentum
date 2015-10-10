@@ -14,13 +14,14 @@ const unsigned PointerTree::nohistory = ~0u;
 size_t PointerTree::N = 0;
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : r(), n(ic.size()), history()
+    : r(), n(ic.size()), history(), validationReachable()
 {
     history.reserve(HISTORY_INIT_SIZE);
     LeafId id = 0;
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
         r.insert(new PointerNode(id++, 0.0, &r));
     PointerTree::N = ic.size()+1;
+    validationReachable.resize(n);
 }
 
 /**
@@ -57,7 +58,8 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
             if (only_chld->hasShortcut())
                 pn->descendantShortcut(only_chld->descendantShortcut());
             else
-                pn->descendantShortcut(only_chld);
+                if (only_chld->size() < 2 && !only_chld->leaf())
+                    pn->descendantShortcut(only_chld);
         }
         return;
     }
@@ -127,14 +129,19 @@ void PointerTree::rewind(Event &e)
 /**
  * Validate the integrity of the tree structure
  */
-void validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p)
+void validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
 {
     assert (p == pn->parent());
     if (pn->leaf())
     {
         assert (pn->leafId() != PointerTree::nonleaf);
         assert (pn->numberOfRefs() == 0);
+	validationReachable[pn->leafId()] = true;
         return;
+    }
+    if (pn->hasShortcut()){
+        validate(pn->descendantShortcut(), pn->descendantShortcut()->parent(), validationReachable);
+	return;
     }
     
     if (!pn->root())
@@ -142,11 +149,18 @@ void validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p)
         assert(pn->size() > 1 || pn->numberOfRefs() > 0);
     }    
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        validate(*it, pn);
+        validate(*it, pn, validationReachable);
 }
 void PointerTree::validate()
 {
-    ::validate(&r, 0);
+    for (unsigned i = 0; i<n; ++i)
+	validationReachable[i]=false;
+    ::validate(&r, 0, validationReachable);
+    unsigned reachable=0;
+    for (unsigned i = 0; i<n; ++i)
+	if(validationReachable[i])
+            ++reachable;
+    assert(reachable == n);
 }
 
 /**

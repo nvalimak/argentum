@@ -115,7 +115,7 @@ public:
 
         // Descendant shortcut
         inline bool hasShortcut() const
-            { return false ; }  //descentNonGhost != 0; }
+            { return false; } //descentNonGhost != 0; } Note: shortcuts need to track 'nrefs'.
         inline PointerNode * descendantShortcut() const
         { return descentNonGhost; }
         inline void descendantShortcut(PointerNode *dng)
@@ -244,5 +244,6 @@ private:
     std::size_t n; // Number of leaves
     static std::size_t N; // Number of nodes
     std::vector<Event> history;
+std::vector<bool> validationReachable;
 };
 #endif

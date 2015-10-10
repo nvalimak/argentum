@@ -3,6 +3,7 @@
 #include "default.h"
 #include "Tree.h"
 #include <vector>
+#include <string>
 
 /**
  * Controller to handle tree updates
@@ -10,8 +11,8 @@
 class TreeController
 {
 public:
-    TreeController (PointerTree &t_, bool debug_)
-        : t(t_), recombine(), debug(debug_)
+    TreeController (PointerTree &t_, bool debug_, std::string dotfile_)
+        : t(t_), recombine(), debug(debug_), dotfile(dotfile_)
     { }
     void process(InputColumn const &, unsigned);
 
@@ -19,6 +20,7 @@ public:
     unsigned countGhostBranches(PointerTree::PointerNode *);
     unsigned countUnaryGhosts(PointerTree::PointerNode *);
     unsigned countBranchingGhosts(PointerTree::PointerNode *);
+    unsigned countActive(PointerTree::PointerNode *);
         
 protected:
     InputLabel reduce(PointerTree::PointerNode *, InputColumn const &);
@@ -29,6 +31,7 @@ protected:
     PointerTree &t;
     std::vector<PointerTree::PointerNode *> recombine;
     bool debug;
+    std::string dotfile;
 private:
     TreeController();
     // No copy constructor or assignment
