@@ -99,17 +99,10 @@ int main(int argc, char ** argv)
     TreeController tc(tree, debug, dotfile);
     do
     {
-        if (verbose && step%1000 == 0)
+        if (verbose && step%1 == 0)
             cerr << "at step " << step << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
-                 << tc.countGhostBranches(&tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(&tree.root()) << " unaryghosts, "
-                 << tc.countBranchingGhosts(&tree.root()) << " branchingghost, " << tc.countActive(&tree.root()) << " active)" << endl;
-        /*if (debug)
-        {
-            cout << "step " << step << ": ";
-            for (InputColumn::const_iterator it = ic.begin(); it!= ic.end(); ++it)
-                cout << (int)*it;
-            cout << endl;
-            }*/
+                 << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
+                 << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
 
         tc.process(ic, step);
 

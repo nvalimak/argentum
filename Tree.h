@@ -2,44 +2,15 @@
 #define _Tree_h_
 #include "default.h"
 #include <unordered_set>
+#include <vector>
+#include <list>
 #include <iostream>
 #include <cassert>
-/**
- * Base class for trees
- *
- * To be removed? - This is an uncessecary class in current implementation. 
- */
-class Tree
-{
-public:
-    class Node
-    {
-    public:
-        virtual bool leaf() const = 0;
-
-        virtual ~Node()
-        { }
-        // Default copy constructor and assignment
-    protected:
-        Node()
-        { }
-    };
-
-    virtual ~Tree()
-    { }
-protected:
-    Tree()
-    { }
-private:
-    // No copy constructor or assignment
-    Tree(Tree const&);
-    Tree& operator = (Tree const&);
-};
 
 /**
  * Pointer-based implementation of the tree
  */
-class PointerTree : public Tree
+class PointerTree
 {
 public:
     /**
@@ -55,29 +26,31 @@ public:
      * Thus, an internal node is not removed as long as there is one or more history
      * events that refer to it.
      */
-    class PointerNode : public Tree::Node
+    class PointerNode
     {
     public:
-        PointerNode() // Root node constructor
-            : ch(), id(PointerTree::nonleaf), d(1.0), p(0), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
+        PointerNode() // Empty node constructor
+            : ch(), id(PointerTree::nonreserved), lf(false), d(1.0), p(PointerTree::nonreserved), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
         { }
-        // Internal node constructor
-        PointerNode(TreeDepth d_, PointerNode *p_)
-            : ch(), id(PointerTree::nonleaf), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
+        // Root node constructor
+        PointerNode(TreeDepth d_, NodeId p_)
+            : ch(), id(0), lf(false), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
         { }
         // Leaf node constructor
-        PointerNode(LeafId id_, TreeDepth d_, PointerNode *p_)
-            : ch(), id(id_), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory), descentNonGhost(0)
+        PointerNode(LeafId id_, TreeDepth d_, NodeId p_)
+            : ch(), id(id_), lf(true), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
         { }
 
         // General accessors
         inline bool root() const
-        { return p == 0; }
+        { return id == 0; }
         inline bool leaf() const
-        { return id != PointerTree::nonleaf; }
-        inline LeafId leafId() const
+        { return lf; }
+        inline NodeId nodeId() const
         { return id; }
-        inline std::unordered_set<PointerNode *>::size_type size() const
+        inline LeafId leafId() const
+        { return id-1; /* Root is id==0 */ } 
+        inline std::unordered_set<NodeId>::size_type size() const
         { return ch.size(); }
         inline TreeDepth depth() const
         { return d; }
@@ -119,31 +92,34 @@ public:
         } 
         
         // Iterator to child nodes
-        typedef std::unordered_set<PointerNode *>::iterator iterator;
-        typedef std::unordered_set<PointerNode *>::const_iterator const_iterator;
+        class iterator 
+        {            
+            std::unordered_set<NodeId>::iterator p;
+        public:
+            iterator(std::unordered_set<NodeId>::iterator x) :p(x) {}
+            iterator(const iterator& mit) : p(mit.p) {}
+            iterator& operator++() {++p;return *this;}
+            iterator operator++(int) {iterator tmp(*this); operator++(); return tmp;}
+            bool operator==(const iterator& rhs) {return p==rhs.p;}
+            bool operator!=(const iterator& rhs) {return p!=rhs.p;}
+            PointerNode *& operator*() {return PointerTree::nodes[*p];}
+        };
+
         inline iterator begin()
-        { return ch.begin(); }
-        inline const_iterator begin() const
-        { return ch.begin(); }
+        { return iterator(ch.begin()); }
         inline iterator end()
-        { return ch.end(); }
-        inline const_iterator end() const
-        { return ch.end(); }
+        { return iterator(ch.end()); }
 
         // Parent accessors
-        inline PointerNode * parent() const
+        inline NodeId parent() const
         { return p; }
-        inline void setParent(PointerNode * p_)
+        inline PointerNode * parentPtr() const
+        { return PointerTree::nodes[p]; }
+        inline void setParent(NodeId p_)
         { p = p_; }
-
-        // Descendant shortcut
-        inline bool hasShortcut() const
-            { return false; } //descentNonGhost != 0; } Note: shortcuts need to track 'nrefs'.
-        inline PointerNode * descendantShortcut() const
-        { return descentNonGhost; }
-        inline void descendantShortcut(PointerNode *dng)
-        { descentNonGhost = dng; }
-        
+        inline void setParent(PointerNode *pn)
+        { p = pn->nodeId(); }
+    
         // Accessors to keep track of history references
         inline void addRef()
         { ++nrefs; }
@@ -157,36 +133,66 @@ public:
             --nrefs;
             // If no other references remain, clean the tree
             if (nrefs == 0 && ch.size() < 2 && p != 0)
-                PointerTree::clearNonBranchingInternalNode(this);
+                PointerTree::clearNonBranchingInternalNode(PointerTree::nodes[id]);
             // Note: this object can commit suicide ('delete this') above!
         }
         inline unsigned numberOfRefs() const
         { return nrefs; }
         
         // Modify the set of children        
-        inline void erase(PointerNode *pn)
+        inline void erase(NodeId pn)
         { ch.erase(pn); /* Note: PointerNode instance still in memory. */ }
-        inline void insert(PointerNode *pn)
+        inline void insert(NodeId pn)
         { ch.insert(pn); }
+        inline void erase(PointerNode *pn)
+        { ch.erase(pn->nodeId()); }
+        inline void insert(PointerNode *pn)
+        { ch.insert(pn->nodeId()); }
 
-        virtual ~PointerNode()
+        inline void reset()
         {
-            // Free child nodes; assumes that all PointerNodes are owned by this class
-            for (iterator it = ch.begin(); it != ch.end(); ++it)
-                delete *it;
+            id = PointerTree::nonreserved;
+            assert (lf == false);
+            d = 1.0;
+            p = PointerTree::nonreserved;
+            nzeros  = PointerTree::unknown;
+            nones = PointerTree::unknown;
+            assert (nrefs  == 0);
+            preve = PointerTree::nohistory;
+            assert (ch.size() == 0);
+            assert(nrefs == 0);
         }
+
+        // Internal node reset
+        inline void reset(NodeId id_, TreeDepth d_, NodeId p_)
+        {
+            assert(id == PointerTree::nonreserved);
+            assert(p == PointerTree::nonreserved);
+            id = id_;
+            d = d_;
+            p = p_;
+            assert (lf == false);
+            assert (nzeros == PointerTree::unknown);
+            assert (nones == PointerTree::unknown);
+            assert (nrefs == 0);
+            assert (preve = PointerTree::nohistory);
+            assert (ch.size() == 0);
+        }
+        
+        virtual ~PointerNode()
+        { }
         
         // Default copy constructor and assignment
     private:
-        std::unordered_set<PointerNode *> ch; // Children
-        LeafId id;          // Leaf identifier (unique)
+        std::unordered_set<NodeId> ch; // Children
+        NodeId id;          // Node identifier (unique)
+        bool lf;            // Leaf node?
         TreeDepth d;        // Given depth
-        PointerNode * p;    // Parent node
+        NodeId p;           // Parent node
         unsigned nzeros;    // Number of zero labels in the subtree
         unsigned nones;     // Number of one labels in the subtree
         unsigned nrefs;     // Number of active history references.
         unsigned preve;     // Previous event number (refers to the history vector)
-        PointerNode *descentNonGhost; // Short-cut descent to next non-ghost node below.
     };
 
     /**
@@ -212,13 +218,12 @@ public:
             new_src->addRef(); // Increase the number of references to new_src.
             src = new_src;
         }
-
+        
         PointerNode * getSource() const
         { return src; }
         PointerNode * getNode() const
         { return pn; }
 
-        
         void rewind()
         {
             src->removeRef(); // Decrease the number of references; may delete src!
@@ -231,19 +236,20 @@ public:
         // Default copy constructor and assignment
     private:
         Event();
-        PointerNode *src; // Source node
-        PointerNode *pn;  // Subtree that was relocated
+        PointerNode * src; // Source node
+        PointerNode * pn;  // Subtree that was relocated
     };
-    
-public:
-    PointerTree(InputColumn const &);
 
+public:
+    explicit PointerTree(InputColumn const &);
+    virtual ~PointerTree();
+    
     void validate();
     void outputDOT(std::string const &, unsigned);
 
     // Helpful accessors
-    PointerNode & root()
-    { return r; }
+    PointerNode * root()
+    { return nodes[r]; }
     std::size_t size()
     { return n; }
     std::size_t nnodes()
@@ -257,15 +263,51 @@ public:
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);
     
-    // Flags for nonreducible subtrees etc.
-    static const LeafId nonleaf;
+    // Flags
+    static const NodeId nonreserved;
     static const unsigned nohistory;
     static const unsigned unknown;
-private:
-    PointerNode r;
-    std::size_t n; // Number of leaves
+
+    static std::vector<PointerNode *> nodes; // Buffer for node allocation    
     static std::size_t N; // Number of nodes
+private:
+    PointerTree();
+    // No copy constructor or assignment
+    PointerTree(PointerTree const&);
+    PointerTree& operator = (PointerTree const&);
+   
+    static NodeId createNode(TreeDepth d_, NodeId p_)
+    {
+        if (vacant.empty())
+        {
+            if (nextVacant >= nodes.size())
+            {                
+                nodes.resize(nodes.size()*2);
+                for (size_t i = nodes.size()/2; i < nodes.size(); ++i)
+                    nodes[i] = new PointerNode();                
+            }
+            nodes[nextVacant]->reset(nextVacant, d_, p_);
+            return nextVacant++;
+        }
+        NodeId id = vacant.back();
+        vacant.pop_back();
+        nodes[id]->reset(id, d_, p_);
+        return id;
+    }
+    
+    static void discardNode(NodeId id)
+    {
+        assert(nodes[id]->numberOfRefs() == 0);
+        assert(nodes[id]->size() == 0);
+        nodes[id]->reset();
+        vacant.push_back(id);
+    }
+
+    NodeId r;
+    std::size_t n; // Number of leaves
     std::vector<Event> history;
     std::vector<bool> validationReachable;
+    static std::vector<NodeId> vacant;
+    static NodeId nextVacant;
 };
 #endif

@@ -6,11 +6,11 @@ using namespace std;
 
 void TreeController::process(InputColumn const &ic, unsigned step)
 {
-    PointerTree::PointerNode &root = t.root();
-    reduce(&root, ic);
+    PointerTree::PointerNode *root = t.root();
+    reduce(root, ic);
     if (debug && !dotfile.empty())
         t.outputDOT("reduced", step);
-    resolveNonBinary(&root);
+    resolveNonBinary(root);
     if (debug && !dotfile.empty())
         t.outputDOT("resolvednonbinaryr", step);
 
@@ -19,11 +19,8 @@ void TreeController::process(InputColumn const &ic, unsigned step)
 
     recombine.clear();
     recombine.reserve(2 * t.size());
-    collectRecombine(&root);
+    collectRecombine(root);
     recombineSubtrees(true, false); // Keep history; do not keep parent counts
-    // Note: Recombine can mess up 0-1-count values in the upward path FIXME
-    //if (debug)
-    //    t.validate(); // Does not pass assert FIXME
 }
 
 // Reduce the tree (updates all the 0-1-count values in the given tree)
@@ -33,9 +30,6 @@ pair<unsigned, unsigned> TreeController::reduce(PointerTree::PointerNode *pn, In
     if (pn->ghostbranch())
         return make_pair(0,0);
 
-    if (pn->hasShortcut())
-        return reduce(pn->descendantShortcut(), ic);
-    
     if (pn->leaf())
     {
         // Sets the new column leaf label
@@ -72,12 +66,6 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
     if (pn->leaf() || pn->reduced() || pn->ghostbranch())
         return;
 
-    if (pn->hasShortcut())
-    {
-        resolveNonBinary(pn->descendantShortcut());
-        return;
-    }
-
     // Depth first
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         resolveNonBinary(*it);
@@ -94,8 +82,8 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
     if (recombine.size() > 1)
     {
         recombineSubtrees(false, true); // Not included in history events; does keep parent counter 
-        (*(recombine.begin()))->parent()->nOnes(nones); // The new parent must be a reduced node
-        (*(recombine.begin()))->parent()->nZeros(0);    // with 'nones' number of ones.
+        (*(recombine.begin()))->parentPtr()->nOnes(nones); // The new parent must be a reduced node
+        (*(recombine.begin()))->parentPtr()->nZeros(0);    // with 'nones' number of ones.
     }
 }
 
@@ -108,12 +96,6 @@ void TreeController::collectRecombine(PointerTree::PointerNode *pn)
     {
         if (pn->reducedLabel() == 1)
             recombine.push_back(pn);
-        return;
-    }
-
-    if (pn->hasShortcut())
-    {
-        collectRecombine(pn->descendantShortcut());
         return;
     }
 
@@ -157,8 +139,6 @@ unsigned TreeController::countActive(PointerTree::PointerNode *pn)
     if (pn->ghostbranch())
         return 0;
 
-    if (pn->hasShortcut())
-        return countActive(pn->descendantShortcut());
     g++;    
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         g += countActive(*it);
@@ -223,64 +203,4 @@ unsigned TreeController::countBranchingGhosts(PointerTree::PointerNode *pn)
     }
     return g;
 }
-
-/**
- * REMOVE
-InputLabel TreeController::reduceGhosts(PointerTree::PointerNode *pn)
-{
-    assert(!pn->leaf() || pn->leafId() != ~0u);
-    if (pn->ghostbranch())
-        return PointerTree::ghostbranch;
-    
-    if (pn->leaf())
-        return 0;
-
-    if (pn->size() == 0)
-    {
-        // Ghost leaf node
-        //cerr << "found ghost branch" << endl;
-        assert(pn->numberOfRefs() > 0);
-        pn->setReduced(PointerTree::ghostbranch);
-        return PointerTree::ghostbranch;
-    }
-    
-    unsigned nnonghostbranch = 0;
-    PointerTree::PointerNode *nonghost_chld = 0;
-
-    PointerTree::PointerNode::iterator it = pn->begin();
-    InputLabel il = reduceGhosts(*it); // Label of first child
-    if (il != PointerTree::ghostbranch)
-    {
-        nonghost_chld = *it;
-        ++nnonghostbranch;
-    }
-    
-    while (++it != pn->end())
-    {
-        // Process rest of the children
-        InputLabel tmp = reduceGhosts(*it);
-        if (tmp != PointerTree::ghostbranch)
-        {
-            nonghost_chld = *it;
-            ++nnonghostbranch;
-        }
-        if (il != tmp)
-            il = PointerTree::nonreducible;
-    }
-    // All children labels are ghostbranch
-    if (il == PointerTree::ghostbranch)
-        pn->setReduced(il);
-    // Check if there's only one "real" descendant.
-    else if (nnonghostbranch == 1)
-    {
-        // Update the descendant shortcut
-        if (nonghost_chld->hasShortcut())
-            pn->descendantShortcut(nonghost_chld->descendantShortcut());
-        else
-            if (nonghost_chld->size() < 2 && !nonghost_chld->leaf())
-                pn->descendantShortcut(nonghost_chld);
-    }
-        
-    return il;
-    } REMOVE */
 

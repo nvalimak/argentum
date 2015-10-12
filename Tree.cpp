@@ -6,21 +6,39 @@
 using namespace std;
 
 // Default flag values
-const LeafId PointerTree::nonleaf = (LeafId)~0u;
+const NodeId PointerTree::nonreserved = (NodeId)~0u;
 const unsigned PointerTree::nohistory = ~0u;
 const unsigned PointerTree::unknown = ~0u;
 size_t PointerTree::N = 0; // Total number of nodes
+vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
+vector<NodeId> PointerTree::vacant = vector<NodeId>();
+NodeId PointerTree::nextVacant = 0;
+
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : r(), n(ic.size()), history(), validationReachable()
+    : r(0), n(ic.size()), history(), validationReachable()
 {
     history.reserve(HISTORY_INIT_SIZE);
-    LeafId id = 0;
+    nodes.resize(BUFFER_INIT_SIZE);
+    size_t id = 0;
+    nodes[id++] = new PointerNode(1.0, PointerTree::nonreserved);
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
-        r.insert(new PointerNode(id++, 0.0, &r));
+    {
+        nodes[id] = new PointerNode(id, 0.0, r);
+        nodes[r]->insert(id++);
+    }
+    nextVacant = id;
+    for (; id < BUFFER_INIT_SIZE; ++id)
+        nodes[id] = new PointerNode();
 
     PointerTree::N = ic.size()+1; // Initial size of the tree
     validationReachable.resize(n);
+}
+
+PointerTree::~PointerTree()
+{
+    for (size_t i = 0; i < nodes.size(); ++i)
+        delete nodes[i];
 }
 
 /**
@@ -29,17 +47,17 @@ PointerTree::PointerTree(InputColumn const &ic)
 PointerTree::PointerNode * PointerTree::createDest(PointerNode *pn)
 {
     ++N;
-    PointerNode *parent = pn->parent();
-    assert (parent != 0);
-    parent->erase(pn);
-    TreeDepth d = (parent->depth() - pn->depth())/2;
-    PointerNode * dest = new PointerNode(d, parent);
-    parent->insert(dest);
-    dest->insert(pn);
+    NodeId parent = pn->parent();
+    assert (parent != PointerTree::nonreserved);
+    nodes[parent]->erase(pn->nodeId());
+    TreeDepth d = (nodes[parent]->depth() - pn->depth())/2;
+    NodeId dest = createNode(d, parent);
+    nodes[parent]->insert(dest);
+    nodes[dest]->insert(pn->nodeId());
     pn->setParent(dest);
-    dest->nZeros(pn->nZeros());
-    dest->nOnes(pn->nOnes());
-    return dest;
+    nodes[dest]->nZeros(pn->nZeros());
+    nodes[dest]->nOnes(pn->nOnes());
+    return nodes[dest];
 }
 
 /**
@@ -49,37 +67,24 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
 {
     assert(pn->size() < 2);
     assert(!pn->root());
-    if (pn->numberOfRefs() > 0)
-    {
-        // Cannot be removed since one or more references appear in history
-        if (pn->size() == 1)
-        {
-            // Update the descendant shortcut
-            PointerNode *only_chld = *(pn->begin());
-            if (only_chld->hasShortcut())
-                pn->descendantShortcut(only_chld->descendantShortcut());
-            else
-                if (only_chld->size() < 2 && !only_chld->leaf())
-                    pn->descendantShortcut(only_chld);
-        }
-        return;
-    }
+    if (pn->numberOfRefs() > 0)        
+        return; // Cannot be removed since one or more references appear in history
     
     // Safe to truncate 'pn' out from the tree
-    PointerNode *parent = pn->parent();
-    parent->erase(pn);
+    NodeId parent = pn->parent();
+    nodes[parent]->erase(pn->nodeId());
     if (pn->size() == 1)
     {
         // Rewire the only child of pn:
-        PointerNode *only_chld = *(pn->begin());
-        pn->erase(only_chld);      // Release the only child from pn
-        parent->insert(only_chld); // Rewire pn's parent to point to the only child
+        PointerNode * only_chld = *(pn->begin());
+        pn->erase(only_chld->nodeId());      // Release the only child from pn
+        nodes[parent]->insert(only_chld->nodeId()); // Rewire pn's parent to point to the only child
         only_chld->setParent(parent);
     }
     // Now safe to delete 'pn' out from the tree
     PointerTree::N--;
     assert(pn->size() == 0); // pn does not own any objects
-    delete pn;
+    discardNode(pn->nodeId());
 }
 
 /**
@@ -89,27 +94,27 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
  */
 void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory, bool keepparentcounts)
 {
-    PointerNode *src = pn->parent();
-    src->erase(pn);
+    NodeId src = pn->parent();
+    nodes[src]->erase(pn->nodeId());
     if (!keepparentcounts)
     {
-        src->addZeros(-(pn->nZeros()));
-        src->addOnes(-(pn->nOnes()));
+        nodes[src]->addZeros(-(pn->nZeros()));
+        nodes[src]->addOnes(-(pn->nOnes()));
     }
 
     // Update history event queue
     if (keephistory)
     {
-//              pn->previousEvent(history.size());
-// FIXME        history.push_back(Event(src, pn));
+        pn->previousEvent(history.size());
+        history.push_back(Event(nodes[src], pn));
     }
     
     // Clean source subtree if needed
-    if (src->size() == 1 && !src->root())
-        PointerTree::clearNonBranchingInternalNode(src);
+    if (nodes[src]->size() == 1 && !nodes[src]->root())
+        PointerTree::clearNonBranchingInternalNode(nodes[src]);
 
-    dest->insert(pn);
-    pn->setParent(dest);
+    dest->insert(pn->nodeId());
+    pn->setParent(dest->nodeId());
     dest->addZeros(pn->nZeros());
     dest->addOnes(pn->nOnes());
 }
@@ -121,7 +126,7 @@ void PointerTree::rewind(Event &e)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
-    PointerNode *src = pn->parent();
+    PointerNode *src = pn->parentPtr();
     dest->insert(pn);
     dest->addZeros(pn->nZeros());
     dest->addOnes(pn->nOnes());
@@ -142,10 +147,10 @@ pair<unsigned,unsigned> validate(PointerTree::PointerNode *pn, PointerTree::Poin
 {
     assert (pn->nZeros() != PointerTree::unknown);
     assert (pn->nOnes() != PointerTree::unknown);
-    assert (p == pn->parent());
+    assert (pn->root() || p == pn->parentPtr());
     if (pn->leaf())
     {
-        assert (pn->leafId() != PointerTree::nonleaf);
+        assert (pn->leafId() != PointerTree::nonreserved);
         assert (pn->reduced());
         assert (pn->numberOfRefs() == 0);
 	validationReachable[pn->leafId()] = true;
@@ -154,8 +159,6 @@ pair<unsigned,unsigned> validate(PointerTree::PointerNode *pn, PointerTree::Poin
         else
             return make_pair(1,0);
     }
-    if (pn->hasShortcut())
-        return validate(pn->descendantShortcut(), pn->descendantShortcut()->parent(), validationReachable);
     
     if (!pn->root())
     {
@@ -177,7 +180,7 @@ void PointerTree::validate()
 {
     for (unsigned i = 0; i<n; ++i)
 	validationReachable[i]=false;
-    pair<unsigned,unsigned> count = ::validate(&r, 0, validationReachable);
+    pair<unsigned,unsigned> count = ::validate(nodes[r], 0, validationReachable);
     unsigned reachable=0;
     for (unsigned i = 0; i<n; ++i)
 	if(validationReachable[i])
@@ -232,7 +235,7 @@ void PointerTree::outputDOT(string const &filename, unsigned step)
         of = new ofstream (fn);
     }
     (*of) << "digraph G {" << endl;
-    ::outputDOT(&r, 0, *of);
+    ::outputDOT(nodes[r], 0, *of);
     (*of) << "}" << endl;
     if (of != &std::cout)
         delete of;
