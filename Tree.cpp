@@ -19,7 +19,11 @@ PointerTree::PointerTree(InputColumn const &ic)
     : r(0), n(ic.size()), history(), validationReachable()
 {
     history.reserve(HISTORY_INIT_SIZE);
-    nodes.resize(BUFFER_INIT_SIZE);
+    if (BUFFER_INIT_SIZE > ic.size()*2)
+        nodes.resize(BUFFER_INIT_SIZE);
+    else
+        nodes.resize(ic.size()*2);
+        
     size_t id = 0;
     nodes[id++] = new PointerNode(1.0, PointerTree::nonreserved);
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
@@ -28,7 +32,7 @@ PointerTree::PointerTree(InputColumn const &ic)
         nodes[r]->insert(id++);
     }
     nextVacant = id;
-    for (; id < BUFFER_INIT_SIZE; ++id)
+    for (; id < nodes.size(); ++id)
         nodes[id] = new PointerNode();
 
     PointerTree::N = ic.size()+1; // Initial size of the tree
@@ -105,8 +109,8 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory,
     // Update history event queue
     if (keephistory)
     {
-        pn->previousEvent(history.size());
-        history.push_back(Event(nodes[src], pn));
+        //pn->previousEvent(history.size());
+        //history.push_back(Event(nodes[src], pn));
     }
     
     // Clean source subtree if needed

@@ -11,6 +11,7 @@ typedef double TreeDepth;
 
 // Initial memory reservation
 #define HISTORY_INIT_SIZE 1024*1024
-#define BUFFER_INIT_SIZE 1024*1024
+#define BUFFER_INIT_SIZE 5024
+//*1024
 
 #endif

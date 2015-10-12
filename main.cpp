@@ -99,7 +99,7 @@ int main(int argc, char ** argv)
     TreeController tc(tree, debug, dotfile);
     do
     {
-        if (verbose && step%1 == 0)
+        if (verbose && step%100 == 0)
             cerr << "at step " << step << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
                  << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;

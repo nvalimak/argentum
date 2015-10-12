@@ -1,7 +1,7 @@
 #ifndef _Tree_h_
 #define _Tree_h_
 #include "default.h"
-#include <unordered_set>
+#include <set>
 #include <vector>
 #include <list>
 #include <iostream>
@@ -28,7 +28,8 @@ public:
      */
     class PointerNode
     {
-    public:
+        typedef std::set<NodeId> children_set_t;
+    public:        
         PointerNode() // Empty node constructor
             : ch(), id(PointerTree::nonreserved), lf(false), d(1.0), p(PointerTree::nonreserved), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
         { }
@@ -50,7 +51,7 @@ public:
         { return id; }
         inline LeafId leafId() const
         { return id-1; /* Root is id==0 */ } 
-        inline std::unordered_set<NodeId>::size_type size() const
+        inline children_set_t::size_type size() const
         { return ch.size(); }
         inline TreeDepth depth() const
         { return d; }
@@ -94,9 +95,9 @@ public:
         // Iterator to child nodes
         class iterator 
         {            
-            std::unordered_set<NodeId>::iterator p;
+            children_set_t::iterator p;
         public:
-            iterator(std::unordered_set<NodeId>::iterator x) :p(x) {}
+            iterator(children_set_t::iterator x) :p(x) {}
             iterator(const iterator& mit) : p(mit.p) {}
             iterator& operator++() {++p;return *this;}
             iterator operator++(int) {iterator tmp(*this); operator++(); return tmp;}
@@ -184,7 +185,7 @@ public:
         
         // Default copy constructor and assignment
     private:
-        std::unordered_set<NodeId> ch; // Children
+        children_set_t ch;  // Children
         NodeId id;          // Node identifier (unique)
         bool lf;            // Leaf node?
         TreeDepth d;        // Given depth
@@ -268,6 +269,7 @@ public:
     static const unsigned nohistory;
     static const unsigned unknown;
 
+    // FIXME Public?
     static std::vector<PointerNode *> nodes; // Buffer for node allocation    
     static std::size_t N; // Number of nodes
 private:
