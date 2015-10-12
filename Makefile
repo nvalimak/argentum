@@ -9,7 +9,7 @@ main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)
 
 test: main
-	./main --input test.input --plaintext --verbose --debug --dot test
+	./main --input test.input2 --plaintext --verbose --debug --dot test
 
 dot: main
 	for i in *.dot; do dot -Tpng $$i > $${i%.dot}.png; done

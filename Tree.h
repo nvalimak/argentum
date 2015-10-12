@@ -71,17 +71,17 @@ public:
         { return (nones == 0 || nzeros == 0) && nones+nzeros>0; }
         inline InputLabel reducedLabel() const
         { return (nones > 0 && nzeros == 0); }
-        inline void nZeros(unsigned zeros_)
+        inline void nZeros(int zeros_)
         { nzeros = zeros_; }
-        inline void nOnes(unsigned nones_)
+        inline void nOnes(int nones_)
         { nones = nones_; }
-        inline void addZeros(unsigned zeros_)
+        inline void addZeros(int zeros_)
         { nzeros += zeros_; }
-        inline void addOnes(unsigned nones_)
+        inline void addOnes(int nones_)
         { nones += nones_; }
-        inline unsigned nZeros() const
+        inline int nZeros() const
         { return nzeros; }
-        inline unsigned nOnes() const
+        inline int nOnes() const
         { return nones; }
         void setLabel(InputLabel il)
         {
@@ -131,6 +131,7 @@ public:
          */
         inline void removeRef()
         {
+            assert(nrefs > 0);
             --nrefs;
             // If no other references remain, clean the tree
             if (nrefs == 0 && ch.size() < 2 && p != 0)
@@ -190,8 +191,8 @@ public:
         bool lf;            // Leaf node?
         TreeDepth d;        // Given depth
         NodeId p;           // Parent node
-        unsigned nzeros;    // Number of zero labels in the subtree
-        unsigned nones;     // Number of one labels in the subtree
+        int nzeros;         // Number of zero labels in the subtree
+        int nones;          // Number of one labels in the subtree
         unsigned nrefs;     // Number of active history references.
         unsigned preve;     // Previous event number (refers to the history vector)
     };
@@ -245,9 +246,6 @@ public:
     explicit PointerTree(InputColumn const &);
     virtual ~PointerTree();
     
-    void validate();
-    void outputDOT(std::string const &, unsigned);
-
     // Helpful accessors
     PointerNode * root()
     { return nodes[r]; }
@@ -259,15 +257,21 @@ public:
     // Tree modification (used in the class TreeController)
     PointerNode * createDest(PointerNode *);
     void relocate(PointerNode *, PointerNode *, bool, bool);
+    void stash(PointerNode *, bool, bool);
+    void unstash();
     void rewind(Event &);
     
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);
+
+    // Debugging
+    void validate();
+    void outputDOT(std::string const &, unsigned);
     
     // Flags
     static const NodeId nonreserved;
     static const unsigned nohistory;
-    static const unsigned unknown;
+    static const int unknown;
 
     // FIXME Public?
     static std::vector<PointerNode *> nodes; // Buffer for node allocation    
@@ -305,8 +309,11 @@ private:
         vacant.push_back(id);
     }
 
+    void propagateUpwardCounts(PointerNode *, int, int);
+    
     NodeId r;
     std::size_t n; // Number of leaves
+    std::vector<PointerTree::PointerNode *> stashv;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
     static std::vector<NodeId> vacant;

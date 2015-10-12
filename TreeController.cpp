@@ -19,12 +19,15 @@ void TreeController::process(InputColumn const &ic, unsigned step)
 
     recombine.clear();
     recombine.reserve(2 * t.size());
-    collectRecombine(root);
-    recombineSubtrees(true, false); // Keep history; do not keep parent counts
+    recombineStrategy(root);
+
+    t.unstash(); // Recover stashed subtrees (inserted to the root)
+    if (debug)
+        t.validate();
 }
 
 // Reduce the tree (updates all the 0-1-count values in the given tree)
-pair<unsigned, unsigned> TreeController::reduce(PointerTree::PointerNode *pn, InputColumn const &ic)
+pair<int, int> TreeController::reduce(PointerTree::PointerNode *pn, InputColumn const &ic)
 {
     assert(!pn->leaf() || pn->leafId() != ~0u);
     if (pn->ghostbranch())
@@ -46,11 +49,11 @@ pair<unsigned, unsigned> TreeController::reduce(PointerTree::PointerNode *pn, In
         return make_pair(0,0);
     }
 
-    unsigned nzeros = 0;
-    unsigned nones = 0;
+    int nzeros = 0;
+    int nones = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
-        pair<unsigned, unsigned> tmp = reduce(*it, ic);
+        pair<int, int> tmp = reduce(*it, ic);
         nzeros += tmp.first;
         nones += tmp.second;
     }
@@ -72,11 +75,11 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
 
     // Modify local structure
     recombine.clear();
-    unsigned nones = 0;
+    int nones = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         if ((*it)->reduced() && (*it)->reducedLabel() == 1)
         {
-            nones += (*it)->nOnes();
+            nones += (*it)->nOnes(); // FIXME If *it is a unary ghost, gets merged with other reduced subtrees
             recombine.push_back(*it);
         }
     if (recombine.size() > 1)
@@ -87,14 +90,13 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
     }
 }
 
-// Collects 'recombine' to contain all reduced branches whose symbol == '1'
-void TreeController::collectRecombine(PointerTree::PointerNode *pn)
+void TreeController::findReduced(PointerTree::PointerNode *pn, InputLabel il)
 {
     if (pn->ghostbranch())
         return;
     if (pn->leaf())
     {
-        if (pn->reducedLabel() == 1)
+        if (pn->reducedLabel() == il)
             recombine.push_back(pn);
         return;
     }
@@ -107,14 +109,86 @@ void TreeController::collectRecombine(PointerTree::PointerNode *pn)
     }
     if (!unarypath && pn->reduced())
     {
-        if (pn->reducedLabel() == 1)
+        if (pn->reducedLabel() == il)
             recombine.push_back(pn);
         return;
     }
 
     // Assert: 'pn' is an unary ghost node, or a nonreducible node
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        collectRecombine(*it);
+        findReduced(*it, il);
+}
+
+/**
+ * Recombine strategy
+ *
+ * For each subtree:
+ *   1) Relocates all non-consistent 0-reduced branches to the root
+ *   2) Relocates all non-consistent 1-reduced branches below the same node
+ */
+pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
+{
+    if (pn->ghostbranch())
+        return make_pair(0,0);       // Assert: Ghost branch, ignored here
+    if (pn->leaf())
+    {
+        if (pn->reducedLabel() == 1) // Assert: Leaf node
+            return make_pair(0,1);
+        else
+            return make_pair(1,0);
+    }
+    
+    bool unarypath = false;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
+            unarypath = true;
+
+    if (!unarypath && pn->reduced())
+    {
+        if (pn->reducedLabel() == 1) // Assert: Reduced internal node that is not a unary ghost node
+            return make_pair(0,1);
+        else
+            return make_pair(1,0);
+    }
+    
+    // Assert: 'pn' is an unary ghost node, or a nonreducible node
+    int nzeroreduced = 0;
+    int nonereduced = 0;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+    {
+        pair<int,int> tmp = recombineStrategy(*it);
+        nzeroreduced += tmp.first;
+        nonereduced += tmp.second;
+    }       
+    if (unarypath)
+        return make_pair(nzeroreduced, nonereduced);
+
+    // Assert: pn is a nonreducible node
+    if (nzeroreduced < nonereduced)
+    {
+        // Cut the zero-reduced subtrees and relocate under root
+        recombine.clear();
+        findReduced(pn, 0);
+        for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
+            t.stash(*it, true, false);
+
+        pn->nZeros(0);
+        return make_pair(0,1); // This subtree becomes reduced
+    }
+    if (nzeroreduced == nonereduced)
+    {
+        // Balanced tree; no operation at this step
+        return make_pair(nzeroreduced, nonereduced);
+    }
+    // Assert: nonereduced < nzeroreduced
+    if (nonereduced == 1)
+        return make_pair(nzeroreduced, nonereduced);
+    
+    // Assert: nonereduced >= 2 && nonereduced < nzeroreduced
+    recombine.clear();
+    findReduced(pn, 1);
+    recombineSubtrees(true, false);
+    return make_pair(nzeroreduced, 1);
 }
 
 // Relocates all selected subtrees to the first selected subtree

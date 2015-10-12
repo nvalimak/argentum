@@ -23,17 +23,18 @@ public:
     unsigned countBranchingGhosts(PointerTree::PointerNode *);
     unsigned countActive(PointerTree::PointerNode *);
         
-protected:
-    std::pair<unsigned, unsigned> reduce(PointerTree::PointerNode *, InputColumn const &);
-//    InputLabel reduceGhosts(PointerTree::PointerNode *);
+private:
+    std::pair<int, int> reduce(PointerTree::PointerNode *, InputColumn const &);
     void resolveNonBinary(PointerTree::PointerNode *);
-    void collectRecombine(PointerTree::PointerNode *);
+    std::pair<int,int> recombineStrategy(PointerTree::PointerNode *);
     void recombineSubtrees(bool, bool);
+    void findReduced(PointerTree::PointerNode *, InputLabel);
+
     PointerTree &t;
     std::vector<PointerTree::PointerNode *> recombine;
     bool debug;
     std::string dotfile;
-private:
+    
     TreeController();
     // No copy constructor or assignment
     TreeController(TreeController const&);
