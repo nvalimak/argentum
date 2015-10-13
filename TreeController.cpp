@@ -175,7 +175,7 @@ pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
         pn->nZeros(0);
         return make_pair(0,1); // This subtree becomes reduced
     }
-    if (nzeroreduced == nonereduced)
+    if (!pn->root() && nzeroreduced == nonereduced)
     {
         // Balanced tree; no operation at this step
         return make_pair(nzeroreduced, nonereduced);
