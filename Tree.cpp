@@ -8,7 +8,9 @@ using namespace std;
 // Default flag values
 const NodeId PointerTree::nonreserved = (NodeId)~0u;
 const unsigned PointerTree::nohistory = ~0u;
-const int PointerTree::unknown = (int)-2000;
+const int PointerTree::unknown = (int)-1000;
+
+// Static variables (FIXME clean up)
 size_t PointerTree::N = 0; // Total number of nodes
 vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
 vector<NodeId> PointerTree::vacant = vector<NodeId>();
@@ -48,14 +50,14 @@ PointerTree::~PointerTree()
 /**
  * Create a new internal node above the given node
  */
-PointerTree::PointerNode * PointerTree::createDest(PointerNode *pn)
+PointerTree::PointerNode * PointerTree::createDest(PointerNode *pn, unsigned step)
 {
     ++N;
     NodeId parent = pn->parent();
     assert (parent != PointerTree::nonreserved);
     nodes[parent]->erase(pn);
     TreeDepth d = (nodes[parent]->depth() - pn->depth())/2;
-    NodeId dest = createNode(d, parent);
+    NodeId dest = createNode(d, parent, step);
     nodes[parent]->insert(dest);
     nodes[dest]->insert(pn);
     pn->setParent(dest);
@@ -96,24 +98,24 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
  * Adds an event into the history queue.
  * Cleans up the source subtree.
  */
-void PointerTree::relocate(PointerNode *pn, PointerNode *dest, bool keephistory, bool keepparentcounts)
+void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned step, bool keephistory, bool keepparentcounts)
 {
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
+    nodes[src]->previousUpdate(step);
+
     if (!keepparentcounts)
         propagateUpwardCounts(nodes[src], -(pn->nZeros()), -(pn->nOnes()));
 
     // Update history event queue
     if (keephistory)
-    {
-        pn->previousEvent(history.size());
-        history.push_back(Event(nodes[src], pn));
-    }
+        history.push_back(Event(nodes[src], pn, step, history.size()));
     
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())
         PointerTree::clearNonBranchingInternalNode(nodes[src]);
 
+    dest->previousUpdate(step);
     dest->insert(pn);
     pn->setParent(dest);
     if (!keepparentcounts)
@@ -136,7 +138,7 @@ void PointerTree::propagateUpwardCounts(PointerNode *pn, int nzeros, int nones)
  * Adds an event into the history queue.
  * Cleans up the source subtree.
  */
-void PointerTree::stash(PointerNode *pn, bool keephistory, bool keepparentcounts)
+void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool keepparentcounts)
 {
     stashv.push_back(pn);
     NodeId src = pn->parent();
@@ -146,10 +148,9 @@ void PointerTree::stash(PointerNode *pn, bool keephistory, bool keepparentcounts
 
     // Update history event queue
     if (keephistory)
-    {
-        pn->previousEvent(history.size());
-        history.push_back(Event(nodes[src], pn));
-    }
+        history.push_back(Event(nodes[src], pn, step, history.size()));
+
+    pn->previousUpdate(step);
     
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())
@@ -167,11 +168,13 @@ void PointerTree::unstash()
         PointerNode *pn = *it;
         dest->insert(pn);
         pn->setParent(dest);
+        pn->floating(true);
         dest->addZeros(pn->nZeros());
-        dest->addOnes(pn->nOnes());
+        dest->addOnes(pn->nOnes());        
     }
     stashv.clear();
 }
+
 /**
  * Rewind the given event
  */
@@ -199,6 +202,7 @@ void PointerTree::rewind(Event &e)
  */
 pair<int, int> validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
 {
+    assert (pn->root() || pn->leaf() || pn->previousUpdate() != PointerTree::nohistory);
     assert (pn->nZeros() != PointerTree::unknown);
     assert (pn->nOnes() != PointerTree::unknown);
     assert (pn->root() || p == pn->parentPtr());
@@ -246,7 +250,7 @@ void PointerTree::validate()
 /**
  * Graphical output. Requires Graphwiz DOT.
  */
-unsigned outputDOT(PointerTree::PointerNode *pn, unsigned id, ostream &of)
+unsigned PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
 {    
     unsigned cur_id = id;
     if (pn->leaf())
@@ -256,7 +260,13 @@ unsigned outputDOT(PointerTree::PointerNode *pn, unsigned id, ostream &of)
     {
         of << " n" << cur_id << " -> n" << ++id  << endl;
         of << " n" << id << " [label=\"";
-        of << (*it)->nodeId() << " ";
+        of << (*it)->nodeId() << "/";
+        if ((*it)->previousUpdate() != PointerTree::nohistory)
+            of << (*it)->previousUpdate() << " ";
+        else
+            of << "unset ";
+        if ((*it)->floating())
+            of << "F" << PointerTree::history[(*it)->previousEvent()].getStep() << " ";
         if ((*it)->leaf())
             of << (*it)->nZeros() << "v" << (*it)->nOnes() << "\",shape=box";
         else
@@ -290,7 +300,7 @@ void PointerTree::outputDOT(string const &filename, unsigned step)
         of = new ofstream (fn);
     }
     (*of) << "digraph G {" << endl;
-    ::outputDOT(nodes[r], 0, *of);
+    outputDOT(nodes[r], 0, *of);
     (*of) << "}" << endl;
     if (of != &std::cout)
         delete of;

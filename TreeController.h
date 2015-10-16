@@ -13,7 +13,7 @@ class TreeController
 {
 public:
     TreeController (PointerTree &t_, bool debug_, std::string dotfile_)
-        : t(t_), recombine(), debug(debug_), dotfile(dotfile_)
+        : t(t_), recombine(), step(0), debug(debug_), dotfile(dotfile_)
     { }
     void process(InputColumn const &, unsigned);
 
@@ -28,10 +28,12 @@ private:
     void resolveNonBinary(PointerTree::PointerNode *);
     std::pair<int,int> recombineStrategy(PointerTree::PointerNode *);
     void recombineSubtrees(bool, bool);
+    void recombineNonBinarySubtrees(bool, bool);
     void findReduced(PointerTree::PointerNode *, InputLabel);
 
     PointerTree &t;
     std::vector<PointerTree::PointerNode *> recombine;
+    unsigned step;
     bool debug;
     std::string dotfile;
     

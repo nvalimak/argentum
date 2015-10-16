@@ -31,15 +31,21 @@ public:
         typedef std::set<NodeId> children_set_t;
     public:        
         PointerNode() // Empty node constructor
-            : ch(), id(PointerTree::nonreserved), lf(false), d(1.0), p(PointerTree::nonreserved), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
+            : ch(), id(PointerTree::nonreserved), lf(false), d(1.0), p(PointerTree::nonreserved),
+              nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
+              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory)
         { }
         // Root node constructor
         PointerNode(TreeDepth d_, NodeId p_)
-            : ch(), id(0), lf(false), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
+            : ch(), id(0), lf(false), d(d_), p(p_),
+              nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
+              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory)
         { }
         // Leaf node constructor
         PointerNode(LeafId id_, TreeDepth d_, NodeId p_)
-            : ch(), id(id_), lf(true), d(d_), p(p_), nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0), preve(PointerTree::nohistory)
+            : ch(), id(id_), lf(true), d(d_), p(p_),
+              nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
+              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory)
         { }
 
         // General accessors
@@ -63,6 +69,14 @@ public:
         { return preve; }
         inline void previousEvent(unsigned e)
         { preve = e; }
+        inline unsigned previousUpdate() const
+        { return prevupdate; }
+        inline void previousUpdate(unsigned e)
+        { prevupdate = e; }
+        inline bool floating() const
+        { return flt; }
+        inline void floating(bool flt_)
+        { flt = flt_; }
         
         // Accessors to recuded tree representation
         inline bool ghostbranch() const
@@ -160,13 +174,15 @@ public:
             nzeros  = PointerTree::unknown;
             nones = PointerTree::unknown;
             assert (nrefs  == 0);
+            prevupdate = PointerTree::nohistory;
+            flt = false;
             preve = PointerTree::nohistory;
             assert (ch.size() == 0);
             assert(nrefs == 0);
         }
 
         // Internal node reset
-        inline void reset(NodeId id_, TreeDepth d_, NodeId p_)
+        inline void reset(NodeId id_, TreeDepth d_, NodeId p_, unsigned step)
         {
             assert(id == PointerTree::nonreserved);
             assert(p == PointerTree::nonreserved);
@@ -177,6 +193,8 @@ public:
             assert (nzeros == PointerTree::unknown);
             assert (nones == PointerTree::unknown);
             assert (nrefs == 0);
+            prevupdate = step;
+            flt = false;
             assert (preve = PointerTree::nohistory);
             assert (ch.size() == 0);
         }
@@ -194,19 +212,24 @@ public:
         int nzeros;         // Number of zero labels in the subtree
         int nones;          // Number of one labels in the subtree
         unsigned nrefs;     // Number of active history references.
+        unsigned prevupdate;// Previous update to the subtree
+        bool flt;           // Floating node (flagged)
         unsigned preve;     // Previous event number (refers to the history vector)
     };
 
     /**
-     * Representation for relocation event that relocates 'pn' from under 'src'.
+     * Representation for relocation event that relocates 'pn' from under 'src' at column 'step'.
      */
     class Event
     {
     public:
-        Event(PointerNode *src_, PointerNode *pn_)
-            : src(src_), pn(pn_)
+        Event(PointerNode *src_, PointerNode *pn_, unsigned step_, unsigned histid)
+            : src(src_), pn(pn_), step(step_), preve(PointerTree::nohistory)
         {
             src->addRef(); // Increase the number of references to src.
+            if (pn->hasPreviousEvent())
+                preve = pn->previousEvent();
+            pn->previousEvent(histid);
         }
 
         /**
@@ -218,18 +241,21 @@ public:
             src->removeRef();  // Decrease the number of references; may delete src!
             src = 0;
             new_src->addRef(); // Increase the number of references to new_src.
-            src = new_src;
+            src = new_src;            
         }
         
         PointerNode * getSource() const
         { return src; }
         PointerNode * getNode() const
         { return pn; }
-
+        unsigned getStep() const
+        { return step; }
+       
         void rewind()
         {
             src->removeRef(); // Decrease the number of references; may delete src!
-            src = 0; // Cannot be referenced anymore
+            src = 0;          // src cannot be referenced anymore
+            pn->previousEvent(preve); // Restore previous event (or PointerTree::nohistory)
         }
         
         ~Event ()
@@ -240,6 +266,8 @@ public:
         Event();
         PointerNode * src; // Source node
         PointerNode * pn;  // Subtree that was relocated
+        unsigned step;     // Column that initiated this event
+        unsigned preve;    // Previous event number for 'src' (refers to the history vector)
     };
 
 public:
@@ -254,10 +282,13 @@ public:
     std::size_t nnodes()
     { return N; }
 
+    inline unsigned getPreviousEventStep(PointerNode *pn)
+    { return history[pn->previousEvent()].getStep(); }
+    
     // Tree modification (used in the class TreeController)
-    PointerNode * createDest(PointerNode *);
-    void relocate(PointerNode *, PointerNode *, bool, bool);
-    void stash(PointerNode *, bool, bool);
+    PointerNode * createDest(PointerNode *, unsigned);
+    void relocate(PointerNode *, PointerNode *, unsigned, bool, bool);
+    void stash(PointerNode *, unsigned, bool, bool);
     void unstash();
     void rewind(Event &);
     
@@ -282,7 +313,7 @@ private:
     PointerTree(PointerTree const&);
     PointerTree& operator = (PointerTree const&);
    
-    static NodeId createNode(TreeDepth d_, NodeId p_)
+    static NodeId createNode(TreeDepth d_, NodeId p_, unsigned step)
     {
         if (vacant.empty())
         {
@@ -292,12 +323,12 @@ private:
                 for (size_t i = nodes.size()/2; i < nodes.size(); ++i)
                     nodes[i] = new PointerNode();                
             }
-            nodes[nextVacant]->reset(nextVacant, d_, p_);
+            nodes[nextVacant]->reset(nextVacant, d_, p_, step);
             return nextVacant++;
         }
         NodeId id = vacant.back();
         vacant.pop_back();
-        nodes[id]->reset(id, d_, p_);
+        nodes[id]->reset(id, d_, p_, step);
         return id;
     }
     
@@ -310,6 +341,8 @@ private:
     }
 
     void propagateUpwardCounts(PointerNode *, int, int);
+
+    unsigned outputDOT(PointerNode *, unsigned, std::ostream &);
     
     NodeId r;
     std::size_t n; // Number of leaves
