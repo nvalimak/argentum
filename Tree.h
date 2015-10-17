@@ -277,11 +277,13 @@ public:
     // Helpful accessors
     PointerNode * root()
     { return nodes[r]; }
-    std::size_t size()
+    std::size_t size() const
     { return n; }
-    std::size_t nnodes()
+    std::size_t nnodes() const
     { return N; }
-
+    std::size_t historySize() const
+    { return history.size(); }
+    
     inline unsigned getPreviousEventStep(PointerNode *pn)
     { return history[pn->previousEvent()].getStep(); }
     
@@ -291,6 +293,7 @@ public:
     void stash(PointerNode *, unsigned, bool, bool);
     void unstash();
     void rewind(Event &);
+    void rewind(unsigned);
     
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);

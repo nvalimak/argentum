@@ -102,20 +102,19 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned step, bo
 {
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
-    nodes[src]->previousUpdate(step);
 
     if (!keepparentcounts)
         propagateUpwardCounts(nodes[src], -(pn->nZeros()), -(pn->nOnes()));
 
     // Update history event queue
     if (keephistory)
-        history.push_back(Event(nodes[src], pn, step, history.size()));
+        if (!pn->floating() || (dest->previousUpdate() != PointerTree::nohistory && getPreviousEventStep(pn) < dest->previousUpdate()))
+            history.push_back(Event(nodes[src], pn, step, history.size()));
     
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())
         PointerTree::clearNonBranchingInternalNode(nodes[src]);
 
-    dest->previousUpdate(step);
     dest->insert(pn);
     pn->setParent(dest);
     if (!keepparentcounts)
@@ -150,8 +149,6 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
     if (keephistory)
         history.push_back(Event(nodes[src], pn, step, history.size()));
 
-    pn->previousUpdate(step);
-    
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())
         PointerTree::clearNonBranchingInternalNode(nodes[src]);
@@ -182,7 +179,13 @@ void PointerTree::rewind(Event &e)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
+    pn->floating(false);
     PointerNode *src = pn->parentPtr();
+    if (src == dest)
+    {
+        e.rewind();
+        return;
+    } 
     dest->insert(pn);
     propagateUpwardCounts(dest, pn->nZeros(), pn->nOnes());
     propagateUpwardCounts(src, -(pn->nZeros()), -(pn->nOnes()));
@@ -198,11 +201,31 @@ void PointerTree::rewind(Event &e)
 }
 
 /**
+ * Rewind the given site, if it is next in the history
+ */
+void PointerTree::rewind(unsigned h)
+{
+    if (history.empty())
+        return;
+    Event &e = history.back();
+    while (e.getStep() == h)
+    {
+        rewind(e);
+        history.pop_back();
+        e = history.back();
+    }
+}
+
+/**
  * Validate the integrity of the tree structure
  */
 pair<int, int> validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
 {
     assert (pn->root() || pn->leaf() || pn->previousUpdate() != PointerTree::nohistory);
+    if (! (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()))
+        cerr << "at node id = " << pn->nodeId() << " nzeros = " << pn->nZeros() << " nones = " << pn->nOnes() << ", size = " << pn->size() << ", floating = " << pn->floating() << endl
+             << "with parent id = " << p->nodeId() << " nzeros = " << p->nZeros() << " nones = " << p->nOnes() << ", size = " << p->size() << endl;
+    assert (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()); // floating node cannot attach to a bi-/unary node (except root)
     assert (pn->nZeros() != PointerTree::unknown);
     assert (pn->nOnes() != PointerTree::unknown);
     assert (pn->root() || p == pn->parentPtr());
@@ -260,13 +283,15 @@ unsigned PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
     {
         of << " n" << cur_id << " -> n" << ++id  << endl;
         of << " n" << id << " [label=\"";
-        of << (*it)->nodeId() << "/";
+        of << (*it)->nodeId();
         if ((*it)->previousUpdate() != PointerTree::nohistory)
-            of << (*it)->previousUpdate() << " ";
-        else
-            of << "unset ";
+            of << "/" << (*it)->previousUpdate();
+        of << " ";
         if ((*it)->floating())
+        {
+            assert(PointerTree::history.size() > (*it)->previousEvent());
             of << "F" << PointerTree::history[(*it)->previousEvent()].getStep() << " ";
+        }
         if ((*it)->leaf())
             of << (*it)->nZeros() << "v" << (*it)->nOnes() << "\",shape=box";
         else

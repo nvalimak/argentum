@@ -1,7 +1,9 @@
 #include "TreeController.h"
 #include <iostream>
 #include <utility>
+#include <set>
 #include <cassert>
+#include <cstdlib> // std::abort()
 using namespace std;
 
 void TreeController::process(InputColumn const &ic, unsigned step_)
@@ -11,18 +13,53 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     reduce(root, ic);
     if (debug && !dotfile.empty())
         t.outputDOT("reduced", step);
+
     resolveNonBinary(root);
     if (debug && !dotfile.empty())
         t.outputDOT("resolvednonbinaryr", step);
-
     if (debug)
         t.validate();
 
+    recombine.clear();
+    findReduced(root, 1);
+    updatedThisStep = recombine;
+    
     recombine.clear();
     recombine.reserve(2 * t.size());
     recombineStrategy(root);
 
     t.unstash(); // Recover stashed subtrees (inserted to the root)
+
+    for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
+        if (!(*it)->leaf())
+            (*it)->previousUpdate(step);
+}
+
+
+void TreeController::rewind(InputColumn const &ic, unsigned step_)
+{
+    step = step_;
+    PointerTree::PointerNode *root = t.root();
+    reduce(root, ic);
+
+    recombine.clear();
+    findReduced(root, 1);
+    unsigned nones = recombine.size();
+    recombine.clear();
+    findReduced(root, 0);
+    unsigned nzeros = recombine.size();
+    if (!dotfile.empty() && debug)
+        t.outputDOT("rewind", step);
+    
+    if (nones > 1 && nzeros > 1)
+    {
+        cerr << "assert failed at TreeController::rewind(): step = " << step
+             << "    nzeros = " << nzeros << ", nones = " << nones << endl;
+        abort();
+    }
+
+    t.rewind(step);
+    
     if (debug)
         t.validate();
 }
@@ -32,7 +69,7 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
  *
  * Updates all the 
  *     0-1-count values in the given tree, and
- *     propagates all the subtree age information. FIXME TODO
+ *     removes tags from binary nodes' children
  */
 pair<int, int> TreeController::reduce(PointerTree::PointerNode *pn, InputColumn const &ic)
 {
@@ -46,6 +83,7 @@ pair<int, int> TreeController::reduce(PointerTree::PointerNode *pn, InputColumn 
         pn->setLabel(ic[pn->leafId()]);
         return make_pair(pn->nZeros(), pn->nOnes());
     }
+    
     if (pn->size() == 0)
     {
         // New ghost branch
@@ -55,17 +93,29 @@ pair<int, int> TreeController::reduce(PointerTree::PointerNode *pn, InputColumn 
         pn->nOnes(0);
         return make_pair(0,0);
     }
-
+    
     int nzeros = 0;
     int nones = 0;
+    unsigned floating = 0;
+    unsigned nonghosts = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
         pair<int, int> tmp = reduce(*it, ic);
         nzeros += tmp.first;
         nones += tmp.second;
+        if (tmp.first + tmp.second > 0)
+        {
+            ++ nonghosts;
+            if ((*it)->floating())
+                ++ floating;
+        }
     }
     pn->nZeros(nzeros);
     pn->nOnes(nones);
+    if (!pn->root() && nonghosts <= 2 && floating > 0)
+        for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+            (*it)->floating(false);
+
     return make_pair(nzeros, nones);
 }
 
@@ -91,9 +141,9 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
         }
     if (recombine.size() > 1)
     {
-        recombineNonBinarySubtrees(false, true); // Not included in history events; does keep parent counter 
-        (*(recombine.begin()))->parentPtr()->nOnes(nones); // The new parent must be a reduced node
-        (*(recombine.begin()))->parentPtr()->nZeros(0);    // with 'nones' number of ones.
+        recombineNonBinarySubtrees(nones, false, true); // Not included in history events; does keep parent counter 
+//        (*(recombine.begin()))->parentPtr()->nOnes(nones); // The new parent must be a reduced node
+//        (*(recombine.begin()))->parentPtr()->nZeros(0);    // with 'nones' number of ones.
     }
 }
 
@@ -107,7 +157,7 @@ void TreeController::findReduced(PointerTree::PointerNode *pn, InputLabel il)
             recombine.push_back(pn);
         return;
     }
-
+    
     bool unarypath = false;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
@@ -184,6 +234,7 @@ pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
             t.stash(*it, step, true, false);
 
         pn->nZeros(0);
+        pn->previousUpdate(step);
         return make_pair(0,1); // This subtree becomes reduced
     }
     if (!pn->root() && nzeroreduced == nonereduced)
@@ -198,13 +249,13 @@ pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
     // Assert: nonereduced >= 2 && nonereduced < nzeroreduced
     recombine.clear();
     findReduced(pn, 1);
-    recombineSubtrees(true, false);
+    recombineSubtrees(pn, true, false);
     return make_pair(nzeroreduced, 1);
 }
 
 
 // Relocates all selected subtrees under new internal node
-void TreeController::recombineNonBinarySubtrees(bool keephistory, bool keepparentcounts)
+void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory, bool keepparentcounts)
 {
     if (recombine.size() < 2)
         return; // One subtree cannot be relocated to itself
@@ -241,15 +292,27 @@ void TreeController::recombineNonBinarySubtrees(bool keephistory, bool keepparen
         }
        
     PointerTree::PointerNode * dest = mpn;
-    if (nfloaters < recombine.size()-1 && !mpn->floating())
+    if (nfloaters < recombine.size()-1 && !mpn->floating()) //FIXME TODO Fails for some strange reason!?
         dest = t.createDest(mpn, step); // Create new internal node; Not all siblings are floaters and destination is not floater
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
             t.relocate(*it, dest, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
+    
+    dest->nOnes(nones);
+    dest->nZeros(0);
+    if (!dest->parentPtr()->root() && dest->parentPtr()->size() <= 2)
+        for (PointerTree::PointerNode::iterator it = dest->parentPtr()->begin(); it != dest->parentPtr()->end(); ++it)
+            (*it)->floating(false);
+    if (dest->size() <= 2)
+        for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
+            (*it)->floating(false);
+    if (dest!=mpn && mpn->size() <= 2)
+        for (PointerTree::PointerNode::iterator it = mpn->begin(); it != mpn->end(); ++it)
+            (*it)->floating(false);
 }
 
 // Relocates all selected subtrees to the largest selected subtree
-void TreeController::recombineSubtrees(bool keephistory, bool keepparentcounts)
+void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, bool keephistory, bool keepparentcounts)
 {
     if (recombine.size() < 2)
         return; // One subtree cannot be relocated to itself
@@ -265,15 +328,29 @@ void TreeController::recombineSubtrees(bool keephistory, bool keepparentcounts)
         }
 
     if (mpn == 0)
-        mpn = recombine.front();
-
+        mpn = recombine.front(); // All floating, take first
+    
+    set<PointerTree::PointerNode *> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
+    PointerTree::PointerNode *tmp = mpn;
+    while (tmp != subtree_root)
+    {
+        tmp = tmp->parentPtr();
+        upward_path.insert(tmp);
+    }
+    
     PointerTree::PointerNode * dest = mpn;
     if (mpn->leaf())
-        dest = t.createDest(mpn, step);
-
+        dest = t.createDest(mpn, PointerTree::nohistory);
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
+        {
+            if (upward_path.count((*it)->parentPtr()) == 0)
+                (*it)->floating(false); // Not floating for this dest.
             t.relocate(*it, dest, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
+            (*it)->floating(true);
+        }
+    if (mpn->leaf())
+        dest->previousUpdate(step);
 }
 
 // Counts the number of active nodes
