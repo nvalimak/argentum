@@ -122,6 +122,7 @@ int main(int argc, char ** argv)
     PointerTree tree(ic);
     TreeController tc(tree, debug, dotfile);
     vector<InputColumn> columns;
+    unsigned prev_hsize = 0;
     if (skip != ~0u)
         do
         {
@@ -133,10 +134,12 @@ int main(int argc, char ** argv)
     do
     {
         if (verbose && step%1000 == 0)
-            cerr << "at step " << step << ", history = " << tree.historySize() << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
+        {
+            cerr << "at step " << step << ", history = " << tree.historySize() << " (" << tree.historySize()-prev_hsize << "), tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
                  << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
-
+            prev_hsize = tree.historySize();
+        }
         /*        if (debug && step >178 && step < 200)
         {
             cerr << "row " << step << ": ";

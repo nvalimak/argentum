@@ -15,6 +15,7 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
         t.outputDOT("reduced", step);
 
     resolveNonBinary(root);
+    PointerTree::clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
         t.outputDOT("resolvednonbinaryr", step);
     if (debug)
@@ -33,6 +34,7 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
+    PointerTree::clearNonBranchingInternalNodes();
 }
 
 
@@ -59,6 +61,7 @@ void TreeController::rewind(InputColumn const &ic, unsigned step_)
     }
 
     t.rewind(step);
+    PointerTree::clearNonBranchingInternalNodes();
     
     if (debug)
         t.validate();
@@ -140,11 +143,7 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
             recombine.push_back(*it);
         }
     if (recombine.size() > 1)
-    {
         recombineNonBinarySubtrees(nones, false, true); // Not included in history events; does keep parent counter 
-//        (*(recombine.begin()))->parentPtr()->nOnes(nones); // The new parent must be a reduced node
-//        (*(recombine.begin()))->parentPtr()->nZeros(0);    // with 'nones' number of ones.
-    }
 }
 
 void TreeController::findReduced(PointerTree::PointerNode *pn, InputLabel il)
@@ -215,12 +214,14 @@ pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
     // Assert: 'pn' is an unary ghost node, or a nonreducible node
     int nzeroreduced = 0;
     int nonereduced = 0;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+    for (PointerTree::PointerNode::iterator it = pn->begin(); pn->nodeId() != PointerTree::nonreserved && it != pn->end(); ++it)
     {
         pair<int,int> tmp = recombineStrategy(*it);
         nzeroreduced += tmp.first;
         nonereduced += tmp.second;
-    }       
+    }
+    if (pn->nodeId() == PointerTree::nonreserved)
+        return make_pair(0,0);
     if (unarypath)
         return make_pair(nzeroreduced, nonereduced);
 
@@ -292,8 +293,8 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         }
        
     PointerTree::PointerNode * dest = mpn;
-    if (nfloaters < recombine.size()-1 && !mpn->floating()) //FIXME TODO Fails for some strange reason!?
-        dest = t.createDest(mpn, step); // Create new internal node; Not all siblings are floaters and destination is not floater
+    if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
+        dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
             t.relocate(*it, dest, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination

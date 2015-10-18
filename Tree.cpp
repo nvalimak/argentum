@@ -13,6 +13,7 @@ const int PointerTree::unknown = (int)-1000;
 // Static variables (FIXME clean up)
 size_t PointerTree::N = 0; // Total number of nodes
 vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
+vector<PointerTree::PointerNode *> PointerTree::nonbranching = vector<PointerTree::PointerNode *>();
 vector<NodeId> PointerTree::vacant = vector<NodeId>();
 NodeId PointerTree::nextVacant = 0;
 
@@ -21,6 +22,7 @@ PointerTree::PointerTree(InputColumn const &ic)
 {
     assert (nodes.size() == 0); // Only one instance of this class is allowed
     history.reserve(HISTORY_INIT_SIZE);
+    nonbranching.reserve(HISTORY_INIT_SIZE);
     if (BUFFER_INIT_SIZE > ic.size()*2)
         nodes.resize(BUFFER_INIT_SIZE);
     else
@@ -75,24 +77,34 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
     assert(!pn->root());
     if (pn->numberOfRefs() > 0)        
         return; // Cannot be removed since one or more references appear in history
-    
-    // Safe to truncate 'pn' out from the tree
-    NodeId parent = pn->parent();
-    nodes[parent]->erase(pn);
-    if (pn->size() == 1)
-    {
-        // Rewire the only child of pn:
-        PointerNode * only_chld = *(pn->begin());
-        pn->erase(only_chld);      // Release the only child from pn
-        nodes[parent]->insert(only_chld); // Rewire pn's parent to point to the only child
-        only_chld->setParent(parent);
-    }
-    // Now safe to delete 'pn' out from the tree
-    PointerTree::N--;
-    assert(pn->size() == 0); // pn does not own any objects
-    discardNode(pn->nodeId());
+
+    nonbranching.push_back(pn);
 }
 
+void PointerTree::clearNonBranchingInternalNodes()
+{
+    for (vector<PointerNode *>::iterator it = nonbranching.begin(); it != nonbranching.end(); ++it)
+    {
+        PointerNode *pn = *it;
+        // Safe to truncate 'pn' out from the tree
+        NodeId parent = pn->parent();
+        nodes[parent]->erase(pn);
+        if (pn->size() == 1)
+        {
+            // Rewire the only child of pn:
+            PointerNode * only_chld = *(pn->begin());
+            pn->erase(only_chld);      // Release the only child from pn
+            nodes[parent]->insert(only_chld); // Rewire pn's parent to point to the only child
+            only_chld->setParent(parent);
+        }
+        // Now safe to delete 'pn' out from the tree
+        PointerTree::N--;
+        assert(pn->size() == 0); // pn does not own any objects
+        discardNode(pn->nodeId());
+    }
+    nonbranching.clear();
+}
+    
 /**
  * Relocate subtree 'pn' as a new child of 'dest'.
  * Adds an event into the history queue.

@@ -297,6 +297,7 @@ public:
     
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);
+    static void clearNonBranchingInternalNodes();
 
     // Debugging
     void validate();
@@ -352,6 +353,7 @@ private:
     std::vector<PointerTree::PointerNode *> stashv;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
+    static std::vector<PointerTree::PointerNode *> nonbranching;
     static std::vector<NodeId> vacant;
     static NodeId nextVacant;
 };
