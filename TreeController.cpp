@@ -28,8 +28,10 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     
     recombine.clear();
     recombine.reserve(2 * t.size());
-    recombineStrategy(root);
-
+    pair<int,int> checksum = recombineStrategy(root);
+    assert (checksum.second == 1);
+        
+    
     t.unstash(); // Recover stashed subtrees (inserted to the root)
 
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
@@ -147,8 +149,12 @@ pair<int, int> TreeController::reduce(PointerTree::PointerNode *pn, InputColumn 
     return make_pair(nzeros, nones);
 }
 
-// Resolve non-binary nodes locally
-// These modifications are not tracked in history events
+/**
+ * Resolve non-binary nodes locally
+ *
+ * These modifications are not tracked in history events.
+ * Only non-tagged subtrees are considered.
+ */
 void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
 {
     if (pn->leaf() || pn->reduced() || pn->ghostbranch())
@@ -162,7 +168,7 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
     recombine.clear();
     int nones = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->reduced() && (*it)->reducedLabel() == 1)
+        if (!(*it)->floating() && (*it)->reduced() && (*it)->reducedLabel() == 1)
         {
             nones += (*it)->nOnes(); // FIXME If *it is a unary ghost, gets merged with other reduced subtrees
             recombine.push_back(*it);
@@ -247,7 +253,7 @@ pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
     }
     if (pn->nodeId() == PointerTree::nonreserved)
         return make_pair(0,0);
-    if (unarypath)
+    if (unarypath && !pn->root())
         return make_pair(nzeroreduced, nonereduced);
 
     // Assert: pn is a nonreducible node

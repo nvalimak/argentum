@@ -197,6 +197,11 @@ void PointerTree::rewind(Event &e)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
+    if (pn->nodeId() == PointerTree::nonreserved)
+    {
+        e.rewind();
+        return;
+    }
     PointerNode *src = pn->parentPtr();
     if (src == dest)
     {
