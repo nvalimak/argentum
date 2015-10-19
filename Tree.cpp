@@ -234,6 +234,8 @@ void PointerTree::rewind(unsigned h)
     {
         rewind(e);
         history.pop_back();
+        if (history.empty())
+            return;
         e = history.back();
     }
 }
