@@ -148,7 +148,7 @@ public:
             assert(nrefs > 0);
             --nrefs;
             // If no other references remain, clean the tree
-            if (nrefs == 0 && ch.size() < 2 && p != 0)
+            if (nrefs == 0 && ch.size() < 2) // && p != 0)
                 PointerTree::clearNonBranchingInternalNode(PointerTree::nodes[id]);
             // Note: this object can commit suicide ('delete this') above!
         }
@@ -227,6 +227,8 @@ public:
             : src(src_), pn(pn_), step(step_), preve(PointerTree::nohistory)
         {
             src->addRef(); // Increase the number of references to src.
+            if (!pn->leaf())
+                pn->addRef(); // Increase the number of references to pn.
             if (pn->hasPreviousEvent())
                 preve = pn->previousEvent();
             pn->previousEvent(histid);
@@ -256,6 +258,9 @@ public:
             src->removeRef(); // Decrease the number of references; may delete src!
             src = 0;          // src cannot be referenced anymore
             pn->previousEvent(preve); // Restore previous event (or PointerTree::nohistory)
+            if (!pn->leaf())
+                pn->removeRef(); // Decrease the number of references; may delete pn!
+            pn = 0;
         }
         
         ~Event ()
