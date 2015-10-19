@@ -162,6 +162,7 @@ int main(int argc, char ** argv)
         cerr << "Finished after " << step << " steps of input. Rewinding " << tree.historySize() << " history events..." << endl;
 
     assert (!rewind || columns.size() == step || columns.size() == step-skip);
+    tc.deFloatAll(tree.root());
     unsigned h = columns.size();
     while (h-- > 0 || (skip != ~0u && h > skip))
     {

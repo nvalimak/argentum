@@ -13,7 +13,7 @@ const int PointerTree::unknown = (int)-1000;
 // Static variables (FIXME clean up)
 size_t PointerTree::N = 0; // Total number of nodes
 vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
-vector<PointerTree::PointerNode *> PointerTree::nonbranching = vector<PointerTree::PointerNode *>();
+set<PointerTree::PointerNode *> PointerTree::nonbranching = set<PointerTree::PointerNode *>();
 vector<NodeId> PointerTree::vacant = vector<NodeId>();
 NodeId PointerTree::nextVacant = 0;
 
@@ -22,7 +22,6 @@ PointerTree::PointerTree(InputColumn const &ic)
 {
     assert (nodes.size() == 0); // Only one instance of this class is allowed
     history.reserve(HISTORY_INIT_SIZE);
-    nonbranching.reserve(HISTORY_INIT_SIZE);
     if (BUFFER_INIT_SIZE > ic.size()*2)
         nodes.resize(BUFFER_INIT_SIZE);
     else
@@ -78,29 +77,36 @@ void PointerTree::clearNonBranchingInternalNode(PointerNode *pn)
     if (pn->numberOfRefs() > 0)        
         return; // Cannot be removed since one or more references appear in history
 
-    nonbranching.push_back(pn);
+    nonbranching.insert(pn);
 }
 
 void PointerTree::clearNonBranchingInternalNodes()
 {
-    for (vector<PointerNode *>::iterator it = nonbranching.begin(); it != nonbranching.end(); ++it)
+    for (set<PointerNode *>::iterator it = nonbranching.begin(); it != nonbranching.end(); ++it)
     {
+        if ((*it)->nodeId() == PointerTree::nonreserved)
+            continue;
         PointerNode *pn = *it;
         // Safe to truncate 'pn' out from the tree
-        NodeId parent = pn->parent();
-        nodes[parent]->erase(pn);
-        if (pn->size() == 1)
+        while (pn->size() < 2 && pn->numberOfRefs() == 0)
         {
-            // Rewire the only child of pn:
-            PointerNode * only_chld = *(pn->begin());
-            pn->erase(only_chld);      // Release the only child from pn
-            nodes[parent]->insert(only_chld); // Rewire pn's parent to point to the only child
-            only_chld->setParent(parent);
+            NodeId parent = pn->parent();        
+            assert(parent != PointerTree::nonreserved);
+            nodes[parent]->erase(pn);
+            if (pn->size() == 1)
+            {
+                // Rewire the only child of pn:
+                PointerNode * only_chld = *(pn->begin());
+                pn->erase(only_chld);      // Release the only child from pn
+                nodes[parent]->insert(only_chld); // Rewire pn's parent to point to the only child
+                only_chld->setParent(parent);
+            }
+            // Now safe to delete 'pn' out from the tree
+            PointerTree::N--;
+            assert(pn->size() == 0); // pn does not own any objects
+            discardNode(pn->nodeId());
+            pn = nodes[parent];
         }
-        // Now safe to delete 'pn' out from the tree
-        PointerTree::N--;
-        assert(pn->size() == 0); // pn does not own any objects
-        discardNode(pn->nodeId());
     }
     nonbranching.clear();
 }
@@ -110,7 +116,7 @@ void PointerTree::clearNonBranchingInternalNodes()
  * Adds an event into the history queue.
  * Cleans up the source subtree.
  */
-void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned step, bool keephistory, bool keepparentcounts)
+void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned destPreviousUpdate, unsigned step, bool keephistory, bool keepparentcounts)
 {
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
@@ -120,7 +126,7 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned step, bo
 
     // Update history event queue
     if (keephistory)
-        if (!pn->floating() || (dest->previousUpdate() != PointerTree::nohistory && getPreviousEventStep(pn) < dest->previousUpdate()))
+        if (!pn->floating() || getPreviousEventStep(pn) < destPreviousUpdate)
             history.push_back(Event(nodes[src], pn, step, history.size()));
     
     // Clean source subtree if needed
@@ -191,7 +197,6 @@ void PointerTree::rewind(Event &e)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
-    pn->floating(false);
     PointerNode *src = pn->parentPtr();
     if (src == dest)
     {
@@ -206,7 +211,7 @@ void PointerTree::rewind(Event &e)
 
     // Clean source subtree if needed
     src->erase(pn);
-    if (src->size() == 1 && !src->root())
+    if (src->size() <= 1 && !src->root())
         PointerTree::clearNonBranchingInternalNode(src);
 
     e.rewind(); // May delete src (truncated if pn is the only child)
@@ -255,6 +260,8 @@ pair<int, int> validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *
     
     if (!pn->root())
     {
+        if (!(pn->size() > 1 || pn->numberOfRefs() > 0))
+            cerr << "at node = " << pn->nodeId() << ", size = " << pn->size() << endl;
         assert(pn->size() > 1 || pn->numberOfRefs() > 0);
     }
     int nzeros = 0;

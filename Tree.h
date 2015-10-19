@@ -289,7 +289,7 @@ public:
     
     // Tree modification (used in the class TreeController)
     PointerNode * createDest(PointerNode *, unsigned);
-    void relocate(PointerNode *, PointerNode *, unsigned, bool, bool);
+    void relocate(PointerNode *, PointerNode *, unsigned, unsigned, bool, bool);
     void stash(PointerNode *, unsigned, bool, bool);
     void unstash();
     void rewind(Event &);
@@ -353,7 +353,7 @@ private:
     std::vector<PointerTree::PointerNode *> stashv;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
-    static std::vector<PointerTree::PointerNode *> nonbranching;
+    static std::set<PointerTree::PointerNode *> nonbranching;
     static std::vector<NodeId> vacant;
     static NodeId nextVacant;
 };

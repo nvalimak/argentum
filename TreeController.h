@@ -23,6 +23,7 @@ public:
     unsigned countUnaryGhosts(PointerTree::PointerNode *);
     unsigned countBranchingGhosts(PointerTree::PointerNode *);
     unsigned countActive(PointerTree::PointerNode *);
+    void deFloatAll(PointerTree::PointerNode *);
         
 private:
     std::pair<int, int> reduce(PointerTree::PointerNode *, InputColumn const &);
