@@ -166,7 +166,7 @@ int main(int argc, char ** argv)
     unsigned h = columns.size();
     while (h-- > 0 || (skip != ~0u && h > skip))
     {
-        if (verbose && h % 1 == 0)
+        if (verbose && h % 1000 == 0)
             cerr << "at " << h << "/" << step << ", history = " << tree.historySize() << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
                  << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
