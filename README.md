@@ -1,26 +1,33 @@
-arg
+argentum
 ====
 
 To get started:
 
-0) git clone https://github.com/nvalimak/arg.git
+0) `git clone https://github.com/nvalimak/argentum.git`
 
-1) Compile the software by issuing the command `make'.
+1) Compile the software by issuing the command `make`.
 
-2) Issue the test by './main --input test.input --plaintext --verbose --debug --dot test'
+2) Issue the test by `./main --input test.input --plaintext --verbose --debug --dot test`
 
-You will need the Graphwiz DOT software package to compile the *.dot files with:
+You will need the /Graphwiz DOT/ software package to compile the *.dot files with:
 
-3) 'make dot'
+3) `make dot`
+
+Modify the `Makefile` to turn on compiler optimizations, if needed.
+
+Input file format
+---
 
 VCF files can be processed as, for example:
 
-4) './main --vcf --input <(gunzip -c input.vcf.gz) --verbose'
+    ./main --vcf --input <(gunzip -c input.vcf.gz) --verbose
 
-Modify the 'Makefile' to turn on compiler optimizations, if needed.
+SCRM files (without the SCRM tree) can be processed as, for example:
+
+    ./main --scrm --input input.scrm --verbose
 
 TODO
 ----
 
-* Choose target by subtree size (number of leaves)
-* Choose targets by 0-1-genotype count values
+* Optimize the tree representation
+* Make the compiler optimizations on by default
