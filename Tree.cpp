@@ -292,8 +292,8 @@ void PointerTree::validate()
     for (unsigned i = 0; i<n; ++i)
 	if(validationReachable[i])
             ++reachable;
-    assert(reachable == n);
-    assert(count.first + count.second == n); // Number of ones and zeros at root
+    assert((unsigned)reachable == n);
+    assert(count.first + count.second == (int)n); // Number of ones and zeros at root
 }
 
 /**
