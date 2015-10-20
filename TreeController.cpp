@@ -305,7 +305,7 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
     {
         msize = 0;
         for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-            if (t.getPreviousEventStep(*it) >= msize)
+            if (t.getPreviousEventStep(*it) >= (unsigned)msize)
             {
                 msize = t.getPreviousEventStep(*it);
                 mpn = *it;
