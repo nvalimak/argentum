@@ -14,11 +14,14 @@ InputReader * InputReader::build(input_format_t input, string file)
 {
     switch (input)
     {
-    case input_plaintext:
-        return new PlainTextInputReader(file);
-        break;
     case input_vcf:
         return new SimpleVCFInputReader(file);
+        break;
+    case input_scrm:
+        return new SimpleSCRMInputReader(file);
+        break;
+    case input_plaintext:
+        return new PlainTextInputReader(file);
         break;
     default:
         cerr << "Error: invalid file type at InputReader::build()" << endl; 
@@ -110,8 +113,6 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
         while (row[AApos+3+len] != '|' && row[AApos+3+len] != ';')
             ++len;
         AA = row.substr(AApos+3,len);
-        //cerr << "next row = " << row.substr(0,200)<<endl;
-        //cerr << "found AA = " << AA << "'" << endl;
         
         // Extract REF and ALT
         pos = 0;
@@ -127,40 +128,9 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
         {
             if (!std::getline(*fp, row).good())
                 return false;        
-            continue;
+            continue; // Skip multiallelic sites
         } 
             
-        //cerr << "found ref = " << ref << "' and alt = " << alt << "'" << endl;
-        
-/*        int gtaa = -1;
-        if (ref == AA)
-            gtaa = 0;       // Ancestral allele is the REF
-        else if (alt == AA)
-            gtaa = 1;       // Ancestral allele is the first ALT
-        else
-        {
-            // Ancestral allele is the second, or third, or ... ALT
-            pos = row.find_first_of("\t,", pos + 1);
-            assert(row[pos] != string::npos);
-            int tmp = 2;
-            while (row.substr(pos+1, row.find_first_of("\t,", pos + 1) - pos - 1) != AA)
-            {
-                ++tmp;
-                pos = row.find_first_of("\t,", pos + 1);
-            }
-            if (row.substr(pos+1, row.find_first_of("\t,", pos + 1) - pos - 1) == AA)
-                gtaa = tmp;
-            assert(row.substr(pos+1, row.find_first_of("\t,", pos + 1) - pos -1) == AA);
-            }
-        
-    if (gtaa == -1)
-    {
-        cerr << "error at SimpleVCFInputReader::SimpleVCFInputReader(): problem while deciding the ancestral allele with REF = "
-             << ref << ", alt " << alt << ", aa = " << AA << endl;
-        cerr << "error at SimpleVCFInputReader::SimpleVCFInputReader(): at row: " << row.substr(0,100) << endl;
-        abort();
-        }*/
-
         if (ref == AA)
             gtaa = 1;
         else if (alt == AA)
@@ -194,3 +164,51 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
     }
     return true;
 }
+
+/**
+ * Simplistic SCRM input
+ */
+SimpleSCRMInputReader::SimpleSCRMInputReader(string file)
+    : InputReader(file), cols(), good_(false)
+{
+    vector<string> rows;
+    string row;
+    unsigned i = 0;
+    while (i++ < 6)
+        if (!std::getline(*fp, row).good())
+            return;
+    
+    while (std::getline(*fp, row).good())
+    {
+        rows.push_back(row);
+        if (rows[0].size() != rows.back().size())
+        {
+            cerr << "error at SimpleSCRMInputReader: Check input format (tree input is not supported)" << endl;
+            abort();
+        }
+    }
+
+    cerr << "read " << rows.size() << " rows of length " << rows[0].size() << endl;
+       
+    cols.resize(rows[0].size()); // transpose
+    for (i = 0; i < rows[0].size(); ++i)
+        for (unsigned j = 0; j < rows.size(); ++j)
+            cols[i].push_back((rows[j][i] == '1'));
+
+    cerr << "cols = " << cols[0].size() << ", rows = " << cols.size() << endl;
+    good_ = true;
+}
+
+bool SimpleSCRMInputReader::next(InputColumn &ic)
+{
+    if (cols.empty() || !good_)
+    {
+        good_ = false;
+        return false;
+    }
+
+    ic = cols.back();
+    cols.pop_back();
+    return true;
+}
+
