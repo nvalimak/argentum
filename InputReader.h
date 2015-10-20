@@ -12,7 +12,7 @@
 class InputReader
 {
 public:
-    enum input_format_t { input_unset, input_plaintext, input_vcf };
+    enum input_format_t { input_unset, input_vcf, input_scrm, input_plaintext };
 
     // Constructor
     static InputReader* build(input_format_t, std::string);
@@ -21,7 +21,7 @@ public:
     virtual bool next(InputColumn &) = 0;
     
     // Misc helper functions
-    bool good() const
+    virtual bool good() const
     { return (fp != 0 && fp->good()); }
     
     virtual ~InputReader()
@@ -74,5 +74,27 @@ private:
     // No copy constructor or assignment
     SimpleVCFInputReader(SimpleVCFInputReader const&);
     SimpleVCFInputReader& operator = (SimpleVCFInputReader const&);
+};
+
+/**
+ * Simple SCRM input reader
+ */
+class SimpleSCRMInputReader : public InputReader
+{
+public:
+    bool next(InputColumn &);
+    virtual ~SimpleSCRMInputReader()
+    { }
+    
+    explicit SimpleSCRMInputReader(std::string);
+    virtual bool good() const
+    { return good_; }
+    
+private:    
+    // No copy constructor or assignment
+    SimpleSCRMInputReader(SimpleSCRMInputReader const&);
+    SimpleSCRMInputReader& operator = (SimpleSCRMInputReader const&);
+    std::vector<InputColumn> cols;
+    bool good_;
 };
 #endif

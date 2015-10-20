@@ -32,9 +32,11 @@ void print_usage(char const * prgrm)
     cerr << "usage: " << prgrm << " [options]" << endl
          << " -i,--input <file>    Input filename" << endl
          << " -V,--VCF             Input format is VCF" << endl
-         << " -s,--simple          Input format is simple text" << endl
-         << " -n,--nrows <n>       Process first n rows of input" << endl
+         << " -s,--scrm            Input format is SCRM text (without trees)" << endl
+         << " -S,--plaintext       Input format is simple text" << endl
          << " -r,--rewind          Rewind test" << endl
+         << " -z,--skip <n>        Skip first n sites of input" << endl
+         << " -n,--nrows <n>       Process n sites of input" << endl
          << " -d,--dot <file>      Graphwiz DOT output filename" << endl
          << " -v,--verbose         Verbose output" << endl;
 }
@@ -52,11 +54,12 @@ int main(int argc, char ** argv)
     static struct option long_options[] =
         {
             {"input",     required_argument, 0, 'i'},
-            {"nrows",     required_argument, 0, 'n'},
-            {"skip",      required_argument, 0, 'S'},
-            {"plaintext", no_argument,       0, 's'},
             {"vcf",       no_argument,       0, 'V'},
+            {"scrm",      no_argument,       0, 's'},
+            {"plaintext", no_argument,       0, 'S'},
             {"rewind",    no_argument,       0, 'r'},
+            {"nrows",     required_argument, 0, 'n'},
+            {"skip",      required_argument, 0, 'z'},
             {"dot",       required_argument, 0, 'd'},
             {"verbose",   no_argument,       0, 'v'},
             {"debug",     no_argument,       0, 'D'},
@@ -65,23 +68,25 @@ int main(int argc, char ** argv)
         };
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "i:n:S:sVrd:vDh",
+    while ((c = getopt_long(argc, argv, "i:VsSrn:z:d:vDh",
                             long_options, &option_index)) != -1) 
     {
         switch(c) 
         {
         case 'i':
             inputfile = string(optarg); break;
-        case 'n':
-            nrows = atoi_min(optarg, 1, "-n,--nrows", argv[0]); break;
-        case 'S':
-            skip = atoi_min(optarg, 1, "-S,--skip", argv[0]); break;
-        case 's': 
-            inputformat = InputReader::input_plaintext; break;
         case 'V': 
             inputformat = InputReader::input_vcf; break;
+        case 's': 
+            inputformat = InputReader::input_scrm; break;
+        case 'S': 
+            inputformat = InputReader::input_plaintext; break;
         case 'r':
             rewind = true; break;
+        case 'n':
+            nrows = atoi_min(optarg, 1, "-n,--nrows", argv[0]); break;
+        case 'z':
+            skip = atoi_min(optarg, 1, "-S,--skip", argv[0]); break;
         case 'd':
             dotfile = string(optarg); break;
         case 'v':
