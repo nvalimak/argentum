@@ -7,5 +7,5 @@ set -o pipefail
 while true
 do
     ./rand-matrix 10 10 > rand.input
-    ./main -s -i rand.input -v --debug --rewind
+    ./main -S -i rand.input -v --debug --rewind
 done
