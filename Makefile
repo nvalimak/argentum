@@ -1,12 +1,15 @@
 CC = g++
 CPPFLAGS = -std=c++0x -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
-OBJ = InputReader.o Tree.o TreeController.o
+OBJ = InputReader.o Tree.o TreeController.o TreeControllerSimple.o
 
-all: main rand-matrix test
+all: main main-simple rand-matrix test
 
 main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)
+
+main-simple: main-simple.o $(OBJ)
+	$(CC) $(CPPFLAGS) -o main-simple main-simple.o $(OBJ)
 
 rand-matrix: rand-matrix.o
 	$(CC) $(CPPFLAGS) -o rand-matrix rand-matrix.o
