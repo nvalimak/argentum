@@ -293,7 +293,7 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         return; // One subtree cannot be relocated to itself
 
     // Choose the largest, non-floating subtree as destination
-    unsigned msize = 0;
+    int msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (!(*it)->floating() && (*it)->nZeros() + (*it)->nOnes() > msize)
@@ -352,7 +352,7 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
         return; // One subtree cannot be relocated to itself
 
     // Choose the largest, non-floating subtree as destination
-    unsigned msize = 0;
+    int msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (!(*it)->floating() && (*it)->nZeros()+(*it)->nOnes() > msize)

@@ -288,7 +288,7 @@ void PointerTree::validate()
     for (unsigned i = 0; i<n; ++i)
 	validationReachable[i]=false;
     pair<int,int> count = ::validate(nodes[r], 0, validationReachable);
-    unsigned reachable=0;
+    int reachable=0;
     for (unsigned i = 0; i<n; ++i)
 	if(validationReachable[i])
             ++reachable;
