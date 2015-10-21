@@ -40,15 +40,16 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     PointerTree::clearNonBranchingInternalNodes();
 }
 
-
 void TreeController::rewind(InputColumn const &ic, unsigned step_)
 {
     step = step_;
-    PointerTree::PointerNode *root = t.root();
+    PointerTree::PointerNode *root = t.root();    
     reduce(root, ic);
+
     
     if (!dotfile.empty() && debug)
         t.outputDOT("prerewind", step);
+    t.prerewind(step);
     
     recombine.clear();
     findReduced(root, 1);
@@ -168,7 +169,7 @@ void TreeController::resolveNonBinary(PointerTree::PointerNode *pn)
     recombine.clear();
     int nones = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if (!(*it)->floating() && (*it)->reduced() && (*it)->reducedLabel() == 1)
+        if ((*it)->reduced() && (*it)->reducedLabel() == 1)
         {
             nones += (*it)->nOnes(); // FIXME If *it is a unary ghost, gets merged with other reduced subtrees
             recombine.push_back(*it);
@@ -266,7 +267,7 @@ pair<int,int> TreeController::recombineStrategy(PointerTree::PointerNode *pn)
             t.stash(*it, step, true, false);
 
         pn->nZeros(0);
-        pn->previousUpdate(step);
+        updatedThisStep.push_back(pn);
         return make_pair(0,1); // This subtree becomes reduced
     }
     if (!pn->root() && nzeroreduced == nonereduced)
