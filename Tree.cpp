@@ -18,7 +18,7 @@ vector<NodeId> PointerTree::vacant = vector<NodeId>();
 NodeId PointerTree::nextVacant = 0;
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : r(0), n(ic.size()), stashv(), history(), validationReachable()
+    : r(0), n(ic.size()), stashv(), history(), validationReachable(), reusedHistoryEvent(0)
 {
     assert (nodes.size() == 0); // Only one instance of this class is allowed
     history.reserve(HISTORY_INIT_SIZE);
@@ -126,9 +126,15 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned destPrev
 
     // Update history event queue
     if (keephistory)
-        if (!pn->floating() || getPreviousEventStep(pn) < destPreviousUpdate)
+    {
+        if (!pn->floating())
             history.push_back(Event(nodes[src], pn, step, history.size()));
-    
+        else if (getPreviousEventStep(pn) <= destPreviousUpdate) // Assert: floating
+            history.push_back(Event(nodes[src], pn, step, history.size()));
+        else
+            reusedHistoryEvent ++; // Assert: floating, reused history event
+    }
+        
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())
         PointerTree::clearNonBranchingInternalNode(nodes[src]);
@@ -165,8 +171,13 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
 
     // Update history event queue
     if (keephistory)
-        history.push_back(Event(nodes[src], pn, step, history.size()));
-
+    {
+//        if (!pn->floating())
+            history.push_back(Event(nodes[src], pn, step, history.size()));
+//        else // Didn't work.
+//            reusedHistoryEvent ++;
+    }
+    
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())
         PointerTree::clearNonBranchingInternalNode(nodes[src]);

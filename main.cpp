@@ -50,6 +50,7 @@ int main(int argc, char ** argv)
     bool rewind = false;
     bool verbose = false;
     bool debug = false;
+    unsigned debug_interval = 1000;
     
     static struct option long_options[] =
         {
@@ -62,13 +63,13 @@ int main(int argc, char ** argv)
             {"skip",      required_argument, 0, 'z'},
             {"dot",       required_argument, 0, 'd'},
             {"verbose",   no_argument,       0, 'v'},
-            {"debug",     no_argument,       0, 'D'},
+            {"debug",     required_argument, 0, 'D'},
             {"help",      no_argument,       0, 'h'},
             {0, 0, 0, 0}
         };
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "i:VsSrn:z:d:vDh",
+    while ((c = getopt_long(argc, argv, "i:VsSrn:z:d:vD:h",
                             long_options, &option_index)) != -1) 
     {
         switch(c) 
@@ -92,7 +93,7 @@ int main(int argc, char ** argv)
         case 'v':
             verbose = true; break;
         case 'D':
-            debug = true; break;
+            debug = true; debug_interval = atoi_min(optarg, 1, "-D,--debug", argv[0]); break;
         case 'h':
             print_usage(argv[0]); return 1;
         default:
@@ -138,9 +139,9 @@ int main(int argc, char ** argv)
 
     do
     {
-        if (verbose && step%1000 == 0)
+        if (verbose && step % debug_interval == 0)
         {
-            cerr << "at step " << step << ", history = " << tree.historySize() << " (" << tree.historySize()-prev_hsize << "), tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
+            cerr << "at step " << step << ", history = " << tree.historySize() << " (" << tree.historySize()-prev_hsize << ", reused " << tree.reusedHistoryEvents() << "), tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
                  << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
             prev_hsize = tree.historySize();
@@ -171,7 +172,7 @@ int main(int argc, char ** argv)
     unsigned h = columns.size();
     while (h-- > 0 || (skip != ~0u && h > skip))
     {
-        if (verbose && h % 1000 == 0)
+        if (verbose && h % debug_interval == 0)
             cerr << "at " << h << "/" << step << ", history = " << tree.historySize() << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
                  << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
