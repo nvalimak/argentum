@@ -46,16 +46,16 @@ void TreeController::rewind(InputColumn const &ic, unsigned step_)
     step = step_;
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
-
+    
+    if (!dotfile.empty() && debug)
+        t.outputDOT("prerewind", step);
+    
     recombine.clear();
     findReduced(root, 1);
     unsigned nones = recombine.size();
     recombine.clear();
     findReduced(root, 0);
     unsigned nzeros = recombine.size();
-    if (!dotfile.empty() && debug)
-        t.outputDOT("prerewind", step);
-
     if (nones > 1 && nzeros > 1)
     {
         unsigned rootzeros = 0;
@@ -367,14 +367,16 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
     unsigned largest_age = mpn->previousUpdate();
+    if (largest_age == PointerTree::nohistory)
+        largest_age = 0;
     while (tmp != subtree_root)
     {
         tmp = tmp->parentPtr();
-        if (tmp->previousUpdate() > largest_age)
+        upward_path[tmp] = largest_age; // Largest age not including the LCA
+        if (tmp->previousUpdate() > largest_age && tmp->previousUpdate() != PointerTree::nohistory) 
             largest_age = tmp->previousUpdate();
-        upward_path[tmp] = largest_age;
     }
-    
+
     PointerTree::PointerNode * dest = mpn;
     if (mpn->leaf())
         dest = t.createDest(mpn, PointerTree::nohistory);
@@ -387,6 +389,7 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
             else
                 lca_age = upward_path[(*it)->parentPtr()];
 
+            //,cerr << "relocating node " << (*it)->nodeId() << ", to " << dest->nodeId() << ", lca_age = " << lca_age << endl;
             t.relocate(*it, dest, lca_age, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
             (*it)->floating(true);
         }

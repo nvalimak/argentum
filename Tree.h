@@ -305,6 +305,8 @@ public:
     static void clearNonBranchingInternalNodes();
 
     // Debugging
+    unsigned reusedHistoryEvents() const
+    { return reusedHistoryEvent; }
     void validate();
     void outputDOT(std::string const &, unsigned);
     
@@ -358,6 +360,7 @@ private:
     std::vector<PointerTree::PointerNode *> stashv;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
+    unsigned reusedHistoryEvent;
     static std::set<PointerTree::PointerNode *> nonbranching;
     static std::vector<NodeId> vacant;
     static NodeId nextVacant;
