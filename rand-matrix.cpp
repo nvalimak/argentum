@@ -28,16 +28,17 @@ int atoi_min(char const *value, int min, char const *parameter, char const *name
 
 int main(int argc, char **argv)
 {
-    if (argc != 3)
+    if (argc != 4)
     {
         cerr << "usage: " << argv[0] << " [matrix width] [matrix height]" << endl;
         return 1;
     }
 
-    unsigned width = atoi_min(argv[1], 4, "matrix width", argv[0]);
-    unsigned height = atoi_min(argv[1], 4, "matrix height", argv[0]);
+    unsigned seed = atoi_min(argv[1], 0, "seed", argv[0]);
+    unsigned width = atoi_min(argv[2], 4, "matrix width", argv[0]);
+    unsigned height = atoi_min(argv[3], 4, "matrix height", argv[0]);
 
-    srand(time(NULL));
+    srand(time(NULL)+seed);
     while (height-- > 0)
     {
         for (unsigned i = 0; i < width; ++i)
