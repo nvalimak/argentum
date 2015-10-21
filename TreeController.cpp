@@ -320,15 +320,15 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         if ((*it)->floating())
         {
             unsigned flt_created = t.getPreviousEventStep(*it);
-            if (flt_created > dest_updated)
+            if (flt_created >= dest_updated)
                 nfloaters++;
         }
        
     PointerTree::PointerNode * dest = mpn;
-    if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
+    //  if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
         dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
-    if (dest->floating())
-        keephistory = true;
+//    if (dest->floating())
+//        keephistory = true;// REMOVE
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
             t.relocate(*it, dest, step, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination

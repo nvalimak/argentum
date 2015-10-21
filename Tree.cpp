@@ -88,7 +88,7 @@ void PointerTree::clearNonBranchingInternalNodes()
             continue;
         PointerNode *pn = *it;
         // Safe to truncate 'pn' out from the tree
-        while (pn->size() < 2 && pn->numberOfRefs() == 0)
+        while (!pn->root() && pn->size() < 2 && pn->numberOfRefs() == 0)
         {
             NodeId parent = pn->parent();        
             assert(parent != PointerTree::nonreserved);
