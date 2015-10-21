@@ -364,17 +364,20 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
     if (mpn == 0)
         mpn = recombine.front(); // All floating, take first
     
-    map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
+    map<PointerTree::PointerNode *, pair<unsigned,bool> > upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
     unsigned largest_age = mpn->previousUpdate();
+    bool floating_lca = mpn->floating();
     if (largest_age == PointerTree::nohistory)
         largest_age = 0;
     while (tmp != subtree_root)
     {
         tmp = tmp->parentPtr();
-        upward_path[tmp] = largest_age; // Largest age not including the LCA
+        upward_path[tmp] = make_pair(largest_age, floating_lca); // Largest age not including the LCA
         if (tmp->previousUpdate() > largest_age && tmp->previousUpdate() != PointerTree::nohistory) 
             largest_age = tmp->previousUpdate();
+        if (tmp->floating())
+            floating_lca = true;
     }
 
     PointerTree::PointerNode * dest = mpn;
@@ -383,14 +386,16 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
         {
-            unsigned lca_age = 0;
+            pair<unsigned,bool> lca_age(0, false);
             if (upward_path.count((*it)->parentPtr()) == 0)
                 (*it)->floating(false); // Not floating for this dest.
             else
                 lca_age = upward_path[(*it)->parentPtr()];
-
+            if (lca_age.second)
+                (*it)->floating(false); // Not floating for this dest.
+            
             //,cerr << "relocating node " << (*it)->nodeId() << ", to " << dest->nodeId() << ", lca_age = " << lca_age << endl;
-            t.relocate(*it, dest, lca_age, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
+            t.relocate(*it, dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
             (*it)->floating(true);
         }
     if (mpn->leaf())
