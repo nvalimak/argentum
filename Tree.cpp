@@ -18,7 +18,7 @@ vector<NodeId> PointerTree::vacant = vector<NodeId>();
 NodeId PointerTree::nextVacant = 0;
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : r(0), n(ic.size()), stashv(), history(), validationReachable(), reusedHistoryEvent(0)
+    : r(0), n(ic.size()), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(), reusedHistoryEvent(0)
 {
     assert (nodes.size() == 0); // Only one instance of this class is allowed
     history.reserve(HISTORY_INIT_SIZE);
@@ -118,6 +118,7 @@ void PointerTree::clearNonBranchingInternalNodes()
  */
 void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned destPreviousUpdate, unsigned step, bool keephistory, bool keepparentcounts)
 {
+    ++nrelocate;
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
 
@@ -128,9 +129,9 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned destPrev
     if (keephistory)
     {
         if (!pn->floating())
-            history.push_back(Event(nodes[src], pn, step, history.size()));
-        else if (getPreviousEventStep(pn) <= destPreviousUpdate) // Assert: floating
-            history.push_back(Event(nodes[src], pn, step, history.size()));
+            history.push_back(Event(nodes[src], pn, step, history.size(), false));
+        else if (getPreviousEventStep(pn) < destPreviousUpdate) // Assert: floating
+            history.push_back(Event(nodes[src], pn, step, history.size(), false));
         else
             reusedHistoryEvent ++; // Assert: floating, reused history event
     }
@@ -163,6 +164,7 @@ void PointerTree::propagateUpwardCounts(PointerNode *pn, int nzeros, int nones)
  */
 void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool keepparentcounts)
 {
+    ++nstashed;
     stashv.push_back(pn);
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
@@ -173,7 +175,7 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
     if (keephistory)
     {
 //        if (!pn->floating())
-            history.push_back(Event(nodes[src], pn, step, history.size()));
+        history.push_back(Event(nodes[src], pn, step, history.size(), true));
 //        else // Didn't work.
 //            reusedHistoryEvent ++;
     }
@@ -248,6 +250,17 @@ void PointerTree::rewind(unsigned h)
         if (history.empty())
             return;
         e = history.back();
+    }
+}
+
+void PointerTree::prerewind(unsigned h)
+{
+    if (history.empty())
+        return;
+    for (vector<Event>::reverse_iterator it = history.rbegin(); it != history.rend() && it->getStep() == h; ++it)
+    {
+        if (it->allZeros())
+            relocate(it->getNode(), nodes[r], 0, 0, false, false);
     }
 }
 

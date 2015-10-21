@@ -129,6 +129,9 @@ int main(int argc, char ** argv)
     TreeController tc(tree, debug, dotfile);
     vector<InputColumn> columns;
     unsigned prev_hsize = 0;
+    unsigned prev_reused = 0;
+    unsigned prev_stashed = 0;
+    unsigned prev_relocates = 0;
     if (skip != ~0u)
         do
         {
@@ -139,12 +142,26 @@ int main(int argc, char ** argv)
 
     do
     {
+        
+        tc.process(ic, step);
+        if (rewind)
+            columns.push_back(ic);
+        
+        if (!dotfile.empty())
+            tree.outputDOT(dotfile, step);
+
         if (verbose && step % debug_interval == 0)
         {
-            cerr << "at step " << step << ", history = " << tree.historySize() << " (" << tree.historySize()-prev_hsize << ", reused " << tree.reusedHistoryEvents() << "), tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
+            cerr << "at step " << step << ", history = " << tree.historySize() << " (" << tree.historySize()-prev_hsize
+                 << ", reused " << prev_reused << "+" << tree.reusedHistoryEvents()-prev_reused << ", stashed " << prev_stashed << "+" << tree.numberOfStashed()-prev_stashed
+                 << ", relocates " << prev_relocates << "+" << tree.numberOfRelocates()-prev_relocates
+                 << "), tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
                  << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
                  << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
             prev_hsize = tree.historySize();
+            prev_reused = tree.reusedHistoryEvents();
+            prev_stashed = tree.numberOfStashed();
+            prev_relocates = tree.numberOfRelocates();
         }
         /*        if (debug && step >178 && step < 200)
         {
@@ -154,13 +171,6 @@ int main(int argc, char ** argv)
             cerr << endl;
 
             }*/
-        
-        tc.process(ic, step);
-        if (rewind)
-            columns.push_back(ic);
-        
-        if (!dotfile.empty())
-            tree.outputDOT(dotfile, step);
         ++step;
     } while (inputr->next(ic) && step < nrows);
 

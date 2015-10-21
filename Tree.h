@@ -223,8 +223,8 @@ public:
     class Event
     {
     public:
-        Event(PointerNode *src_, PointerNode *pn_, unsigned step_, unsigned histid)
-            : src(src_), pn(pn_), step(step_), preve(PointerTree::nohistory)
+        Event(PointerNode *src_, PointerNode *pn_, unsigned step_, unsigned histid, bool allzeros_)
+            : src(src_), pn(pn_), step(step_), preve(PointerTree::nohistory), allzeros(allzeros_)
         {
             src->addRef(); // Increase the number of references to src.
             if (!pn->leaf())
@@ -232,6 +232,7 @@ public:
             if (pn->hasPreviousEvent())
                 preve = pn->previousEvent();
             pn->previousEvent(histid);
+            //std::cerr << "adding event to node = " << pn->nodeId() << ", from src = " << src->nodeId() << ", step = " << step << ", preve = " << preve << std::endl;
         }
 
         /**
@@ -252,7 +253,10 @@ public:
         { return pn; }
         unsigned getStep() const
         { return step; }
-       
+
+        bool allZeros() const
+        { return allzeros; }
+
         void rewind()
         {
             src->removeRef(); // Decrease the number of references; may delete src!
@@ -273,6 +277,7 @@ public:
         PointerNode * pn;  // Subtree that was relocated
         unsigned step;     // Column that initiated this event
         unsigned preve;    // Previous event number for 'src' (refers to the history vector)
+        bool allzeros;     // Subtree was all zeros at column 'step' 
     };
 
 public:
@@ -299,6 +304,7 @@ public:
     void unstash();
     void rewind(Event &);
     void rewind(unsigned);
+    void prerewind(unsigned);
     
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);
@@ -307,6 +313,10 @@ public:
     // Debugging
     unsigned reusedHistoryEvents() const
     { return reusedHistoryEvent; }
+    unsigned numberOfStashed() const
+    { return nstashed; }
+    unsigned numberOfRelocates() const
+    { return nrelocate; }
     void validate();
     void outputDOT(std::string const &, unsigned);
     
@@ -358,6 +368,8 @@ private:
     NodeId r;
     std::size_t n; // Number of leaves
     std::vector<PointerTree::PointerNode *> stashv;
+    std::size_t nstashed;
+    std::size_t nrelocate;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
     unsigned reusedHistoryEvent;
