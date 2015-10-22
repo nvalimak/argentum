@@ -270,10 +270,10 @@ void PointerTree::prerewind(unsigned h)
 pair<int, int> validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
 {
     assert (pn->root() || pn->leaf() || pn->previousUpdate() != PointerTree::nohistory);
-    if (! (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()))
+    /*if (! (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()))
         cerr << "at node id = " << pn->nodeId() << " nzeros = " << pn->nZeros() << " nones = " << pn->nOnes() << ", size = " << pn->size() << ", floating = " << pn->floating() << endl
              << "with parent id = " << p->nodeId() << " nzeros = " << p->nZeros() << " nones = " << p->nOnes() << ", size = " << p->size() << endl;
-    assert (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()); // floating node cannot attach to a bi-/unary node (except root)
+             assert (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()); // floating node cannot attach to a bi-/unary node (except root)*/
     assert (pn->nZeros() != PointerTree::unknown);
     assert (pn->nOnes() != PointerTree::unknown);
     assert (pn->root() || p == pn->parentPtr());
