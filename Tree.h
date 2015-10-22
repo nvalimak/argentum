@@ -236,15 +236,16 @@ public:
         }
 
         /**
-         * Set new source for the event
+         * Rewire new pointer for the event
          * Reference counters need to be updated.
          */
-        void rewire(PointerNode *new_src)
+        void rewire(PointerNode *new_pn)
         {
-            src->removeRef();  // Decrease the number of references; may delete src!
-            src = 0;
-            new_src->addRef(); // Increase the number of references to new_src.
-            src = new_src;            
+            if (!pn->leaf())
+                pn->removeRef();  // Decrease the number of references; may delete src!
+            pn = 0;
+            new_pn->addRef(); // Increase the number of references to new_src.
+            pn = new_pn;            
         }
         
         PointerNode * getSource() const
@@ -305,6 +306,12 @@ public:
     void rewind(Event &);
     void rewind(unsigned);
     void prerewind(unsigned);
+
+    void rewire(PointerNode *pn, PointerNode *new_pn)
+    {
+        assert (pn->hasPreviousEvent());
+        history[pn->previousEvent()].rewire(new_pn);
+    }
     
     // Clean nonbranching internal node, if possible
     static void clearNonBranchingInternalNode(PointerNode *);

@@ -293,19 +293,19 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         return; // One subtree cannot be relocated to itself
 
     // Choose the largest, non-floating subtree as destination
-    int msize = 0;
+    unsigned msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if (!(*it)->floating() && (*it)->nZeros() + (*it)->nOnes() > msize)
+        if (!(*it)->floating() && (*it)->nZeros() + (*it)->nOnes() > (int)msize)
         {
             msize = (*it)->nZeros()+(*it)->nOnes();
             mpn = *it;
         }
-    if (mpn == 0) // All floating; choose the youngest floater as destination
+    if (mpn == 0) // All floating; choose the oldest floater as destination
     {
         msize = 0;
         for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-            if (t.getPreviousEventStep(*it) >= (unsigned)msize)
+            if (t.getPreviousEventStep(*it) >= msize)
             {
                 msize = t.getPreviousEventStep(*it);
                 mpn = *it;
@@ -313,6 +313,7 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
     }
     
     // Count the number of floaters younger than the target subtree
+    assert(mpn != 0);
     unsigned dest_updated = mpn->previousUpdate();
     unsigned nfloaters = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
@@ -324,8 +325,13 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         }
        
     PointerTree::PointerNode * dest = mpn;
-    //  if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
-    dest = t.createDest(mpn, PointerTree::nohistory); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
+    //    if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
+    //{
+        dest = t.createDest(mpn, PointerTree::nohistory); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
+        //    if (mpn->floating())
+        //    t.rewire(mpn, dest);
+        //}
+    
 //    if (dest->floating())
 //        keephistory = true;// REMOVE
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
@@ -400,7 +406,7 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
             (*it)->floating(true);
         }
     if (mpn->leaf())
-        dest->previousUpdate(step);
+        updatedThisStep.push_back(dest);
 }
 
 // Update the float-flags in the whole tree
