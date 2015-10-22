@@ -19,9 +19,6 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     PointerTree::clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
         t.outputDOT("resolvednonbinaryr", step);
-    if (debug)
-        t.validate();
-
     recombine.clear();
     findReduced(root, 1);
     updatedThisStep = recombine;
@@ -38,6 +35,8 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
     PointerTree::clearNonBranchingInternalNodes();
+    if (debug)
+        t.validate();
 }
 
 void TreeController::rewind(InputColumn const &ic, unsigned step_)
@@ -326,7 +325,7 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
        
     PointerTree::PointerNode * dest = mpn;
     //  if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
-        dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
+    dest = t.createDest(mpn, PointerTree::nohistory); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
 //    if (dest->floating())
 //        keephistory = true;// REMOVE
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
@@ -335,6 +334,7 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
     
     dest->nOnes(nones);
     dest->nZeros(0);
+    updatedThisStep.push_back(dest);
     if (!dest->parentPtr()->root() && dest->parentPtr()->size() <= 2)
         for (PointerTree::PointerNode::iterator it = dest->parentPtr()->begin(); it != dest->parentPtr()->end(); ++it)
             (*it)->floating(false);

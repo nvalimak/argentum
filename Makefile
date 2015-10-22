@@ -3,7 +3,7 @@ CPPFLAGS = -std=c++0x -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = InputReader.o Tree.o TreeController.o TreeControllerSimple.o
 
-all: main main-simple rand-matrix test
+all: main main-simple rand-matrix scrm2bin
 
 main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)
@@ -13,6 +13,9 @@ main-simple: main-simple.o $(OBJ)
 
 rand-matrix: rand-matrix.o
 	$(CC) $(CPPFLAGS) -o rand-matrix rand-matrix.o
+
+scrm2bin: scrm2bin.o
+	$(CC) $(CPPFLAGS) -o scrm2bin scrm2bin.o
 
 test: main
 	./main --input test.input --plaintext --verbose --debug 1000 --dot test --rewind
