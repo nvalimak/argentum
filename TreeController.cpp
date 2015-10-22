@@ -327,8 +327,11 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         }
        
     PointerTree::PointerNode * dest = mpn;
-    if (mpn->leaf() || nfloaters < recombine.size()-1)
+    //if (mpn->leaf() || nfloaters < recombine.size()-1)
         dest = t.createDest(mpn, PointerTree::nohistory); // Create new internal node if leaf, or not all siblings are floaters
+        //else
+        //cerr << "skipped dest creation for " << mpn->nodeId() << ", floating = " << mpn->floating() << ", leaf = " << mpn->leaf() << endl
+        //     << "  nfloaters = " << nfloaters << ", recomb size = " << recombine.size() << endl;
     
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
