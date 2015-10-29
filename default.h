@@ -7,6 +7,7 @@ typedef unsigned char InputLabel;
 typedef unsigned NodeId;
 typedef unsigned LeafId;
 typedef std::vector<InputLabel> InputColumn;
+typedef std::vector<double> LeafDistance;
 typedef double TreeDepth;
 
 // Initial memory reservation

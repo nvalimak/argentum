@@ -1,5 +1,5 @@
-CC = g++
-CPPFLAGS = -std=c++0x -Wall -ansi -pedantic -g
+CC=g++
+CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = InputReader.o Tree.o TreeController.o TreeControllerSimple.o
 
@@ -30,6 +30,6 @@ clean:
 	rm -f main *.o *~ *.dot *.png
 
 depend:
-	g++ -MM -std=c++0x *.cpp > dependencies.mk
+	g++ -MM -std=c++11 *.cpp > dependencies.mk
 
 include dependencies.mk

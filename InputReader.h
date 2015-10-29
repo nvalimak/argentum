@@ -15,7 +15,7 @@ public:
     enum input_format_t { input_unset, input_vcf, input_scrm, input_plaintext };
 
     // Constructor
-    static InputReader* build(input_format_t, std::string);
+    static InputReader* build(input_format_t, std::string, unsigned);
     
     // Get next input row (or return False if EOF)
     virtual bool next(InputColumn &) = 0;
@@ -23,6 +23,11 @@ public:
     // Misc helper functions
     virtual bool good() const
     { return (fp != 0 && fp->good()); }
+    InputColumn const & col(std::size_t i) const
+    { return cols[i]; }
+    std::size_t size() const
+    { return cols.size(); }
+
     
     virtual ~InputReader()
     { delete fp; fp = 0; }
@@ -30,6 +35,7 @@ public:
 protected:
     explicit InputReader(std::string);
     std::istream *fp;
+    std::vector<InputColumn> cols;
     
 private:
     InputReader();
@@ -86,7 +92,7 @@ public:
     virtual ~SimpleSCRMInputReader()
     { }
     
-    explicit SimpleSCRMInputReader(std::string);
+    SimpleSCRMInputReader(std::string, unsigned);
     virtual bool good() const
     { return good_; }
     
@@ -94,7 +100,7 @@ private:
     // No copy constructor or assignment
     SimpleSCRMInputReader(SimpleSCRMInputReader const&);
     SimpleSCRMInputReader& operator = (SimpleSCRMInputReader const&);
-    std::vector<InputColumn> cols;
+    std::size_t pos;
     bool good_;
 };
 #endif

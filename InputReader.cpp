@@ -10,7 +10,7 @@ using namespace std;
 char SimpleVCFInputReader::upcasedna[] = {0};
 
 
-InputReader * InputReader::build(input_format_t input, string file)
+InputReader * InputReader::build(input_format_t input, string file, unsigned nrows)
 {
     switch (input)
     {
@@ -18,7 +18,7 @@ InputReader * InputReader::build(input_format_t input, string file)
         return new SimpleVCFInputReader(file);
         break;
     case input_scrm:
-        return new SimpleSCRMInputReader(file);
+        return new SimpleSCRMInputReader(file, nrows);
         break;
     case input_plaintext:
         return new PlainTextInputReader(file);
@@ -30,8 +30,9 @@ InputReader * InputReader::build(input_format_t input, string file)
 }
 
 InputReader::InputReader(string file)
-    : fp(0)
+    : fp(0), cols()
 {
+    cols.reserve(1024);
     // Open file handle, "-" uses standard input
     if (file == "-")
         fp = &std::cin;
@@ -63,6 +64,7 @@ bool PlainTextInputReader::next(InputColumn &ic)
     
     for (unsigned i = 0; i < row.size(); ++i)
         ic[i] = (row[i] == '1');
+    cols.push_back(ic);
     return true;
 }
 
@@ -162,14 +164,15 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
         assert (row[pos] == '\t' || row[pos] == '|'); // FIXME Remove
         ic[i] = (row[pos+1] == (char)(48+gtaa));
     }
+    cols.push_back(ic);
     return true;
 }
 
 /**
  * Simplistic SCRM input
  */
-SimpleSCRMInputReader::SimpleSCRMInputReader(string file)
-    : InputReader(file), cols(), good_(false)
+SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
+    : InputReader(file), pos(0), good_(false)
 {
     vector<string> rows;
     string row;
@@ -188,27 +191,24 @@ SimpleSCRMInputReader::SimpleSCRMInputReader(string file)
         }
     }
 
-    cerr << "read " << rows.size() << " rows of length " << rows[0].size() << endl;
-       
-    cols.resize(rows[0].size()); // transpose
-    for (i = 0; i < rows[0].size(); ++i)
+    cols.resize(rows[0].size() < nrows ? rows[0].size() : nrows ); // transpose
+    for (i = 0; i < rows[0].size() && i < nrows; ++i)
         for (unsigned j = 0; j < rows.size(); ++j)
             cols[i].push_back((rows[j][i] == '1'));
 
-    cerr << "cols = " << cols[0].size() << ", rows = " << cols.size() << endl;
+    pos = 0;
     good_ = true;
 }
 
 bool SimpleSCRMInputReader::next(InputColumn &ic)
 {
-    if (cols.empty() || !good_)
+    if (pos >= cols.size() || !good_)
     {
         good_ = false;
         return false;
     }
 
-    ic = cols.back();
-    cols.pop_back();
+    ic = cols[pos++];
     return true;
 }
 

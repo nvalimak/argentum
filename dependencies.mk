@@ -7,3 +7,4 @@ main-simple.o: main-simple.cpp InputReader.h default.h Tree.h \
   TreeControllerSimple.h
 main.o: main.cpp InputReader.h default.h Tree.h TreeController.h
 rand-matrix.o: rand-matrix.cpp
+scrm2bin.o: scrm2bin.cpp

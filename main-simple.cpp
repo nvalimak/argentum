@@ -110,7 +110,7 @@ int main(int argc, char ** argv)
     
     unsigned step = 0;
     InputColumn ic;
-    InputReader *inputr = InputReader::build(inputformat, inputfile);
+    InputReader *inputr = InputReader::build(inputformat, inputfile, nrows);
     if (!inputr->good())
     {
         cerr << "error: could not read input file '" << inputfile << "'" << endl;
@@ -118,51 +118,45 @@ int main(int argc, char ** argv)
     }
 
     /**
-     * Main loop over input data
+     * Forward loop over input data
      */
     if (!inputr->next(ic))
     {
         cerr << "error: empty input file?!" << endl;
         return 1;
     }
-    PointerTree tree(ic);
-    TreeControllerSimple tc(tree, debug, dotfile);
-    vector<InputColumn> columns;
+    PointerTree forward_tree(ic);
+    TreeControllerSimple forward_tc(forward_tree, debug, dotfile);
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
     unsigned prev_stashed = 0;
     unsigned prev_relocates = 0;
     if (skip != ~0u)
         do
-        {
             step ++;
-            if (rewind)
-                columns.push_back(ic);
-        } while (inputr->next(ic) && step < skip);
+        while (inputr->next(ic) && step < skip);
 
     do
     {
-        tc.process(ic, step);
-        if (rewind)
-            columns.push_back(ic);
-        
+        forward_tc.process(ic, step);
+       
         if (!dotfile.empty())
-            tree.outputDOT(dotfile, step);
+            forward_tree.outputDOT("forward_" + dotfile, step);
 
         if (verbose && step % debug_interval == 0)
         {
-            cerr << "at step " << step << ", history = " << tree.historySize() << " (" << tree.historySize()-prev_hsize
-                 << ", reused " << prev_reused << "+" << tree.reusedHistoryEvents()-prev_reused << ", stashed " << prev_stashed << "+" << tree.numberOfStashed()-prev_stashed
-                 << ", relocates " << prev_relocates << "+" << tree.numberOfRelocates()-prev_relocates
-                 << "), tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
-                 << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
-                 << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
-            prev_hsize = tree.historySize();
-            prev_reused = tree.reusedHistoryEvents();
-            prev_stashed = tree.numberOfStashed();
-            prev_relocates = tree.numberOfRelocates();
+            cerr << "at forward step " << step << ", history = " << forward_tree.historySize() << " (" << forward_tree.historySize()-prev_hsize
+                 << ", reused " << prev_reused << "+" << forward_tree.reusedHistoryEvents()-prev_reused << ", stashed " << prev_stashed << "+" << forward_tree.numberOfStashed()-prev_stashed
+                 << ", relocates " << prev_relocates << "+" << forward_tree.numberOfRelocates()-prev_relocates
+                 << "), forward_tree size = " << forward_tree.nnodes() << " (" << forward_tree.size() << " leaves, "
+                 << forward_tc.countGhostBranches(forward_tree.root()) << " ghostbranch, " << forward_tc.countUnaryGhosts(forward_tree.root()) << " unaryghosts, "
+                 << forward_tc.countBranchingGhosts(forward_tree.root()) << " branchingghost, " << forward_tc.countActive(forward_tree.root()) << " active)" << endl;
+            prev_hsize = forward_tree.historySize();
+            prev_reused = forward_tree.reusedHistoryEvents();
+            prev_stashed = forward_tree.numberOfStashed();
+            prev_relocates = forward_tree.numberOfRelocates();
         }
-        /*        if (debug && step >178 && step < 200)
+        /*        if (debug && step >178 && step < 200) TODO Cleanup
         {
             cerr << "row " << step << ": ";
             for (InputColumn::iterator it = ic.begin(); it != ic.end(); ++it)
@@ -171,26 +165,98 @@ int main(int argc, char ** argv)
 
             }*/
         ++step;
-    } while (inputr->next(ic) && step < nrows);
+    } while (step < nrows && inputr->next(ic));
 
     if (verbose && rewind)
-        cerr << "Finished after " << step << " steps of input. Rewinding " << tree.historySize() << " history events..." << endl;
+        cerr << "Forward scan done after " << step << " steps of input. Rewinding " << forward_tree.historySize() << " history events..." << endl;
 
-    assert (!rewind || columns.size() == step || columns.size() == step-skip);
-    tc.deFloatAll(tree.root());
-    unsigned h = columns.size();
-    while (h-- > 0 || (skip != ~0u && h > skip))
+    /**
+     * Backward loop over the input data
+     */
+    assert (!rewind || inputr->size() == step || inputr->size() == step-skip);
+    forward_tc.deFloatAll(forward_tree.root());
+    unsigned h = inputr->size();
+    PointerTree backward_tree(inputr->col(h-1));
+    TreeControllerSimple backward_tc(backward_tree, debug, dotfile.empty() ? "" : "backward");
+    prev_hsize = 0;
+    prev_reused = 0;
+    prev_stashed = 0;
+    prev_relocates = 0;
+    while (h > 0 && (skip == ~0u || h > skip))
     {
-        if (verbose && h % 1000 == 0)
-            cerr << "at " << h << "/" << step << ", history = " << tree.historySize() << ", tree size = " << tree.nnodes() << " (" << tree.size() << " leaves, "
-                 << tc.countGhostBranches(tree.root()) << " ghostbranch, " << tc.countUnaryGhosts(tree.root()) << " unaryghosts, "
-                 << tc.countBranchingGhosts(tree.root()) << " branchingghost, " << tc.countActive(tree.root()) << " active)" << endl;
+        h--;
+        LeafDistance dist(ic.size(), 0);
+        forward_tc.distance(dist, inputr->col(h));
+        forward_tc.rewind(inputr->col(h), h);
         
-        tc.rewind(columns[h], h);                      
+        backward_tc.process(inputr->col(h), inputr->size()-h-1, dist);
+        if (!dotfile.empty())
+            backward_tree.outputDOT("backward_" + dotfile, inputr->size()-h-1);
+
+        if (verbose && h % debug_interval == 0)
+        {
+            //cerr << "rewind forward at " << h << "/" << step << ", history = " << forward_tree.historySize() << ", forward_tree size = " << forward_tree.nnodes() << " (" << forward_tree.size() << " leaves, "
+            //     << forward_tc.countGhostBranches(forward_tree.root()) << " ghostbranch, " << forward_tc.countUnaryGhosts(forward_tree.root()) << " unaryghosts, "
+            //     << forward_tc.countBranchingGhosts(forward_tree.root()) << " branchingghost, " << forward_tc.countActive(forward_tree.root()) << " active)" << endl;
+            cerr << "at backward step " << step << ", history = " << backward_tree.historySize() << " (" << backward_tree.historySize()-prev_hsize
+                 << ", reused " << prev_reused << "+" << backward_tree.reusedHistoryEvents()-prev_reused << ", stashed " << prev_stashed << "+" << backward_tree.numberOfStashed()-prev_stashed
+                 << ", relocates " << prev_relocates << "+" << backward_tree.numberOfRelocates()-prev_relocates
+                 << "), backward_tree size = " << backward_tree.nnodes() << " (" << backward_tree.size() << " leaves, "
+                 << backward_tc.countGhostBranches(backward_tree.root()) << " ghostbranch, " << backward_tc.countUnaryGhosts(backward_tree.root()) << " unaryghosts, "
+                 << backward_tc.countBranchingGhosts(backward_tree.root()) << " branchingghost, " << backward_tc.countActive(backward_tree.root()) << " active)" << endl;
+            prev_hsize = backward_tree.historySize();
+            prev_reused = backward_tree.reusedHistoryEvents();
+            prev_stashed = backward_tree.numberOfStashed();
+            prev_relocates = backward_tree.numberOfRelocates();
+        }
     }
+
+    if (verbose && rewind)
+        cerr << "Backward scan done after " << backward_tree.historySize() << " backward history events..." << endl;
+
+    /**
+     * Forward loop over the input data
+     */
+    backward_tc.deFloatAll(backward_tree.root());
+    h = 0;
+    PointerTree final_tree(inputr->col(0));
+    TreeControllerSimple final_tc(final_tree, debug, dotfile.empty() ? "" : "final");
+    prev_hsize = 0;
+    prev_reused = 0;
+    prev_stashed = 0;
+    prev_relocates = 0;
+    while (h < inputr->size()) // TODO FIXME --skip support
+    {
+        LeafDistance dist(ic.size(), 0);
+        backward_tc.distance(dist, inputr->col(h));
+        backward_tc.rewind(inputr->col(h), inputr->size()-h-1);
+        
+        final_tc.process(inputr->col(h), h, dist);
+        if (!dotfile.empty())
+            final_tree.outputDOT("final_" + dotfile, h);
+
+        if (verbose && h % debug_interval == 0)
+        {
+            //cerr << "rewind backward at " << h << "/" << step << ", history = " << backward_tree.historySize() << ", backward_tree size = " << backward_tree.nnodes() << " (" << backward_tree.size() << " leaves, "
+            //     << backward_tc.countGhostBranches(backward_tree.root()) << " ghostbranch, " << backward_tc.countUnaryGhosts(backward_tree.root()) << " unaryghosts, "
+            //     << backward_tc.countBranchingGhosts(backward_tree.root()) << " branchingghost, " << backward_tc.countActive(backward_tree.root()) << " active)" << endl;
+            cerr << "at final step " << h << ", history = " << final_tree.historySize() << " (" << final_tree.historySize()-prev_hsize
+                 << ", reused " << prev_reused << "+" << final_tree.reusedHistoryEvents()-prev_reused << ", stashed " << prev_stashed << "+" << final_tree.numberOfStashed()-prev_stashed
+                 << ", relocates " << prev_relocates << "+" << final_tree.numberOfRelocates()-prev_relocates
+                 << "), final_tree size = " << final_tree.nnodes() << " (" << final_tree.size() << " leaves, "
+                 << final_tc.countGhostBranches(final_tree.root()) << " ghostbranch, " << final_tc.countUnaryGhosts(final_tree.root()) << " unaryghosts, "
+                 << final_tc.countBranchingGhosts(final_tree.root()) << " branchingghost, " << final_tc.countActive(final_tree.root()) << " active)" << endl;
+            prev_hsize = final_tree.historySize();
+            prev_reused = final_tree.reusedHistoryEvents();
+            prev_stashed = final_tree.numberOfStashed();
+            prev_relocates = final_tree.numberOfRelocates();
+        }
+        h++;
+    }
+
     
     if (verbose)
-        cerr << "main-simple done. Finished after " << step << " steps of input." << endl;
+        cerr << "All done. Finished after " << step << " steps of input. In total " << final_tree.historySize() << " final history events." << endl;
     
     // Clean up
     delete inputr; inputr = 0;

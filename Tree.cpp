@@ -11,41 +11,48 @@ const unsigned PointerTree::nohistory = ~0u;
 const int PointerTree::unknown = (int)-1000;
 
 // Static variables (FIXME clean up)
-size_t PointerTree::N = 0; // Total number of nodes
-vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
-set<PointerTree::PointerNode *> PointerTree::nonbranching = set<PointerTree::PointerNode *>();
-vector<NodeId> PointerTree::vacant = vector<NodeId>();
-NodeId PointerTree::nextVacant = 0;
+//size_t PointerTree::N = 0; // Total number of nodes (over all trees)
+//vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
+//set<PointerTree::PointerNode *> PointerTree::nonbranching = set<PointerTree::PointerNode *>();
+//vector<NodeId> PointerTree::vacant = vector<NodeId>();
+//NodeId PointerTree::nextVacant = 0;
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : r(0), n(ic.size()), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(), reusedHistoryEvent(0)
+    : nodes(), N(0), r(0), n(ic.size()), leaves(), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(), reusedHistoryEvent(0),
+      nonbranching(), vacant(), nextVacant(0)
 {
-    assert (nodes.size() == 0); // Only one instance of this class is allowed
     history.reserve(HISTORY_INIT_SIZE);
-    if (BUFFER_INIT_SIZE > ic.size()*2)
-        nodes.resize(BUFFER_INIT_SIZE);
-    else
-        nodes.resize(ic.size()*2);
-        
-    size_t id = 0;
-    nodes[id++] = new PointerNode(1.0, PointerTree::nonreserved);
+    vacant.reserve(HISTORY_INIT_SIZE);
+    if (nodes.size() == 0)
+    {
+        // Initialize the static node buffer
+        if (BUFFER_INIT_SIZE > ic.size()*2)
+            nodes.resize(BUFFER_INIT_SIZE);
+        else
+            nodes.resize(ic.size()*2);
+
+        for (size_t id = 0; id < nodes.size(); ++id)
+            nodes[id] = new PointerNode(this);
+    }
+
+    NodeId id = 0;
+    leaves.reserve(ic.size());
+    r = createNode(1.0, PointerTree::nonreserved, PointerTree::nohistory, true); // New root
     for (InputColumn::const_iterator it = ic.begin(); it != ic.end(); ++it)
     {
-        nodes[id] = new PointerNode(id, 0.0, r);
-        nodes[r]->insert(id++);
+        NodeId c = createNode(0.0, r, PointerTree::nohistory, false, id++);
+        nodes[r]->insert(c);
+        leaves.push_back(nodes[c]);
     }
-    nextVacant = id;
-    for (; id < nodes.size(); ++id)
-        nodes[id] = new PointerNode();
-
-    PointerTree::N = ic.size()+1; // Initial size of the tree
     validationReachable.resize(n);
 }
 
 PointerTree::~PointerTree()
 {
     for (size_t i = 0; i < nodes.size(); ++i)
-        delete nodes[i];
+    {
+        delete nodes[i]; nodes[i] = 0;
+    }
 }
 
 /**
@@ -165,6 +172,7 @@ void PointerTree::propagateUpwardCounts(PointerNode *pn, int nzeros, int nones)
 void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool keepparentcounts)
 {
     ++nstashed;
+    pn->stashed(true);
     stashv.push_back(pn);
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
@@ -199,6 +207,7 @@ void PointerTree::unstash()
         pn->floating(true);
         dest->addZeros(pn->nZeros());
         dest->addOnes(pn->nOnes());        
+        pn->stashed(false);
     }
     stashv.clear();
 }
@@ -323,17 +332,33 @@ void PointerTree::validate()
 /**
  * Graphical output. Requires Graphwiz DOT.
  */
-unsigned PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
-{    
-    unsigned cur_id = id;
+void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
+{
     if (pn->leaf())
-        return id;
+        return;
+    if (pn->ghostbranch())
+        return;
     
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
-        of << " n" << cur_id << " -> n" << ++id  << endl;
-        of << " n" << id << " [label=\"";
-        of << (*it)->nodeId();
+        if ((*it)->ghostbranch())
+            continue;
+        bool unarypath = false;
+        for (PointerTree::PointerNode::iterator itt = (*it)->begin(); itt != (*it)->end(); ++itt)
+            if ((*itt)->nZeros() == (*it)->nZeros() && (*itt)->nOnes() == (*it)->nOnes())
+                unarypath = true;
+    
+        if (unarypath)
+        {
+            outputDOT(*it, id, of);
+            continue;
+        }
+        of << " n" << id << " -> n" << (*it)->nodeId() << endl;
+        of << " n" << (*it)->nodeId() << " [label=\"";
+        if ((*it)->leaf())
+            of << (*it)->leafId();
+        else
+            of << (*it)->nodeId();
         if ((*it)->previousUpdate() != PointerTree::nohistory)
             of << "/" << (*it)->previousUpdate();
         of << " ";
@@ -352,9 +377,8 @@ unsigned PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
             of << "\"";
         }
         of << "]" << endl;
-        id = outputDOT(*it, id, of);
+        outputDOT(*it, (*it)->nodeId(), of);
     }
-    return id;
 }
 void PointerTree::outputDOT(string const &filename, unsigned step)
 {

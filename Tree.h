@@ -30,37 +30,34 @@ public:
     {
         typedef std::set<NodeId> children_set_t;
     public:        
-        PointerNode() // Empty node constructor
-            : ch(), id(PointerTree::nonreserved), lf(false), d(1.0), p(PointerTree::nonreserved),
+        explicit PointerNode(PointerTree *t_) // Empty node constructor
+            : t(t_), ch(), id(PointerTree::nonreserved), lfId(PointerTree::nonreserved), d(1.0), p(PointerTree::nonreserved),
               nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
-              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory)
-        { }
-        // Root node constructor
-        PointerNode(TreeDepth d_, NodeId p_)
-            : ch(), id(0), lf(false), d(d_), p(p_),
-              nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
-              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory)
-        { }
-        // Leaf node constructor
-        PointerNode(LeafId id_, TreeDepth d_, NodeId p_)
-            : ch(), id(id_), lf(true), d(d_), p(p_),
-              nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
-              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory)
+              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory), root_(false), stashed_(false),
+              mdepth(0)
         { }
 
         // General accessors
         inline bool root() const
-        { return id == 0; }
+        { return root_; }
         inline bool leaf() const
-        { return lf; }
+        { return (lfId != PointerTree::nonreserved); }
         inline NodeId nodeId() const
         { return id; }
         inline LeafId leafId() const
-        { return id-1; /* Root is id==0 */ } 
+        { return lfId; } 
         inline children_set_t::size_type size() const
         { return ch.size(); }
         inline TreeDepth depth() const
         { return d; }
+        inline bool stashed() const
+        { return stashed_; }
+        inline void stashed(bool b)
+        { stashed_ = b; }
+        inline unsigned maxDepth() const
+        { return mdepth; }
+        inline void maxDepth(unsigned u)
+        { mdepth = u; }
 
         // History tracking
         inline bool hasPreviousEvent() const
@@ -109,27 +106,28 @@ public:
         // Iterator to child nodes
         class iterator 
         {            
+            PointerTree *t;
             children_set_t::iterator p;
         public:
-            iterator(children_set_t::iterator x) :p(x) {}
+            iterator(PointerTree *t_, children_set_t::iterator x) :t(t_), p(x) {}
             iterator(const iterator& mit) : p(mit.p) {}
             iterator& operator++() {++p;return *this;}
             iterator operator++(int) {iterator tmp(*this); operator++(); return tmp;}
             bool operator==(const iterator& rhs) {return p==rhs.p;}
             bool operator!=(const iterator& rhs) {return p!=rhs.p;}
-            PointerNode *& operator*() {return PointerTree::nodes[*p];}
+            PointerNode *& operator*() {return t->nodes[*p];}
         };
 
         inline iterator begin()
-        { return iterator(ch.begin()); }
+        { return iterator(t, ch.begin()); }
         inline iterator end()
-        { return iterator(ch.end()); }
+        { return iterator(t, ch.end()); }
 
         // Parent accessors
         inline NodeId parent() const
         { return p; }
         inline PointerNode * parentPtr() const
-        { return PointerTree::nodes[p]; }
+        { return t->nodes[p]; }
         inline void setParent(NodeId p_)
         { p = p_; }
         inline void setParent(PointerNode *pn)
@@ -149,7 +147,7 @@ public:
             --nrefs;
             // If no other references remain, clean the tree
             if (nrefs == 0 && ch.size() < 2) // && p != 0)
-                PointerTree::clearNonBranchingInternalNode(PointerTree::nodes[id]);
+                t->clearNonBranchingInternalNode(t->nodes[id]);
             // Note: this object can commit suicide ('delete this') above!
         }
         inline unsigned numberOfRefs() const
@@ -168,7 +166,7 @@ public:
         inline void reset()
         {
             id = PointerTree::nonreserved;
-            assert (lf == false);
+            assert (lfId == PointerTree::nonreserved);
             d = 1.0;
             p = PointerTree::nonreserved;
             nzeros  = PointerTree::unknown;
@@ -179,17 +177,20 @@ public:
             preve = PointerTree::nohistory;
             assert (ch.size() == 0);
             assert(nrefs == 0);
+            assert(root_ == false);
+            assert (stashed_ == false);
         }
 
         // Internal node reset
-        inline void reset(NodeId id_, TreeDepth d_, NodeId p_, unsigned step)
+        inline void reset(NodeId id_, NodeId lfId_, TreeDepth d_, NodeId p_, unsigned step, bool r)
         {
             assert(id == PointerTree::nonreserved);
             assert(p == PointerTree::nonreserved);
             id = id_;
             d = d_;
             p = p_;
-            assert (lf == false);
+            assert (lfId == PointerTree::nonreserved);
+            lfId = lfId_;
             assert (nzeros == PointerTree::unknown);
             assert (nones == PointerTree::unknown);
             assert (nrefs == 0);
@@ -197,6 +198,9 @@ public:
             flt = false;
             assert (preve = PointerTree::nohistory);
             assert (ch.size() == 0);
+            root_ = r;
+            assert (stashed_ == false);
+            mdepth = 0;
         }
         
         virtual ~PointerNode()
@@ -204,17 +208,23 @@ public:
         
         // Default copy constructor and assignment
     private:
+        PointerNode(); // No default constructor
+        
+        PointerTree *t;
         children_set_t ch;  // Children
         NodeId id;          // Node identifier (unique)
-        bool lf;            // Leaf node?
+        NodeId lfId;        // Leaf node?
         TreeDepth d;        // Given depth
         NodeId p;           // Parent node
-        int nzeros;         // Number of zero labels in the subtree
-        int nones;          // Number of one labels in the subtree
+        int nzeros;         // Number of zero labels in the subtree (reduced)
+        int nones;          // Number of one labels in the subtree (reduced)
         unsigned nrefs;     // Number of active history references.
         unsigned prevupdate;// Previous update to the subtree
         bool flt;           // Floating node (flagged)
         unsigned preve;     // Previous event number (refers to the history vector)
+        bool root_;
+        bool stashed_; 
+        unsigned mdepth;    // Subtree max depth to leaf (in non-reduced tree)
     };
 
     /**
@@ -294,6 +304,8 @@ public:
     { return N; }
     std::size_t historySize() const
     { return history.size(); }
+    PointerNode * leaf(std::size_t i)
+    { return leaves[i]; }
     
     inline unsigned getPreviousEventStep(PointerNode *pn)
     { return history[pn->previousEvent()].getStep(); }
@@ -314,8 +326,8 @@ public:
     }
     
     // Clean nonbranching internal node, if possible
-    static void clearNonBranchingInternalNode(PointerNode *);
-    static void clearNonBranchingInternalNodes();
+    void clearNonBranchingInternalNode(PointerNode *);
+    void clearNonBranchingInternalNodes();
 
     // Debugging
     unsigned reusedHistoryEvents() const
@@ -333,15 +345,15 @@ public:
     static const int unknown;
 
     // FIXME Public?
-    static std::vector<PointerNode *> nodes; // Buffer for node allocation    
-    static std::size_t N; // Number of nodes
+    std::vector<PointerNode *> nodes; // Buffer for node allocation    
+    std::size_t N; // Number of nodes
 private:
     PointerTree();
     // No copy constructor or assignment
     PointerTree(PointerTree const&);
     PointerTree& operator = (PointerTree const&);
    
-    static NodeId createNode(TreeDepth d_, NodeId p_, unsigned step)
+    NodeId createNode(TreeDepth d_, NodeId p_, unsigned step, bool root = false, NodeId lfId = PointerTree::nonreserved)
     {
         if (vacant.empty())
         {
@@ -349,18 +361,18 @@ private:
             {                
                 nodes.resize(nodes.size()*2);
                 for (size_t i = nodes.size()/2; i < nodes.size(); ++i)
-                    nodes[i] = new PointerNode();                
+                    nodes[i] = new PointerNode(this);                
             }
-            nodes[nextVacant]->reset(nextVacant, d_, p_, step);
+            nodes[nextVacant]->reset(nextVacant, lfId, d_, p_, step, root);
             return nextVacant++;
         }
         NodeId id = vacant.back();
         vacant.pop_back();
-        nodes[id]->reset(id, d_, p_, step);
+        nodes[id]->reset(id, lfId, d_, p_, step, root);
         return id;
     }
     
-    static void discardNode(NodeId id)
+    void discardNode(NodeId id)
     {
         assert(nodes[id]->numberOfRefs() == 0);
         assert(nodes[id]->size() == 0);
@@ -370,18 +382,19 @@ private:
 
     void propagateUpwardCounts(PointerNode *, int, int);
 
-    unsigned outputDOT(PointerNode *, unsigned, std::ostream &);
+    void outputDOT(PointerNode *, unsigned, std::ostream &);
     
     NodeId r;
     std::size_t n; // Number of leaves
+    std::vector<PointerTree::PointerNode *> leaves;
     std::vector<PointerTree::PointerNode *> stashv;
     std::size_t nstashed;
     std::size_t nrelocate;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
     unsigned reusedHistoryEvent;
-    static std::set<PointerTree::PointerNode *> nonbranching;
-    static std::vector<NodeId> vacant;
-    static NodeId nextVacant;
+    std::set<PointerTree::PointerNode *> nonbranching;
+    std::vector<NodeId> vacant;
+    NodeId nextVacant;
 };
 #endif
