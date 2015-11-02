@@ -17,25 +17,26 @@ public:
     // Constructor
     static InputReader* build(input_format_t, std::string, unsigned);
     
-    // Get next input row (or return False if EOF)
-    virtual bool next(InputColumn &) = 0;
-    
     // Misc helper functions
     virtual bool good() const
-    { return (fp != 0 && fp->good()); }
+    { return good_; }
     InputColumn const & col(std::size_t i) const
     { return cols[i]; }
+    InputColumn const & front() const
+    { return cols.front(); }
+    InputColumn const & back() const
+    { return cols.back(); }
     std::size_t size() const
     { return cols.size(); }
-
     
     virtual ~InputReader()
-    { delete fp; fp = 0; }
+    { if (fp != &std::cin) delete fp; fp = 0; }
     
 protected:
     explicit InputReader(std::string);
     std::istream *fp;
     std::vector<InputColumn> cols;
+    bool good_;
     
 private:
     InputReader();
@@ -51,13 +52,11 @@ private:
 class PlainTextInputReader : public InputReader
 {
 public:
-    bool next(InputColumn &);
+    PlainTextInputReader(std::string, unsigned);
     virtual ~PlainTextInputReader()
     { }
-    
-    explicit PlainTextInputReader(std::string);
-    
 private:
+    bool next(InputColumn &);
     // No copy constructor or assignment
     PlainTextInputReader(PlainTextInputReader const&);
     PlainTextInputReader& operator = (PlainTextInputReader const&);
@@ -69,13 +68,11 @@ private:
 class SimpleVCFInputReader : public InputReader
 {
 public:
-    bool next(InputColumn &);
+    SimpleVCFInputReader(std::string, unsigned);
     virtual ~SimpleVCFInputReader()
     { }
-    
-    explicit SimpleVCFInputReader(std::string);
-    
 private:
+    bool next(InputColumn &);
     static char upcasedna[256];
     // No copy constructor or assignment
     SimpleVCFInputReader(SimpleVCFInputReader const&);
@@ -88,19 +85,12 @@ private:
 class SimpleSCRMInputReader : public InputReader
 {
 public:
-    bool next(InputColumn &);
+    SimpleSCRMInputReader(std::string, unsigned);
     virtual ~SimpleSCRMInputReader()
     { }
-    
-    SimpleSCRMInputReader(std::string, unsigned);
-    virtual bool good() const
-    { return good_; }
-    
 private:    
     // No copy constructor or assignment
     SimpleSCRMInputReader(SimpleSCRMInputReader const&);
     SimpleSCRMInputReader& operator = (SimpleSCRMInputReader const&);
-    std::size_t pos;
-    bool good_;
 };
 #endif

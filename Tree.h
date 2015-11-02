@@ -338,6 +338,7 @@ public:
     { return nrelocate; }
     void validate();
     void outputDOT(std::string const &, unsigned);
+    void outputNewick(std::string const &, unsigned);
     
     // Flags
     static const NodeId nonreserved;
@@ -383,6 +384,7 @@ private:
     void propagateUpwardCounts(PointerNode *, int, int);
 
     void outputDOT(PointerNode *, unsigned, std::ostream &);
+    void outputNewick(PointerNode *, unsigned, std::ostream &);
     
     NodeId r;
     std::size_t n; // Number of leaves

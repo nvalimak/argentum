@@ -404,3 +404,67 @@ void PointerTree::outputDOT(string const &filename, unsigned step)
     if (of != &std::cout)
         delete of;
 }
+
+/**
+ * Newick output
+ */
+void PointerTree::outputNewick(PointerNode *pn, unsigned depth, ostream &of)
+{
+    if (pn->leaf())
+    {
+        of << pn->leafId()+1 << ":" << depth << ".0";
+        return;
+    }
+    if (pn->ghostbranch())
+        return;
+
+    bool unarypath = false;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
+            unarypath = true;
+
+    if (!unarypath)
+        of << "(";
+    bool first = true;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+    {
+        if ((*it)->ghostbranch())
+            continue;
+    
+        if (unarypath)
+        {
+            outputNewick(*it, depth, of);
+            return;
+        }
+        
+        if (!first)
+            of << ",";
+        first = false;
+        outputNewick(*it, depth+1, of);
+    }
+    of << ")";
+    if (!pn->root())
+        of << ":" << depth << ".0";
+}
+void PointerTree::outputNewick(string const &filename, unsigned step)
+{
+    /**
+     * Example tree:
+     *  [66]((3:0.0368455,1:0.0368455):1.40615,(4:0.234725,2:0.234725):1.20828);
+     */
+    ostream *of = 0;
+    if (filename == "-")
+        of = &std::cout;
+    else
+    {
+        char fn[256];
+        snprintf(fn, 256, "%s.%u.newick", filename.c_str(), step);
+        of = new ofstream (fn);
+    }
+    (*of) << "[1]";
+    outputNewick(nodes[r], 0, *of);
+    (*of) << ";" << endl;
+    if (of != &std::cout)
+        delete of;
+}
+

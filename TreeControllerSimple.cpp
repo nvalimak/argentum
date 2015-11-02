@@ -14,13 +14,13 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
     if (debug && !dotfile.empty())
-        t.outputDOT("reduced", step);
+        t.outputDOT(dotfile + "_reduced", step);
 
     deFloatAll(t.root());
     resolveNonBinary(root);
     t.clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
-        t.outputDOT("resolvednonbinaryr", step);
+        t.outputDOT(dotfile + "_resolvednonbinaryr", step);
     if (debug)
         t.validate();
 
@@ -31,9 +31,12 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     deFloatAll(t.root());
     recombine.clear();
     recombine.reserve(2 * t.size());
-    pair<int,int> checksum = recombineStrategy(root);
-    assert (checksum.second == 1);
+    //pair<int,int> checksum = recombineStrategy(root);
+    //assert (checksum.second == 1);
 
+    findReduced(t.root(), 1);
+    recombineSubtrees(t.root(), true, false);
+    
     t.unstash(); // Recover stashed subtrees (inserted to the root)
 
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
@@ -52,13 +55,13 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, LeafDi
     TreeController::computeMaxDists(t.root());
     
     if (debug && !dotfile.empty())
-        t.outputDOT("reduced", step);
+        t.outputDOT(dotfile + "_reduced", step);
 
     deFloatAll(t.root());
     resolveNonBinary(root);
     t.clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
-        t.outputDOT("resolvednonbinaryr", step);
+        t.outputDOT(dotfile + "_resolvednonbinaryr", step);
     if (debug)
         t.validate();
 
@@ -72,6 +75,9 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, LeafDi
     pair<int,int> checksum = recombineStrategy(root, dist);
     assert (checksum.second == 1);
 
+    //findReduced(t.root(), 1);
+    //recombineSubtrees(t.root(), true, false, dist);
+    
     t.unstash(); // Recover stashed subtrees (inserted to the root)
 
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
@@ -79,90 +85,6 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, LeafDi
             (*it)->previousUpdate(step);
     t.clearNonBranchingInternalNodes();
 }
-
-
-/*void distByTraversal_(PointerTree::PointerNode * pn, PointerTree::PointerNode * src, unsigned sup, unsigned sdown, LeafDistance &d)
-{
-    if (pn->ghostbranch())
-        return;
-    if (pn->leaf())
-    {
-        if (pn->reducedLabel() == 1)
-            d[pn->leafId()] = max(sup,sdown);
-        return;
-    }
-
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if (*it != src)
-            distByTraversal_(*it, pn, sup, unarypath ? sdown : sdown+1, d);
-            
-    if (!pn->root() && pn->parentPtr() != src)
-        distByTraversal_(pn->parentPtr(), pn, unarypath ? sup : sup+1, sdown, d);
-}
-
-   if (pn->ghostbranch())
-        return make_pair(0,0);
-    if (pn->leaf())
-    {
-        if (pn->reducedLabel() == 1)
-            return make_pair(0,1);
-        else
-            return make_pair(0,0);
-    }
-
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-
-    unsigned distsum = 0;
-    unsigned onebits = 0;
-    
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if (*it != src)
-        {
-            pair<unsigned,unsigned> tmp = distByTraversal_(*it, pn);
-            distsum += tmp.first;
-            onebits += tmp.second;
-        }
-              
-    if (!pn->root() && pn->parentPtr() != src)
-    {
-        pair<unsigned,unsigned> tmp = distByTraversal_(pn->parentPtr(), pn);
-        distsum += tmp.first;
-        onebits += tmp.second;
-    }
-
-    if (!unarypath)
-        distsum += onebits;
-
-    pn->oneLeaves(onebits);
-    pn->distSum(distsum);
-    return make_pair(distsum,onebits);
-    }*/
-
-/*void TreeControllerSimple::distances(LeafDistance &dist, InputColumn const & ic)
-{    
-    reduce(t.root(), ic);
-
-    for (size_t l = 0; l < t.size(); ++l) // TODO make linear time
-    {
-        LeafDistance d(dist.size(), 0);
-            PointerTree::PointerNode * pn = t.leaf(l);
-        if (pn->reducedLabel() != 0)
-            continue;
-        ::distByTraversal_(pn->parentPtr(), pn, 1, 0, d);
-        dist[l] = 0;
-        for (size_t j = 0; j < d.size(); ++j)
-            if (t.leaf(j)->reducedLabel() == 1)
-                dist[l] += d[j]; //exp(-d[j]);
-    }
-    }*/
 
 void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_)
 {

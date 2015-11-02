@@ -15,13 +15,13 @@ InputReader * InputReader::build(input_format_t input, string file, unsigned nro
     switch (input)
     {
     case input_vcf:
-        return new SimpleVCFInputReader(file);
+        return new SimpleVCFInputReader(file, nrows);
         break;
     case input_scrm:
         return new SimpleSCRMInputReader(file, nrows);
         break;
     case input_plaintext:
-        return new PlainTextInputReader(file);
+        return new PlainTextInputReader(file, nrows);
         break;
     default:
         cerr << "Error: invalid file type at InputReader::build()" << endl; 
@@ -30,7 +30,7 @@ InputReader * InputReader::build(input_format_t input, string file, unsigned nro
 }
 
 InputReader::InputReader(string file)
-    : fp(0), cols()
+    : fp(0), cols(), good_(true)
 {
     cols.reserve(1024);
     // Open file handle, "-" uses standard input
@@ -38,14 +38,24 @@ InputReader::InputReader(string file)
         fp = &std::cin;
     else
         fp = new ifstream(file.c_str());
+
+    if (fp == 0 || !fp->good())
+        good_ = false;
 }
 
 /**
  * Plain text input
  */
-PlainTextInputReader::PlainTextInputReader(string file)
+PlainTextInputReader::PlainTextInputReader(string file, unsigned nrows)
     : InputReader(file)
-{ }
+{
+    if (!good_)
+        return;
+
+    InputColumn ic;
+    while (nrows && next(ic))
+        --nrows;
+}
 
 bool PlainTextInputReader::next(InputColumn &ic)
 {
@@ -71,15 +81,21 @@ bool PlainTextInputReader::next(InputColumn &ic)
 /**
  * Simplistic VCF input
  */
-SimpleVCFInputReader::SimpleVCFInputReader(string file)
+SimpleVCFInputReader::SimpleVCFInputReader(string file, unsigned nrows)
     : InputReader(file)
 {
+    if (!good_)
+        return;
     for (unsigned i = 0; i < 256; ++i)
         SimpleVCFInputReader::upcasedna[i] = i;
-    SimpleVCFInputReader::upcasedna[(unsigned)'a'] = 'A'; // Oh my.. horrible. FIXME
+    SimpleVCFInputReader::upcasedna[(unsigned)'a'] = 'A'; // Oh my.. FIXME
     SimpleVCFInputReader::upcasedna[(unsigned)'c'] = 'C';
     SimpleVCFInputReader::upcasedna[(unsigned)'g'] = 'G';
     SimpleVCFInputReader::upcasedna[(unsigned)'t'] = 'T';
+
+    InputColumn ic;
+    while (nrows && next(ic))
+        --nrows;
 }
 
 bool SimpleVCFInputReader::next(InputColumn &ic)
@@ -172,21 +188,25 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
  * Simplistic SCRM input
  */
 SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
-    : InputReader(file), pos(0), good_(false)
+    : InputReader(file)
 {
+    if (!good_)
+        return;
     vector<string> rows;
     string row;
     unsigned i = 0;
-    while (i++ < 6)
+    while (row.size() < 10 || row.substr(0,9) != "positions")
         if (!std::getline(*fp, row).good())
+        {
+            good_ = false;
             return;
-    
+        }
     while (std::getline(*fp, row).good())
     {
         rows.push_back(row);
         if (rows[0].size() != rows.back().size())
         {
-            cerr << "error at SimpleSCRMInputReader: Check input format (tree input is not supported)" << endl;
+            cerr << "error at SimpleSCRMInputReader: Check input format (tree input is mandatory)" << endl;
             abort();
         }
     }
@@ -195,20 +215,5 @@ SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
     for (i = 0; i < rows[0].size() && i < nrows; ++i)
         for (unsigned j = 0; j < rows.size(); ++j)
             cols[i].push_back((rows[j][i] == '1'));
-
-    pos = 0;
-    good_ = true;
-}
-
-bool SimpleSCRMInputReader::next(InputColumn &ic)
-{
-    if (pos >= cols.size() || !good_)
-    {
-        good_ = false;
-        return false;
-    }
-
-    ic = cols[pos++];
-    return true;
 }
 
