@@ -56,7 +56,7 @@ public:
         }
         
         ~Node()
-        { for (set<Node *>::iterator it = ch.begin(); it != ch.end(); ++it) delete *it; }
+            { for (set<Node *>::iterator it = ch.begin(); it != ch.end(); ++it) delete *it; ch.clear(); }
         set<Node *> ch; // Children
         Node *parent; 
         int label; // Leaf label
@@ -121,7 +121,7 @@ public:
         assert (root->size == leaves.size());
     }
     ~NewickTree()
-        { delete root; }
+        { delete root; root = 0; }
     
     // Bottom-up cascade of subtree size (n:o leaves)
     int updateSizes(Node *pn)
@@ -251,17 +251,19 @@ int main(int argc, char ** argv)
     unsigned tree_base = tree->valid;
     while (scrmf.good())
     {
-        if (!std::getline(cin, row).good())
-            break;
-        if (row.empty())
-            break;
         NewickTree *predt =  0;
         do
         {
+            if (!std::getline(cin, row).good())
+                break;
+            if (row.empty())
+                break;
             delete predt;
             predt = new NewickTree(row);
             assert (predt->root->size == tree->root->size);
         } while (predt->valid == 0);
+        if (!cin.good() || row.empty())
+            break;
         vector<unsigned> cd(nleaves*nleaves, 0);
         predt->subtreeDistance(cd);
         predt_base += predt->valid;
