@@ -32,7 +32,7 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
         if (!config.dotfile.empty())
             tree.outputDOT(dotprefix + "_" + config.dotfile, increasingStep);
         if (newick)
-            tree.outputNewick("-", increasingStep);
+            tree.outputNewick("-", ir.position(step));
         
         if (config.verbose && increasingStep % config.debug_interval == 0)
         {
@@ -85,7 +85,7 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
             tree.outputDOT(dotprefix + "_" + config.dotfile, increasingStep);
 
         if (newick)
-            tree.outputNewick("-", increasingStep);
+            tree.outputNewick("-", ir.position(step));
 
         if (config.verbose && increasingStep % config.debug_interval == 0)
         {

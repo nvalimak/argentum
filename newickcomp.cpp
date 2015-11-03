@@ -226,9 +226,9 @@ public:
     
 int main(int argc, char ** argv)
 {
-    if (argc != 2)
+    if (argc != 4)
     {
-        cerr << "usage: ./main [options] | " << argv[0] << " <SCRM-input-file>" << endl;
+        cerr << "usage: ./main [options] | " << argv[0] << " <SCRM-input-file> <leaf1> <leaf2>" << endl;
         return 1;
     }
 
@@ -245,44 +245,46 @@ int main(int argc, char ** argv)
     unsigned nleaves = tree->root->size;
     vector<unsigned> cd_orig(nleaves*nleaves, 0);
     tree->subtreeDistance(cd_orig);
-    unsigned site = 0;
-    unsigned n = 0;
+    unsigned predt_base = 0;
+    unsigned tree_base = tree->valid;
     while (scrmf.good())
     {
-        if (site >= tree->valid)
-        {
-            std::getline(scrmf, row);
-            if (!scrmf.good() || row[0] != '[')
-            {
-                cerr << "EOF from scrm input after n = " << n << " sites" << endl;
-                return 0;
-            }
-            site = 0;
-            delete tree;
-            // update tree & distances
-            tree = new NewickTree(row);
-            tree->subtreeDistance(cd_orig);
-            assert (tree->root->size == nleaves);
-        }
-
         if (!std::getline(cin, row).good())
             break;
         if (row.empty())
             break;
-        NewickTree *predt = new NewickTree(row);
-        assert (predt->root->size == tree->root->size);
+        NewickTree *predt =  0;
+        do
+        {
+            delete predt;
+            predt = new NewickTree(row);
+            assert (predt->root->size == tree->root->size);
+        } while (predt->valid == 0);
         vector<unsigned> cd(nleaves*nleaves, 0);
         predt->subtreeDistance(cd);
+        predt_base += predt->valid;
 
-        unsigned i = 0;
-        unsigned j = 1;
-        // Output <site> <leaf id> <leaf id> <dist. in SCRM> <dist. in stdin>
-        cout << n << '\t' << i+1 << '\t' << j+1 << '\t' << cd_orig[i + nleaves * j] << '\t' << cd[i + nleaves * j] << endl;
+        while (tree_base < predt_base)
+        {
+            std::getline(scrmf, row);
+            if (!scrmf.good() || row[0] != '[')
+                break;
+            delete tree;
+            // update tree & distances
+            tree = new NewickTree(row);
+            tree->subtreeDistance(cd_orig);
+            tree_base += tree->valid;
+            assert (tree->root->size == nleaves);
+        }
+
+        unsigned i = atoi_min(argv[2],0);
+        unsigned j = atoi_min(argv[3],0);
+        // Output <base> <leaf id> <leaf id> <dist. in SCRM> <dist. in stdin>
+        cout << predt_base << '\t' << i+1 << '\t' << j+1 << '\t' << cd_orig[i + nleaves * j] << '\t' << cd[i + nleaves * j] << endl;
         
         delete predt; predt = 0;
-        site ++;
-        n ++;
     }
+    cerr << predt_base << " sites done." << endl;
     delete tree;
     return 0;
 }

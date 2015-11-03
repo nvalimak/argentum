@@ -2,6 +2,8 @@
 #define _InputReader_h_
 #include "default.h"
 #include <string>
+#include <vector>
+#include <cassert>
 #include <iostream>
 
 /**
@@ -28,6 +30,8 @@ public:
     { return cols.back(); }
     std::size_t size() const
     { return cols.size(); }
+    virtual unsigned position(size_t i)
+    { return 0; } // SCRM input only
     
     virtual ~InputReader()
     { if (fp != &std::cin) delete fp; fp = 0; }
@@ -86,11 +90,14 @@ class SimpleSCRMInputReader : public InputReader
 {
 public:
     SimpleSCRMInputReader(std::string, unsigned);
+    virtual unsigned position(size_t i)
+    { assert(i<positions.size()); return positions[i]; }
     virtual ~SimpleSCRMInputReader()
     { }
 private:    
     // No copy constructor or assignment
     SimpleSCRMInputReader(SimpleSCRMInputReader const&);
     SimpleSCRMInputReader& operator = (SimpleSCRMInputReader const&);
+    std::vector<unsigned> positions;
 };
 #endif

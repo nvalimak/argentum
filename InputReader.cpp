@@ -1,7 +1,9 @@
 #include "InputReader.h"
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
+#include <cmath>
 #include <cstdlib> // abort()
 #include <cassert>
 using namespace std;
@@ -188,19 +190,41 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
  * Simplistic SCRM input
  */
 SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
-    : InputReader(file)
+    : InputReader(file), positions()
 {
     if (!good_)
         return;
     vector<string> rows;
     string row;
     unsigned i = 0;
+    double totaln = 0;
     while (row.size() < 10 || row.substr(0,9) != "positions")
+    {
         if (!std::getline(*fp, row).good())
         {
             good_ = false;
             return;
         }
+        if (row[0] == '[')
+        {
+            istringstream iss(row.substr(1));
+            unsigned z = 0;
+            iss>>z;
+            totaln += z;
+        }
+    }
+    positions.reserve(1024);
+    assert (row.substr(0,9) == "positions");
+    istringstream iss(row.substr(11));
+    double d = 0;
+    unsigned prev_pos = 0;
+    while ((iss >> d))
+    {
+        assert (d>0.0);
+        unsigned pos = round(d*totaln);
+        positions.push_back(pos - prev_pos);
+        prev_pos = pos;
+    }
     while (std::getline(*fp, row).good())
     {
         rows.push_back(row);

@@ -446,7 +446,7 @@ void PointerTree::outputNewick(PointerNode *pn, unsigned depth, ostream &of)
     if (!pn->root())
         of << ":" << depth << ".0";
 }
-void PointerTree::outputNewick(string const &filename, unsigned step)
+void PointerTree::outputNewick(string const &filename, unsigned position)
 {
     /**
      * Example tree:
@@ -458,10 +458,10 @@ void PointerTree::outputNewick(string const &filename, unsigned step)
     else
     {
         char fn[256];
-        snprintf(fn, 256, "%s.%u.newick", filename.c_str(), step);
+        snprintf(fn, 256, "%s.%u.newick", filename.c_str(), position);
         of = new ofstream (fn);
     }
-    (*of) << "[1]";
+    (*of) << "[" << position << "]";
     outputNewick(nodes[r], 0, *of);
     (*of) << ";" << endl;
     if (of != &std::cout)
