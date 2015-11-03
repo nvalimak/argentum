@@ -11,7 +11,7 @@ using namespace std;
 /**
  * Extract trees (without extra information)
  */
-void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeControllerSimple &tc, Configuration const &config, string const &dotprefix)
+void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeControllerSimple &tc, Configuration const &config, string const &dotprefix, bool newick)
 {
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
@@ -31,6 +31,9 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
 
         if (!config.dotfile.empty())
             tree.outputDOT(dotprefix + "_" + config.dotfile, increasingStep);
+
+        if (newick)
+            tree.outputNewick("-", ir.position(step));
 
         if (config.verbose && increasingStep % config.debug_interval == 0)
         {
@@ -56,7 +59,7 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
 /**
  * Extract trees (with given extra information)
  */
-void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeControllerSimple &tc, Configuration const &config, string const &dotprefix, TreeControllerSimple &predictor_tc)
+void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeControllerSimple &tc, Configuration const &config, string const &dotprefix, TreeControllerSimple &predictor_tc, bool newick)
 {
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
@@ -81,6 +84,9 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
 
         if (!config.dotfile.empty())
             tree.outputDOT(dotprefix + "_" + config.dotfile, step);
+
+        if (newick)
+            tree.outputNewick("-", ir.position(step));
 
         if (config.verbose && increasingStep % config.debug_interval == 0)
         {
@@ -125,7 +131,7 @@ int main(int argc, char ** argv)
      */
     PointerTree forward_tree(inputr->front());
     TreeControllerSimple forward_tc(forward_tree, config.debug, config.dotfile.empty() ? "" : "forward");
-    extract(*inputr, direction_forward, forward_tree, forward_tc, config, "forward");
+    extract(*inputr, direction_forward, forward_tree, forward_tc, config, "forward", config.newick);
     cerr << "Forward scan done after " << inputr->size() << " steps of input. In total " << forward_tree.historySize() << " history events." << endl;
 
     /**
@@ -134,7 +140,7 @@ int main(int argc, char ** argv)
     forward_tc.deFloatAll(forward_tree.root());
     PointerTree backward_tree(inputr->back());
     TreeControllerSimple backward_tc(backward_tree, config.debug, config.dotfile.empty() ? "" : "backward");
-    extract(*inputr, direction_backward, backward_tree, backward_tc, config, "backward", forward_tc);
+    extract(*inputr, direction_backward, backward_tree, backward_tc, config, "backward", forward_tc, false);
     cerr << "Backward scan done after " << inputr->size() << " steps of input. In total " << backward_tree.historySize() << " history events." << endl;
 
     /**
@@ -143,7 +149,7 @@ int main(int argc, char ** argv)
     backward_tc.deFloatAll(backward_tree.root());
     PointerTree final_tree(inputr->front());
     TreeControllerSimple final_tc(final_tree, config.debug, config.dotfile.empty() ? "" : "final");
-    extract(*inputr, direction_forward, final_tree, final_tc, config, "final", backward_tc);
+    extract(*inputr, direction_forward, final_tree, final_tc, config, "final", backward_tc, false);
     cerr << "Final scan done after " << inputr->size() << " steps of input. In total " << final_tree.historySize() << " history events." << endl;
     
     // Clean up
