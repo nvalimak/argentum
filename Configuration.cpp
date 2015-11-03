@@ -37,25 +37,30 @@ void Configuration::print_usage()
     cerr << "usage: " << prog << " [options]" << endl
          << " -i,--input <file>    Input filename" << endl
          << " -V,--VCF             Input format is VCF" << endl
-         << " -s,--scrm            Input format is SCRM text (without trees)" << endl
+         << " -s,--scrm            Input format is SCRM text (with trees)" << endl
          << " -S,--plaintext       Input format is simple text" << endl
-         << " -r,--rewind          Rewind test" << endl
-//         << " -z,--skip <n>        Skip first n sites of input" << endl
+         << " --forward            Run just the forward run (without prediction)" << endl
+         << " --backward-forward   Run with backward prediction" << endl
+         << " --forward-backward-forward   Run with forward and backward prediction" << endl
+         << " --distance <type>    Use distance type <leaves> or <depth> (default: none)" << endl
+         << " --scaling <type>     Use distance scaling of <log> or <expm> (default: none)" << endl
          << " -n,--nrows <n>       Process n sites of input" << endl
+         << " --newick             Output Newick trees (to standard output)" << endl
          << " -d,--dot <file>      Graphwiz DOT output filename" << endl
          << " -v,--verbose         Verbose output" << endl;
 }
 
 Configuration::Configuration(int argc, char ** argv)
-    : prog(argv[0]), inputfile(""), dotfile(""), inputformat(InputReader::input_unset), nrows(~0u),
-      skip(~0u), newick(false), verbose(false), debug(false), debug_interval(2000), good(true)
+    : prog(argv[0]), inputfile(""), dotfile(""), inputformat(InputReader::input_unset),
+      treedistance(TreeDistance::distance_unset), distancescaling(TreeDistance::scaling_none), nrows(~0u),
+      newick(false), verbose(false), debug(false), debug_interval(2000), good(true)
 {
     good = parse(argc, argv);
 }
 
 bool Configuration::parse(int argc, char ** argv)
 {
-    const int debug_skip_opt = 256;
+    enum long_opt_names { debug_skip_opt = 256, forward_opt, backward_forward_opt, forward_backward_forward_opt, distance_opt, scaling_opt };
     
     static struct option long_options[] =
         {
@@ -64,8 +69,12 @@ bool Configuration::parse(int argc, char ** argv)
             {"scrm",      no_argument,       0, 's'},
             {"plaintext", no_argument,       0, 'S'},
             {"newick",    no_argument,       0, 'N'},
+            {"forward",   no_argument,       0, forward_opt},
+            {"backward-forward", no_argument, 0, backward_forward_opt},
+            {"forward-backward-forward", no_argument, 0, forward_backward_forward_opt},
+            {"distance",  required_argument, 0, distance_opt},
+            {"scaling",   required_argument, 0, scaling_opt},
             {"nrows",     required_argument, 0, 'n'},
-//            {"skip",      required_argument, 0, 'z'}, // TODO
             {"dot",       required_argument, 0, 'd'},
             {"verbose",   no_argument,       0, 'v'},
             {"debug",     no_argument,       0, 'D'},
@@ -92,8 +101,6 @@ bool Configuration::parse(int argc, char ** argv)
             newick = true; break;
         case 'n':
             nrows = atoi_min(optarg, 1, "-n,--nrows", argv[0]); break;
-//        case 'z':
-//            skip = atoi_min(optarg, 1, "-S,--skip", argv[0]); break;
         case 'd':
             dotfile = string(optarg); break;
         case 'v':

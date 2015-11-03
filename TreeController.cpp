@@ -79,7 +79,6 @@ void TreeController::process(InputColumn const &ic, unsigned step_, LeafDistance
     findReduced(t.root(), 1);
     recombineSubtrees(t.root(), true, false, dist);
 
-
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);

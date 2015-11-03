@@ -1,5 +1,5 @@
 CC=g++
-CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g
+CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g -O2 -DNDEBUG
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = Configuration.o InputReader.o Tree.o TreeController.o TreeControllerSimple.o
 

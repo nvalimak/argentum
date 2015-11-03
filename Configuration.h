@@ -2,6 +2,7 @@
 #define _Configuration_h_
 #include "default.h"
 #include "InputReader.h"
+#include "TreeDistance.h"
 #include <string>
 #include <iostream>
 
@@ -19,6 +20,8 @@ public:
     std::string inputfile;
     std::string dotfile;
     InputReader::input_format_t inputformat;
+    TreeDistance::tree_distance_t treedistance;
+    TreeDistance::distance_scaling_t distancescaling;
     unsigned nrows;
     unsigned skip;
     bool newick;

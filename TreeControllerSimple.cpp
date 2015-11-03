@@ -31,9 +31,6 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     deFloatAll(t.root());
     recombine.clear();
     recombine.reserve(2 * t.size());
-    //pair<int,int> checksum = recombineStrategy(root);
-    //assert (checksum.second == 1);
-
     findReduced(t.root(), 1);
     recombineSubtrees(t.root(), true, false);
     
@@ -72,11 +69,8 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, LeafDi
     deFloatAll(t.root());
     recombine.clear();
     recombine.reserve(2 * t.size());
-    pair<int,int> checksum = recombineStrategy(root, dist);
-    assert (checksum.second == 1);
-
-    //findReduced(t.root(), 1);
-    //recombineSubtrees(t.root(), true, false, dist);
+    findReduced(t.root(), 1);
+    recombineSubtrees(t.root(), true, false, dist);
     
     t.unstash(); // Recover stashed subtrees (inserted to the root)
 
@@ -254,7 +248,7 @@ void TreeControllerSimple::findReduced(PointerTree::PointerNode *pn, InputLabel 
 /**
  * Recombine strategy
  */
-pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *pn)
+/*pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *pn)
 {
     if (pn->ghostbranch())
         return make_pair(0,0);       // Assert: Ghost branch, ignored here
@@ -302,12 +296,12 @@ pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *
     findReduced(pn, 1);
     recombineSubtrees(pn, true, false);
     return make_pair(nzeroreduced, 1);
-}
+    }*/
 
 /**
  * Recombine strategy
  */
-pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *pn, LeafDistance const &dist)
+/*pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *pn, LeafDistance const &dist)
 {
     if (pn->ghostbranch())
         return make_pair(0,0);       // Assert: Ghost branch, ignored here
@@ -355,7 +349,7 @@ pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *
     findReduced(pn, 1);
     recombineSubtrees(pn, true, false, dist);
     return make_pair(nzeroreduced, 1);
-}
+    }*/
 
 
 // Relocates all selected subtrees under new internal node

@@ -142,6 +142,8 @@ int main(int argc, char ** argv)
     extract(*inputr, direction_backward, backward_tree, backward_tc, config, "backward", forward_tc, false);
     cerr << "Backward scan done after " << inputr->size() << " steps of input. In total " << backward_tree.historySize() << " history events." << endl;
 
+    return 0;
+    
     /**
      * Final loop over the input data
      */

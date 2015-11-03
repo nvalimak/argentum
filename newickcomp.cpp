@@ -249,6 +249,8 @@ int main(int argc, char ** argv)
     tree->subtreeDistance(cd_orig);
     unsigned predt_base = 0;
     unsigned tree_base = tree->valid;
+    unsigned high_ancestor = 0;
+    unsigned n = 0;
     while (scrmf.good())
     {
         NewickTree *predt =  0;
@@ -281,14 +283,16 @@ int main(int argc, char ** argv)
             assert (tree->root->size == nleaves);
         }
 
-        unsigned i = atoi_min(argv[2],0);
-        unsigned j = atoi_min(argv[3],0);
         // Output <base> <leaf id> <leaf id> <dist. in SCRM> <dist. in stdin>
-        cout << predt_base << '\t' << i+1 << '\t' << j+1 << '\t' << cd_orig[i + nleaves * j] << '\t' << cd[i + nleaves * j] << endl;
-        
+        for (unsigned i = 0; i < nleaves-1; ++i)
+            for (unsigned j = i+1; j < nleaves; ++j)
+                cout << predt_base << '\t' << i+1 << '\t' << j+1 << '\t' << cd_orig[i + nleaves * j] << '\t' << cd[i + nleaves * j] << endl;
+        //if (cd_orig[i+nleaves*j] > 80)
+        //    high_ancestor++;
         delete predt; predt = 0;
+        n++;
     }
-    cerr << predt_base << " sites done." << endl;
+    cerr << n << " sites and " << predt_base << " bases done with " << high_ancestor << " high ancestors (" << 1.0*high_ancestor/n << ")" << endl;
     delete tree;
     return 0;
 }
