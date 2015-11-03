@@ -120,7 +120,9 @@ public:
         updateSizes(root);
         assert (root->size == leaves.size());
     }
-
+    ~NewickTree()
+        { delete root; }
+    
     // Bottom-up cascade of subtree size (n:o leaves)
     int updateSizes(Node *pn)
     {

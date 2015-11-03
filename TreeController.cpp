@@ -725,11 +725,6 @@ void TreeController::distanceByTraversal(PointerTree::PointerNode * pn, PointerT
         return;
     }
 
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-    
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         if (*it != src)
             TreeController::distanceByTraversal(*it, pn, dest, oner, max(pn->maxDepth(), mdepth), d);
