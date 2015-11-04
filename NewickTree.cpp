@@ -1,6 +1,7 @@
 #include "NewickTree.h"
 #include <fstream>
 #include <sstream>
+#include <cstdlib>
 using namespace std;
 
 /**
