@@ -10,9 +10,9 @@
  * Example:
  *        ./main --scrm --input trees100.txt --verbose --newick --nrow 1000 | ./newickcomp trees100.txt
  */
+#include "NewickTree.h"
 #include <iostream>
 #include <sstream>
-#include <fstream>
 #include <vector>
 #include <set>
 #include <string>
@@ -39,260 +39,59 @@ int atoi_min(char const *value, int min)
     }
     return i;
 }
-
-class NewickTree
-{
-public:
-    class Node
-    {
-    public:
-        Node()
-            : ch(), parent(0), label(-1), leaf(false), size(0)
-        { }
-        Node(Node *p)
-            : ch(), parent(p), label(-1), leaf(false), size(0)
-        {
-            p->ch.insert(this); // Insert as child to *p
-        }
-        
-        ~Node()
-            { for (set<Node *>::iterator it = ch.begin(); it != ch.end(); ++it) delete *it; ch.clear(); }
-        set<Node *> ch; // Children
-        Node *parent; 
-        int label; // Leaf label
-        bool leaf; // Is leaf?
-        unsigned size; // Total number of subtree leaves
-    };
-
-    /**
-     * Update the distance values of 'src_leaf' by traversing whole tree
-     */
-    void distanceByTraversal(Node *pn, Node *src, Node *src_leaf, unsigned maxval, vector<unsigned> &cd)
-    {
-        maxval = max(maxval, pn->size);
-        if (pn->leaf)
-        {
-            unsigned i = pn->label;
-            unsigned j = src_leaf->label;
-            assert (i < root->size && j < root->size);
-            cd[i + root->size * j] = maxval;
-            return;
-        }
-
-        for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
-            if (*it != src) // Assert: src has already been processed
-                distanceByTraversal(*it, pn, src_leaf, maxval, cd);
-        if (pn->parent != 0 && pn->parent != src)
-            distanceByTraversal(pn->parent, pn, src_leaf, maxval, cd);
-    }
-    /**
-     * Update distance values over all leaf node pairs
-     */
-    void subtreeDistance(vector<unsigned> &cd)
-    {
-        assert (cd.size() == root->size*root->size);
-        for (unsigned i = 0; i < cd.size(); ++i)
-            cd[i] = 0;
-        for (unsigned i = 0; i < leaves.size(); ++i)
-            distanceByTraversal(leaves[i]->parent, leaves[i], leaves[i], 1, cd);
-    }
-
-    /* FIXME Not needed? 
-    Node * commonAncestor(Node *pn, Node *rn)
-    {
-        set<Node *> pn_parents;
-        while (pn->parent != 0)
-        {
-            pn_parents.insert(pn->parent);
-            pn = pn->parent;
-        }
-        do 
-            rn = rn->parent;
-        while (pn_parents.count(rn) == 0);
-        return rn;
-        }*/
-
-    // Create a new tree from the given string
-    NewickTree(string const &i)
-        : root(0), valid(-1)
-    {
-        parse(i);
-        updateSizes(root);
-        assert (root->size == leaves.size());
-    }
-    ~NewickTree()
-        { delete root; root = 0; }
-    
-    // Bottom-up cascade of subtree size (n:o leaves)
-    int updateSizes(Node *pn)
-    {
-        if (pn->leaf)
-        {
-            pn->size = 1;
-            return 1;
-        }
-        pn->size = 0;
-        for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
-            pn->size += updateSizes(*it);
-        return pn->size;
-    }
-
-    // Simple tree parser
-    size_t parse(string const &s, size_t i, Node *p)
-    {
-        while (i != string::npos && i < s.size()-1)
-        {
-            if (s[i]=='(')
-            {
-                Node *j = 0;
-                if (p == 0)
-                {
-                    j = new Node();
-                    root = j;
-                }
-                else
-                    j = new Node(p);
-                i = parse(s, i+1, j);
-                continue;
-            }
-            else if (s[i] == ',')
-            {
-                i+=1;
-                continue;
-            }
-            else if (s[i] == ')')
-            {
-                i = s.find_first_of(",)(;",i+1);
-                return i;
-            }
-            else
-            {
-                Node *j = new Node(p);
-                j->label = ::atoi_min(s.substr(i, s.find_first_of(":",i)-i).c_str(), 1)-1;
-                j->leaf = true;
-                leaves.push_back(j);
-                i = s.find_first_of("),",i);
-            }
-        }
-        return i;
-    }
-    void parse(string const &s)
-    {
-        if (s[0] != '[')
-            cerr << "error on row: " << s << endl;
-        assert(s[0] == '[');
-        size_t i = s.find_first_of("]");
-        valid = ::atoi_min(s.substr(1,i-1).c_str(), 0);
-        i +=1;
-        i = parse(s, i, 0);
-        assert(s[i] == ';');
-    }
-
-    /** 
-     * Debuging output (Graphwiz DOT format)
-     */
-    unsigned outputDOT(Node *pn, unsigned id)
-    {
-        unsigned oid = id;
-        if (pn->leaf)
-            return id;
-        for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
-        {
-            id ++;
-            cout << " n" << oid << " -> n" << id << endl;
-            cout << " n" << id << " [label=\"";
-            if ((*it)->leaf)
-                cout << (*it)->label;
-            else
-                cout << id;
-            cout << "\"]" << endl;
-            id = outputDOT(*it, id);
-        }
-        return id;
-    }
-    /** 
-     * Debuging output (Graphwiz DOT format)
-     */
-    void outputDOT()
-    {
-        cout << "digraph G {" << endl;
-        outputDOT(root, 100);
-        cout << "}" << endl;
-    }
-
-    Node *root;
-    vector<Node *> leaves;
-    int valid; // Tree is valid for this many sites
-};
-
     
 int main(int argc, char ** argv)
 {
     if (argc != 4)
     {
-        cerr << "usage: ./main [options] | " << argv[0] << " <SCRM-input-file> <leaf1> <leaf2>" << endl;
+        cerr << "usage: ./main [options] | " << argv[0] << " <SCRM-input-file> <min-leaf1> <max-leaf>" << endl;
         return 1;
     }
 
-    ifstream scrmf(argv[1]);
-    string row;
-    if (!std::getline(scrmf, row).good())
-    {
-        cerr << "error: unable to read the input file " << argv[1] << endl;
-        return 1;
-    }
-    while (row[0] != '[') // Find first tree
-        std::getline(scrmf, row);
-    NewickTree * tree = new NewickTree(row);
-    unsigned nleaves = tree->root->size;
+    // Initialize SCRM input tree
+    NewickTree scrm(argv[1]);
+    unsigned nleaves = scrm.nleaves();
     vector<unsigned> cd_orig(nleaves*nleaves, 0);
-    tree->subtreeDistance(cd_orig);
-    unsigned predt_base = 0;
-    unsigned tree_base = tree->valid;
-    unsigned high_ancestor = 0;
-    unsigned n = 0;
-    while (scrmf.good())
-    {
-        NewickTree *predt =  0;
-        do
-        {
-            if (!std::getline(cin, row).good())
-                break;
-            if (row.empty())
-                break;
-            delete predt;
-            predt = new NewickTree(row);
-            assert (predt->root->size == tree->root->size);
-        } while (predt->valid == 0);
-        if (!cin.good() || row.empty())
-            break;
-        vector<unsigned> cd(nleaves*nleaves, 0);
-        predt->subtreeDistance(cd);
-        predt_base += predt->valid;
+    scrm.subtreeDistance(cd_orig);
+    unsigned scrm_base = scrm.validForBases();
 
-        while (tree_base < predt_base)
+    // Init inferred tree input from <stdin>
+    NewickTree predt("-");
+    assert(predt.nleaves() == nleaves);
+    unsigned predt_base = 0;
+    unsigned n = 0;
+    while (scrm.good() && predt.good())
+    {        
+        predt_base += predt.validForBases();
+        vector<unsigned> cd(nleaves*nleaves, 0);
+        predt.subtreeDistance(cd);
+
+        while (scrm_base < predt_base)
         {
-            std::getline(scrmf, row);
-            if (!scrmf.good() || row[0] != '[')
+            // Find the corresponding SCRM tree for the site at 'predt_base'
+            scrm.next();
+            if (!scrm.good())
                 break;
-            delete tree;
-            // update tree & distances
-            tree = new NewickTree(row);
-            tree->subtreeDistance(cd_orig);
-            tree_base += tree->valid;
-            assert (tree->root->size == nleaves);
-        }
+            scrm_base += scrm.validForBases();
+            assert (scrm.nleaves() == nleaves);
+        }        
+        if (!scrm.good())
+            break;
+        scrm.subtreeDistance(cd_orig);
 
         // Output <base> <leaf id> <leaf id> <dist. in SCRM> <dist. in stdin>
         for (unsigned i = 0; i < nleaves-1; ++i)
             for (unsigned j = i+1; j < nleaves; ++j)
                 cout << predt_base << '\t' << i+1 << '\t' << j+1 << '\t' << cd_orig[i + nleaves * j] << '\t' << cd[i + nleaves * j] << endl;
-        //if (cd_orig[i+nleaves*j] > 80)
-        //    high_ancestor++;
-        delete predt; predt = 0;
+
+        do
+        {
+            // Find next inferred tree
+            predt.next();
+            assert (predt.nleaves() == nleaves);
+        } while (predt.good() && predt.validForBases() == 0); // Skip if valid only for 0 bases
         n++;
     }
-    cerr << n << " sites and " << predt_base << " bases done with " << high_ancestor << " high ancestors (" << 1.0*high_ancestor/n << ")" << endl;
-    delete tree;
+    cerr << n << " sites, " << predt_base << " predt_bases and " << scrm_base << " scrm_bases done." << endl;
     return 0;
 }

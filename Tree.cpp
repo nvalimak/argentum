@@ -10,13 +10,6 @@ const NodeId PointerTree::nonreserved = (NodeId)~0u;
 const unsigned PointerTree::nohistory = ~0u;
 const int PointerTree::unknown = (int)-1000;
 
-// Static variables (FIXME clean up)
-//size_t PointerTree::N = 0; // Total number of nodes (over all trees)
-//vector<PointerTree::PointerNode *> PointerTree::nodes = std::vector<PointerTree::PointerNode *>();
-//set<PointerTree::PointerNode *> PointerTree::nonbranching = set<PointerTree::PointerNode *>();
-//vector<NodeId> PointerTree::vacant = vector<NodeId>();
-//NodeId PointerTree::nextVacant = 0;
-
 PointerTree::PointerTree(InputColumn const &ic)
     : nodes(), N(0), r(0), n(ic.size()), leaves(), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(), reusedHistoryEvent(0),
       nonbranching(), vacant(), nextVacant(0)
@@ -135,12 +128,12 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned destPrev
     // Update history event queue
     if (keephistory)
     {
-        if (!pn->floating())
+        if (!pn->tagged())
             history.push_back(Event(nodes[src], pn, step, history.size(), false));
-        else if (getPreviousEventStep(pn) < destPreviousUpdate) // Assert: floating
+        else if (getPreviousEventStep(pn) < destPreviousUpdate) // Assert: tagged
             history.push_back(Event(nodes[src], pn, step, history.size(), false));
         else
-            reusedHistoryEvent ++; // Assert: floating, reused history event
+            reusedHistoryEvent ++; // Assert: tagged, reused history event
     }
         
     // Clean source subtree if needed
@@ -182,7 +175,7 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
     // Update history event queue
     if (keephistory)
     {
-//        if (!pn->floating())
+//        if (!pn->tagged())
         history.push_back(Event(nodes[src], pn, step, history.size(), true));
 //        else // Didn't work.
 //            reusedHistoryEvent ++;
@@ -204,12 +197,28 @@ void PointerTree::unstash()
         PointerNode *pn = *it;
         dest->insert(pn);
         pn->setParent(dest);
-        pn->floating(true);
+        pn->tagged(true);
         dest->addZeros(pn->nZeros());
         dest->addOnes(pn->nOnes());        
         pn->stashed(false);
     }
     stashv.clear();
+}
+
+/**
+ * Pre-rewind the given event
+ *
+ * Forces the tree become "tree consistent" at step h by relocating
+ * all 0-branch events under the root (as a temporary measure).
+ * All these 0-branches are then properly rewinded later in rewind(h).
+ */
+void PointerTree::prerewind(unsigned h)
+{
+    if (history.empty())
+        return;
+    for (vector<Event>::reverse_iterator it = history.rbegin(); it != history.rend() && it->getStep() == h; ++it)
+        if (it->allZeros())
+            relocate(it->getNode(), nodes[r], 0, 0, false, false);
 }
 
 /**
@@ -262,15 +271,42 @@ void PointerTree::rewind(unsigned h)
     }
 }
 
-void PointerTree::prerewind(unsigned h)
+/**
+ * Update the max depth of each subtree
+ */
+void PointerTree::updateMaxDists()
 {
-    if (history.empty())
-        return;
-    for (vector<Event>::reverse_iterator it = history.rbegin(); it != history.rend() && it->getStep() == h; ++it)
+    updateMaxDists(nodes[r]);
+}
+unsigned PointerTree::updateMaxDists(PointerTree::PointerNode * pn)
+{
+    if (pn->ghostbranch())
+        return 0;
+    if (pn->leaf())
     {
-        if (it->allZeros())
-            relocate(it->getNode(), nodes[r], 0, 0, false, false);
+        if (pn->reducedLabel() == 1)
+            return 1;
+        return 1; // Count also 0-leaves
     }
+
+    bool unarypath = false;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
+            unarypath = true;
+
+    unsigned maxd = 0;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+    {
+        unsigned d = updateMaxDists(*it);
+        if (maxd < d)
+            maxd = d;
+    }
+
+    assert(maxd > 0);
+    pn->maxDepth(maxd);
+    if (unarypath)
+        return maxd;
+    return maxd + 1;
 }
 
 /**
@@ -279,10 +315,10 @@ void PointerTree::prerewind(unsigned h)
 pair<int, int> validate(PointerTree::PointerNode *pn, PointerTree::PointerNode *p, vector<bool> &validationReachable)
 {
     assert (pn->root() || pn->leaf() || pn->previousUpdate() != PointerTree::nohistory);
-    /*if (! (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()))
-        cerr << "at node id = " << pn->nodeId() << " nzeros = " << pn->nZeros() << " nones = " << pn->nOnes() << ", size = " << pn->size() << ", floating = " << pn->floating() << endl
+    /*if (! (pn->root() || pn->ghostbranch() || !pn->tagged() || p->size() > 2 || p->root()))
+        cerr << "at node id = " << pn->nodeId() << " nzeros = " << pn->nZeros() << " nones = " << pn->nOnes() << ", size = " << pn->size() << ", tagged = " << pn->tagged() << endl
              << "with parent id = " << p->nodeId() << " nzeros = " << p->nZeros() << " nones = " << p->nOnes() << ", size = " << p->size() << endl;
-             assert (pn->root() || pn->ghostbranch() || !pn->floating() || p->size() > 2 || p->root()); // floating node cannot attach to a bi-/unary node (except root)*/
+             assert (pn->root() || pn->ghostbranch() || !pn->tagged() || p->size() > 2 || p->root()); // tagged node cannot attach to a bi-/unary node (except root)*/
     assert (pn->nZeros() != PointerTree::unknown);
     assert (pn->nOnes() != PointerTree::unknown);
     assert (pn->root() || p == pn->parentPtr());
@@ -362,7 +398,7 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
         if ((*it)->previousUpdate() != PointerTree::nohistory)
             of << "/" << (*it)->previousUpdate();
         of << " ";
-        if ((*it)->floating())
+        if ((*it)->tagged())
         {
             assert(PointerTree::history.size() > (*it)->previousEvent());
             of << "F" << PointerTree::history[(*it)->previousEvent()].getStep() << " ";

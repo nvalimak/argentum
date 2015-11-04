@@ -33,7 +33,7 @@ public:
         explicit PointerNode(PointerTree *t_) // Empty node constructor
             : t(t_), ch(), id(PointerTree::nonreserved), lfId(PointerTree::nonreserved), d(1.0), p(PointerTree::nonreserved),
               nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
-              prevupdate(PointerTree::nohistory), flt(false), preve(PointerTree::nohistory), root_(false), stashed_(false),
+              prevupdate(PointerTree::nohistory), tag(false), preve(PointerTree::nohistory), root_(false), stashed_(false),
               mdepth(0)
         { }
 
@@ -70,10 +70,10 @@ public:
         { return prevupdate; }
         inline void previousUpdate(unsigned e)
         { prevupdate = e; }
-        inline bool floating() const
-        { return flt; }
-        inline void floating(bool flt_)
-        { flt = flt_; }
+        inline bool tagged() const
+        { return tag; }
+        inline void tagged(bool tag_)
+        { tag = tag_; }
         
         // Accessors to recuded tree representation
         inline bool ghostbranch() const
@@ -173,7 +173,7 @@ public:
             nones = PointerTree::unknown;
             assert (nrefs  == 0);
             prevupdate = PointerTree::nohistory;
-            flt = false;
+            tag = false;
             preve = PointerTree::nohistory;
             assert (ch.size() == 0);
             assert(nrefs == 0);
@@ -195,7 +195,7 @@ public:
             assert (nones == PointerTree::unknown);
             assert (nrefs == 0);
             prevupdate = step;
-            flt = false;
+            tag = false;
             assert (preve = PointerTree::nohistory);
             assert (ch.size() == 0);
             root_ = r;
@@ -220,7 +220,7 @@ public:
         int nones;          // Number of one labels in the subtree (reduced)
         unsigned nrefs;     // Number of active history references.
         unsigned prevupdate;// Previous update to the subtree
-        bool flt;           // Floating node (flagged)
+        bool tag;           // Tagged node
         unsigned preve;     // Previous event number (refers to the history vector)
         bool root_;
         bool stashed_; 
@@ -311,6 +311,7 @@ public:
     { return history[pn->previousEvent()].getStep(); }
     
     // Tree modification (used in the class TreeController)
+    void updateMaxDists();
     PointerNode * createDest(PointerNode *, unsigned);
     void relocate(PointerNode *, PointerNode *, unsigned, unsigned, bool, bool);
     void stash(PointerNode *, unsigned, bool, bool);
@@ -381,6 +382,7 @@ private:
         vacant.push_back(id);
     }
 
+    unsigned updateMaxDists(PointerNode *);
     void propagateUpwardCounts(PointerNode *, int, int);
 
     void outputDOT(PointerNode *, unsigned, std::ostream &);

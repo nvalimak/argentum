@@ -16,7 +16,7 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     if (debug && !dotfile.empty())
         t.outputDOT(dotfile + "_reduced", step);
 
-    deFloatAll(t.root());
+    deTagAll(t.root());
     resolveNonBinary(root);
     t.clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
@@ -28,7 +28,7 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     findReduced(root, 1);
     updatedThisStep = recombine;
     
-    deFloatAll(t.root());
+    deTagAll(t.root());
     recombine.clear();
     recombine.reserve(2 * t.size());
     findReduced(t.root(), 1);
@@ -43,18 +43,17 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
 }
 
 
-void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, LeafDistance const &dist)
+void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, TreeDistance &dist)
 {
     step = step_;
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
-    // FIXME
-    TreeController::computeMaxDists(t.root());
+    t.updateMaxDists();
     
     if (debug && !dotfile.empty())
         t.outputDOT(dotfile + "_reduced", step);
 
-    deFloatAll(t.root());
+    deTagAll(t.root());
     resolveNonBinary(root);
     t.clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
@@ -66,7 +65,7 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, LeafDi
     findReduced(root, 1);
     updatedThisStep = recombine;
     
-    deFloatAll(t.root());
+    deTagAll(t.root());
     recombine.clear();
     recombine.reserve(2 * t.size());
     findReduced(t.root(), 1);
@@ -165,7 +164,7 @@ pair<int, int> TreeControllerSimple::reduce(PointerTree::PointerNode *pn, InputC
     
     int nzeros = 0;
     int nones = 0;
-    unsigned floating = 0;
+    unsigned tagged = 0;
     unsigned nonghosts = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
@@ -175,15 +174,15 @@ pair<int, int> TreeControllerSimple::reduce(PointerTree::PointerNode *pn, InputC
         if (tmp.first + tmp.second > 0)
         {
             ++ nonghosts;
-            if ((*it)->floating())
-                ++ floating;
+            if ((*it)->tagged())
+                ++ tagged;
         }
     }
     pn->nZeros(nzeros);
     pn->nOnes(nones);
-    if (!pn->root() && nonghosts <= 2 && floating > 0)
+    if (!pn->root() && nonghosts <= 2 && tagged > 0)
         for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-            (*it)->floating(false);
+            (*it)->tagged(false);
 
     return make_pair(nzeros, nones);
 }
@@ -207,7 +206,7 @@ void TreeControllerSimple::resolveNonBinary(PointerTree::PointerNode *pn)
     recombine.clear();
     int nones = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if (!(*it)->floating() && (*it)->reduced() && (*it)->reducedLabel() == 1)
+        if (!(*it)->tagged() && (*it)->reduced() && (*it)->reducedLabel() == 1)
         {
             nones += (*it)->nOnes(); // FIXME If *it is a unary ghost, gets merged with other reduced subtrees
             recombine.push_back(*it);
@@ -358,16 +357,16 @@ void TreeControllerSimple::recombineNonBinarySubtrees(unsigned nones, bool keeph
     if (recombine.size() < 2)
         return; // One subtree cannot be relocated to itself
 
-    // Choose the largest, non-floating subtree as destination
+    // Choose the largest, non-tagged subtree as destination
     int msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if (!(*it)->floating() && (*it)->nZeros() + (*it)->nOnes() > msize)
+        if (!(*it)->tagged() && (*it)->nZeros() + (*it)->nOnes() > msize)
         {
             msize = (*it)->nZeros()+(*it)->nOnes();
             mpn = *it;
         }
-    if (mpn == 0) // All floating; choose the youngest floater as destination
+    if (mpn == 0) // All tagged; choose the youngest tag as destination
     {
         msize = 0;
         for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
@@ -378,21 +377,21 @@ void TreeControllerSimple::recombineNonBinarySubtrees(unsigned nones, bool keeph
             }
     }
     
-    // Count the number of floaters younger than the target subtree
+    // Count the number of tags younger than the target subtree
     unsigned dest_updated = mpn->previousUpdate();
-    unsigned nfloaters = 0;
+    unsigned ntags = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if ((*it)->floating())
+        if ((*it)->tagged())
         {
             unsigned flt_created = t.getPreviousEventStep(*it);
             if (flt_created > dest_updated)
-                nfloaters++;
+                ntags++;
         }
        
     PointerTree::PointerNode * dest = mpn;
-    if (mpn->leaf() || (nfloaters < recombine.size()-1 && !mpn->floating()))
-        dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are floaters and destination is not floater
-    if (dest->floating())
+    if (mpn->leaf() || (ntags < recombine.size()-1 && !mpn->tagged()))
+        dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are tags and destination is not tagged
+    if (dest->tagged())
         keephistory = true;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
@@ -402,20 +401,19 @@ void TreeControllerSimple::recombineNonBinarySubtrees(unsigned nones, bool keeph
     dest->nZeros(0);
     if (!dest->parentPtr()->root() && dest->parentPtr()->size() <= 2)
         for (PointerTree::PointerNode::iterator it = dest->parentPtr()->begin(); it != dest->parentPtr()->end(); ++it)
-            (*it)->floating(false);
+            (*it)->tagged(false);
     if (dest->size() <= 2)
         for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
-            (*it)->floating(false);
+            (*it)->tagged(false);
     if (dest!=mpn && mpn->size() <= 2)
         for (PointerTree::PointerNode::iterator it = mpn->begin(); it != mpn->end(); ++it)
-            (*it)->floating(false);
+            (*it)->tagged(false);
 }
 
-void TreeControllerSimple::distance(LeafDistance &dist, InputColumn const & ic)
+void TreeControllerSimple::assignLabels(InputColumn const &ic)
 {
     reduce(t.root(), ic);
-    TreeController::distance(t, dist, ic);
-}
+}   
 
 // Relocates all selected subtrees to the largest selected subtree
 void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_root, bool keephistory, bool keepparentcounts)
@@ -423,18 +421,18 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
     if (recombine.size() < 2)
         return; // One subtree cannot be relocated to itself
 
-    // Choose the largest, non-floating subtree as destination
+    // Choose the largest, non-tagged subtree as destination
     int msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if (!(*it)->floating() && (*it)->nZeros()+(*it)->nOnes() > msize)
+        if (!(*it)->tagged() && (*it)->nZeros()+(*it)->nOnes() > msize)
         {
             msize = (*it)->nZeros()+(*it)->nOnes();
             mpn = *it;
         }
 
     if (mpn == 0)
-        mpn = recombine.front(); // All floating, take first
+        mpn = recombine.front(); // All tagged, take first
     
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
@@ -455,7 +453,7 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
         {
             unsigned lca_age = 0;
             if (upward_path.count((*it)->parentPtr()) == 0)
-                (*it)->floating(false); // Not floating for this dest.
+                (*it)->tagged(false); // Not tagged for this dest.
             else
                 lca_age = upward_path[(*it)->parentPtr()];
 
@@ -467,7 +465,7 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
 
 
 // Relocates all selected subtrees to the largest selected subtree
-void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_root, bool keephistory, bool keepparentcounts, LeafDistance const &dist)
+void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_root, bool keephistory, bool keepparentcounts, TreeDistance &dist)
 {
     if (recombine.size() < 2)
         return; // One subtree cannot be relocated to itself
@@ -477,9 +475,9 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
     int msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if (!(*it)->floating())
+        if (!(*it)->tagged())
         {
-            int e = TreeController::evaluateDistance(t, recombine, subtree_root, *it, dist);
+            int e = dist.evaluateDistance(recombine, subtree_root, *it);
             if (printEval)
                 cerr << "eval = " << e << " for dest = " << (*it)->nodeId() << ", isleaf = " << (*it)->leaf() << endl;
             if (eval == -1 || e < eval || (e == eval && msize < (*it)->nZeros()+(*it)->nOnes()))
@@ -492,7 +490,7 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
 
     
     if (mpn == 0)
-        mpn = recombine.front(); // All floating, take first
+        mpn = recombine.front(); // All tagged, take first
     
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
@@ -513,7 +511,7 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
         {
             unsigned lca_age = 0;
             if (upward_path.count((*it)->parentPtr()) == 0)
-                (*it)->floating(false); // Not floating for this dest.
+                (*it)->tagged(false); // Not tagged for this dest.
             else
                 lca_age = upward_path[(*it)->parentPtr()];
 
@@ -654,15 +652,15 @@ double TreeControllerSimple::evaluateDistance(PointerTree::PointerNode *subtree_
     return diff;
     }*/
 
-// Update the float-flags in the whole tree
-void TreeControllerSimple::deFloatAll(PointerTree::PointerNode *pn)
+// Update the tags in the whole tree
+void TreeControllerSimple::deTagAll(PointerTree::PointerNode *pn)
 {
-    pn->floating(false);
+    pn->tagged(false);
     if (pn->leaf() || pn->ghostbranch())
         return;
 
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        deFloatAll(*it);
+        deTagAll(*it);
 }
 
 // Counts the number of active nodes

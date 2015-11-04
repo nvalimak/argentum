@@ -1,7 +1,7 @@
 CC=g++
-CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g -O2 -DNDEBUG
+CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
-OBJ = Configuration.o InputReader.o Tree.o TreeController.o TreeControllerSimple.o
+OBJ = Configuration.o InputReader.o NewickTree.o Tree.o TreeController.o TreeControllerSimple.o TreeDistance.o
 
 all: main main-simple newickcomp rand-matrix scrm2bin
 
@@ -11,8 +11,8 @@ main: main.o $(OBJ)
 main-simple: main-simple.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main-simple main-simple.o $(OBJ)
 
-newickcomp: newickcomp.o
-	$(CC) $(CPPFLAGS) -o newickcomp newickcomp.o
+newickcomp: newickcomp.o NewickTree.o
+	$(CC) $(CPPFLAGS) -o newickcomp newickcomp.o NewickTree.o
 
 rand-matrix: rand-matrix.o
 	$(CC) $(CPPFLAGS) -o rand-matrix rand-matrix.o
