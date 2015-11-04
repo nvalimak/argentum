@@ -25,6 +25,22 @@ inline double distanceDifference(double t, double s)
     return d * d;
 }
 
+void distanceNormalization(LeafDistance &ld)
+{
+    double mean = 0;
+    for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
+        mean += *it;
+    mean /= ld.size();
+
+    double sd = 0;
+    for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
+        sd += (*it - mean) * (*it - mean);
+    sd /= ld.size();
+
+    for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
+        *it = (*it - mean) / sd;    
+}
+
 PointerTreeDistance::PointerTreeDistance(PointerTree &source_, PointerTree &target_)
     : TreeDistance(target_), source(source_)
 {
@@ -133,6 +149,8 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
             if (target.leaf(j)->reducedLabel() == 1)
                 distForDest[l] += ::distanceScaling(d[j]);
     }
+
+    ::distanceNormalization(distForDest);
     
     double diff = 0;
     for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
@@ -190,4 +208,6 @@ void NewickDistance::recomputeDistances(InputColumn const & ic)
             if (source.leaf(j)->llabel == 1)
                 sourcedist[l] += ::distanceScaling(d[j]);
     }
+
+    ::distanceNormalization(sourcedist);
 }
