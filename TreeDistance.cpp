@@ -27,18 +27,25 @@ inline double distanceDifference(double t, double s)
 
 void distanceNormalization(LeafDistance &ld)
 {
+    unsigned s = 0;
     double mean = 0;
     for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
-        mean += *it;
-    mean /= ld.size();
+        if (*it != -1)
+        {
+            mean += *it;
+            s++;
+        }
+    mean /= s;
 
     double sd = 0;
     for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
-        sd += (*it - mean) * (*it - mean);
-    sd /= ld.size();
+        if (*it != -1)
+            sd += (*it - mean) * (*it - mean);
+    sd /= s;
 
     for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
-        *it = (*it - mean) / sd;    
+        if (*it != -1)
+            *it = (*it - mean) / sd;    
 }
 
 PointerTreeDistance::PointerTreeDistance(PointerTree &source_, PointerTree &target_)
@@ -134,7 +141,7 @@ void TreeDistance::distanceByTraversal(PointerTree::PointerNode * pn, PointerTre
 double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> const &recombine, PointerTree::PointerNode *subtree_root, PointerTree::PointerNode *dest)
 {
     set<PointerTree::PointerNode *> oner(recombine.begin(), recombine.end());
-    LeafDistance distForDest(sourcedist.size(), 0); 
+    LeafDistance targetdist(sourcedist.size(), -1); 
     
     for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
     {
@@ -144,23 +151,27 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
         LeafDistance d(sourcedist.size(), 0);
         distanceByTraversal(pn->parentPtr(), pn, dest, oner, 0, d);
         
-        distForDest[l] = 0;
+        targetdist[l] = 0;
         for (size_t j = 0; j < d.size(); ++j)
             if (target.leaf(j)->reducedLabel() == 1)
-                distForDest[l] += ::distanceScaling(d[j]);
+                targetdist[l] += ::distanceScaling(d[j]);
     }
 
-    ::distanceNormalization(distForDest);
+    ::distanceNormalization(targetdist);
     
     double diff = 0;
     for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
     {
         PointerTree::PointerNode * pn = target.leaf(l);
         if (pn->reducedLabel() != 0)
+        {
+            assert(targetdist[pn->leafId()] == -1);
+            assert(sourcedist[pn->leafId()] == -1);
             continue;
+        }
         if (false)
-            cerr << "dist[" << pn->leafId() << "] = " <<  sourcedist[pn->leafId()] << ", distForDest[" << pn->leafId() << ", " << dest->nodeId() << "] = " << distForDest[pn->leafId()] << endl;
-        diff += ::distanceDifference(distForDest[pn->leafId()], sourcedist[pn->leafId()]);
+            cerr << "dist[" << pn->leafId() << "] = " <<  sourcedist[pn->leafId()] << ", targetdist[" << pn->leafId() << ", " << dest->nodeId() << "] = " << targetdist[pn->leafId()] << endl;
+        diff += ::distanceDifference(targetdist[pn->leafId()], sourcedist[pn->leafId()]);
     }
     return diff;
 }
@@ -193,8 +204,8 @@ void NewickDistance::distanceByTraversal(NewickTree::Node * pn, NewickTree::Node
 void NewickDistance::recomputeDistances(InputColumn const & ic)
 {
     source.updateMaxDists();
-    if (sourcedist.empty())
-        sourcedist.resize(ic.size(), 0);
+    sourcedist.clear();
+    sourcedist.resize(ic.size(), -1);
     
     for (size_t l = 0; l < source.nleaves(); ++l) // TODO make linear time
     {
