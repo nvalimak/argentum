@@ -61,12 +61,12 @@ public:
     { return good_; }
     
     // Debuging output (Graphwiz DOT format)
-    void outputDOT();
+    void outputDOT(std::string const &, unsigned);
 private:
     void parse(std::string const &);
     size_t parse(std::string const &, size_t, Node *);
     int updateSizes(Node *);
-    unsigned outputDOT(Node *, unsigned);
+    unsigned outputDOT(Node *, std::ostream &, unsigned);
     void collectLeaves(Node *);
     unsigned updateMaxDists(Node *);
 

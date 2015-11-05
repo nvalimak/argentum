@@ -3,7 +3,7 @@ CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = Configuration.o InputReader.o NewickTree.o Tree.o TreeController.o TreeControllerSimple.o TreeDistance.o
 
-all: main main-simple newickcomp rand-matrix scrm2bin
+all: main main-simple newickcomp newick2dot rand-matrix scrm2bin
 
 main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)
@@ -13,6 +13,9 @@ main-simple: main-simple.o $(OBJ)
 
 newickcomp: newickcomp.o NewickTree.o
 	$(CC) $(CPPFLAGS) -o newickcomp newickcomp.o NewickTree.o
+
+newick2dot: newick2dot.o NewickTree.o
+	$(CC) $(CPPFLAGS) -o newick2dot newick2dot.o NewickTree.o
 
 rand-matrix: rand-matrix.o
 	$(CC) $(CPPFLAGS) -o rand-matrix rand-matrix.o

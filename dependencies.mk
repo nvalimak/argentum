@@ -13,6 +13,7 @@ main-simple.o: main-simple.cpp Configuration.h default.h InputReader.h \
   TreeDistance.h Tree.h NewickTree.h TreeControllerSimple.h
 main.o: main.cpp Configuration.h default.h InputReader.h TreeDistance.h \
   Tree.h NewickTree.h TreeController.h
+newick2dot.o: newick2dot.cpp NewickTree.h default.h
 newickcomp.o: newickcomp.cpp NewickTree.h default.h
 rand-matrix.o: rand-matrix.cpp
 scrm2bin.o: scrm2bin.cpp

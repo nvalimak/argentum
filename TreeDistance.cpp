@@ -17,6 +17,7 @@ using namespace std;
 inline double distanceScaling(double d)
 {
     return exp(-d); // FIXME
+//l    return d;
 }
 
 inline double distanceDifference(double t, double s)
@@ -43,6 +44,15 @@ void distanceNormalization(LeafDistance &ld)
             sd += (*it - mean) * (*it - mean);
     sd /= s;
 
+    if (sd == 0)
+    {
+        // FIXME
+        for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
+            if (*it != -1)
+                *it = (*it - mean);
+        return;
+    }
+    
     for (LeafDistance::iterator it = ld.begin(); it != ld.end(); ++it)
         if (*it != -1)
             *it = (*it - mean) / sd;    
@@ -72,6 +82,7 @@ void PointerTreeDistance::recomputeDistances(InputColumn const & ic)
             if (source.leaf(j)->reducedLabel() == 1)
                 sourcedist[l] += ::distanceScaling(d[j]);
     }
+    ::distanceNormalization(sourcedist);
 }
 
 // Assert: maxdepth values are set
@@ -173,6 +184,7 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
             cerr << "dist[" << pn->leafId() << "] = " <<  sourcedist[pn->leafId()] << ", targetdist[" << pn->leafId() << ", " << dest->nodeId() << "] = " << targetdist[pn->leafId()] << endl;
         diff += ::distanceDifference(targetdist[pn->leafId()], sourcedist[pn->leafId()]);
     }
+    assert (!isnan(diff));
     return diff;
 }
 

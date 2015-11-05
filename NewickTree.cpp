@@ -238,7 +238,7 @@ void NewickTree::parse(string const &s)
     assert(s[i] == ';');
 }
 
-unsigned NewickTree::outputDOT(Node *pn, unsigned id)
+unsigned NewickTree::outputDOT(Node *pn, ostream &of, unsigned id)
 {
     unsigned oid = id;
     if (pn->leaf)
@@ -246,24 +246,35 @@ unsigned NewickTree::outputDOT(Node *pn, unsigned id)
     for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
     {
         id ++;
-        cout << " n" << oid << " -> n" << id << endl;
-        cout << " n" << id << " [label=\"";
+        of << " n" << oid << " -> n" << id << endl;
+        of << " n" << id << " [label=\"";
         if ((*it)->lid)
-            cout << (*it)->lid;
+            of << (*it)->lid;
         else
-            cout << id;
-        cout << "\"]" << endl;
-        id = outputDOT(*it, id);
+            of << id;
+        of << "\"]" << endl;
+        id = outputDOT(*it, of, id);
     }
     return id;
 }
 /** 
  * Debuging output (Graphwiz DOT format)
  */
-void NewickTree::outputDOT()
+void NewickTree::outputDOT(string const &filename, unsigned position)
 {
-    cout << "digraph G {" << endl;
-    outputDOT(root_, 100);
-    cout << "}" << endl;
+    ostream *of = 0;
+    if (filename == "-")
+        of = &std::cout;
+    else
+    {
+        char fn[256];
+        snprintf(fn, 256, "%s.%u.dot", filename.c_str(), position);
+        of = new ofstream (fn);
+    }
+    (*of) << "digraph G {" << endl;
+    outputDOT(root_, *of, 100);
+    (*of) << "}" << endl;
+    if (of != &std::cout)
+        delete of;
 }
 

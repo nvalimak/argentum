@@ -202,7 +202,7 @@ void scrm_forward(Configuration &config, InputReader &inputr)
     /**
      * Init SCRM tree
      */
-    NewickTree newick_tree("trees100.txt");
+    NewickTree newick_tree(config.inputfile);
     assert(newick_tree.nleaves() == inputr.col(0).size());
     
     /**
