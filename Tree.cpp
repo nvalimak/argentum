@@ -274,9 +274,9 @@ void PointerTree::rewind(unsigned h)
 /**
  * Update the max depth of each subtree
  */
-void PointerTree::updateMaxDists()
+unsigned PointerTree::updateMaxDists()
 {
-    updateMaxDists(nodes[r]);
+    return updateMaxDists(nodes[r]);
 }
 unsigned PointerTree::updateMaxDists(PointerTree::PointerNode * pn)
 {

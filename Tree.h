@@ -311,7 +311,7 @@ public:
     { return history[pn->previousEvent()].getStep(); }
     
     // Tree modification (used in the class TreeController)
-    void updateMaxDists();
+    unsigned updateMaxDists();
     PointerNode * createDest(PointerNode *, unsigned);
     void relocate(PointerNode *, PointerNode *, unsigned, unsigned, bool, bool);
     void stash(PointerNode *, unsigned, bool, bool);

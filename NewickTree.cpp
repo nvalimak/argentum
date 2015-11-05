@@ -147,9 +147,9 @@ int NewickTree::updateSizes(Node *pn)
 }
 
 /* depth version */
-void NewickTree::updateMaxDists()
+unsigned NewickTree::updateMaxDists()
 {
-    updateMaxDists(root_);
+    return updateMaxDists(root_);
 }
 unsigned NewickTree::updateMaxDists(Node * pn)
 {

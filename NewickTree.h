@@ -54,7 +54,7 @@ public:
     { return leaves[i]; }
     
     void assignLabels(InputColumn const &);
-    void updateMaxDists();
+    unsigned updateMaxDists();
     
     bool next();
     bool good()
