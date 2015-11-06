@@ -113,16 +113,16 @@ void TreeDistance::distanceByTraversal(PointerTree::PointerNode * pn, PointerTre
     if (pn == dest)
     {
         unsigned mm = mdepth;
-        for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
-            if (mm < (*it)->maxDepth())
-                mm = (*it)->maxDepth();
+        //for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
+        //    if (mm < (*it)->maxDepth())
+        //        mm = (*it)->maxDepth();
         
         for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
         {
-            if (*it != dest || dest->leaf())
-                distanceByTraversal(*it, (*it)->parentPtr(), mm+1, d);
-            else
-                distanceByTraversal(*it, (*it)->parentPtr(), mm, d);
+            //if (*it != dest || dest->leaf())
+                distanceByTraversal(*it, (*it)->parentPtr(), mm, d); // FIXME
+            //else
+            //    distanceByTraversal(*it, (*it)->parentPtr(), mm, d);
         }
         return;
     }
@@ -149,18 +149,20 @@ void TreeDistance::distanceByTraversal(PointerTree::PointerNode * pn, PointerTre
         distanceByTraversal(pn->parentPtr(), pn, dest, oner, mdepth, d);
 }
 
-unsigned TreeDistance::rootDistanceByTraversal(PointerTree::PointerNode * pn, PointerTree::PointerNode const *dest, set<PointerTree::PointerNode *> &oner)
+/*unsigned TreeDistance::rootDistanceByTraversal(PointerTree::PointerNode * pn, PointerTree::PointerNode const *dest, set<PointerTree::PointerNode *> &oner)
 {
     if (pn == dest)
     {
-        unsigned mm = dest->maxDepth();
+        /unsigned mm = dest->maxDepth();
         for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
             if (mm < (*it)->maxDepth())
                 mm = (*it)->maxDepth();
         if (dest->leaf())
+        {
+            assert (dest->maxDepth() == 0);
             mm ++;
-        pn->maxDepth(mm);
-        return mm;
+            }/
+        return 0;
     }
     if (oner.count(pn))
         return 0; // Subtree not here...
@@ -177,25 +179,31 @@ unsigned TreeDistance::rootDistanceByTraversal(PointerTree::PointerNode * pn, Po
     }
 
     unsigned mm = 0;
+    unsigned n = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        mm = max(mm, rootDistanceByTraversal(*it, dest, oner));
+    {
+        unsigned tmp = rootDistanceByTraversal(*it, dest, oner);
+        if (tmp > 0)
+            n ++;
+        mm = max(mm, tmp);
+    }
     pn->maxDepth(mm);
-    return mm + 1;
-}
+    if (mm > 0)
+        return mm + 1;
+    return mm;
+    }*/
 
 double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> const &recombine, PointerTree::PointerNode *subtree_root, PointerTree::PointerNode *dest)
 {
     set<PointerTree::PointerNode *> oner(recombine.begin(), recombine.end());
     LeafDistance targetdist(sourcedist.size(), -1); 
 
-    target.updateMaxDists(); // Revert to original values
-    //cerr << " baseline root depth = " << target.root()->maxDepth(); 
-    unsigned maxd = rootDistanceByTraversal(target.root(), dest, oner)-1; // Update to new values
-    //cerr << ", adjusted root depth = " << target.root()->maxDepth() << endl; 
+    unsigned maxd = target.updateMaxDists(); // Revert to original values
+    cerr << " baseline root depth = " << target.root()->maxDepth() << endl; 
+//    unsigned maxd = rootDistanceByTraversal(target.root(), dest, oner)-1; // Update to new values
+//    cerr << ", adjusted root depth = " << target.root()->maxDepth() << endl; 
     assert (maxd != 0);
-
-    if (dest->leafId() == 3)
-        maxd += 2;
+    assert (maxd == target.root()->maxDepth());
     
     for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
     {
@@ -207,7 +215,10 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
         targetdist[l] = 0;
         for (size_t j = 0; j < d.size(); ++j)
             if (target.leaf(j)->reducedLabel() == 1)
+            { 
+                //cerr << "d = " << d[j] << ", maxd = " << maxd << endl;
                 targetdist[l] += ::distanceScaling(d[j], maxd);
+            }
     }
 
     ::distanceNormalization(targetdist);
@@ -222,7 +233,9 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
             assert(sourcedist[pn->leafId()] == -1);
             continue;
         }
-        if (false)
+        if (pn->parentPtr()->root() && pn->tagged())
+            continue;
+        if (true)
             cerr << "dist[" << pn->leafId() << "] = " <<  sourcedist[pn->leafId()] << ", targetdist[" << pn->leafId() << ", " << dest->nodeId() << "] = " << targetdist[pn->leafId()] << endl;
         diff += ::distanceDifference(targetdist[pn->leafId()], sourcedist[pn->leafId()]);
     }

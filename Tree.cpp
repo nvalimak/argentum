@@ -285,8 +285,8 @@ unsigned PointerTree::updateMaxDists(PointerTree::PointerNode * pn)
     if (pn->leaf())
     {
         if (pn->reducedLabel() == 1)
-            return 1;
-        return 1; // Count also 0-leaves
+            return 0;
+        return 1; // 0-leaves
     }
 
     bool unarypath = false;
@@ -302,9 +302,8 @@ unsigned PointerTree::updateMaxDists(PointerTree::PointerNode * pn)
             maxd = d;
     }
 
-    assert(maxd > 0);
     pn->maxDepth(maxd);
-    if (unarypath)
+    if (unarypath || maxd == 0)
         return maxd;
     return maxd + 1;
 }
@@ -392,7 +391,7 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
         of << " n" << id << " -> n" << (*it)->nodeId() << endl;
         of << " n" << (*it)->nodeId() << " [label=\"";
         if ((*it)->leaf())
-            of << (*it)->leafId();
+            of << (*it)->leafId() + 1;
         else
             of << (*it)->nodeId();
         if ((*it)->previousUpdate() != PointerTree::nohistory)

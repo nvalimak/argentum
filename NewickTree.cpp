@@ -154,8 +154,12 @@ unsigned NewickTree::updateMaxDists()
 unsigned NewickTree::updateMaxDists(Node * pn)
 {
     if (pn->leaf)
+    {
+        if (pn->llabel == 1)
+            return 0;
         return 1;
-
+    }
+    
     unsigned maxd = 0;
     for (NewickTree::children_set_t::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
     {
@@ -165,6 +169,8 @@ unsigned NewickTree::updateMaxDists(Node * pn)
     }
 
     pn->mdepth = maxd;
+    if (maxd == 0)
+        return maxd;
     return maxd+1;
 }
 
