@@ -119,10 +119,12 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
 
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
 
+        /*debug print 
         cerr << " col at step " << step << ", predt_base " << pred_base << ", cur_base " << cur_base << ": ";
         for (unsigned i = 0; i < ir.col(step).size(); ++i)
             cerr << (int)ir.col(step)[i];
         cerr << endl;
+        */
 
         cur_base += ir.position(step);
         while (cur_base > pred_base)

@@ -179,7 +179,6 @@ unsigned TreeDistance::rootDistanceByTraversal(PointerTree::PointerNode * pn, Po
     unsigned mm = 0;
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         mm = max(mm, rootDistanceByTraversal(*it, dest, oner));
-    assert (mm > 0);
     pn->maxDepth(mm);
     return mm + 1;
 }
