@@ -14,7 +14,7 @@ class TreeController
 {
 public:
     TreeController (PointerTree &t_, bool debug_, std::string dotfile_)
-        : t(t_), recombine(), updatedThisStep(), step(0), debug(debug_), dotfile(dotfile_), printEval(true)
+        : t(t_), recombine(), updatedThisStep(), step(0), debug(debug_), dotfile(dotfile_), printEval(false)
     { }
     void process(InputColumn const &, unsigned);
     void process(InputColumn const &, unsigned, TreeDistance &);

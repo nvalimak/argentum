@@ -199,7 +199,7 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
     LeafDistance targetdist(sourcedist.size(), -1); 
 
     unsigned maxd = target.updateMaxDists(); // Revert to original values
-    cerr << " baseline root depth = " << target.root()->maxDepth() << endl; 
+    //cerr << " baseline root depth = " << target.root()->maxDepth() << endl; 
 //    unsigned maxd = rootDistanceByTraversal(target.root(), dest, oner)-1; // Update to new values
 //    cerr << ", adjusted root depth = " << target.root()->maxDepth() << endl; 
     assert (maxd != 0);
@@ -235,7 +235,7 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
         }
         if (pn->parentPtr()->root() && pn->tagged())
             continue;
-        if (true)
+        if (false)
             cerr << "dist[" << pn->leafId() << "] = " <<  sourcedist[pn->leafId()] << ", targetdist[" << pn->leafId() << ", " << dest->nodeId() << "] = " << targetdist[pn->leafId()] << endl;
         diff += ::distanceDifference(targetdist[pn->leafId()], sourcedist[pn->leafId()]);
     }
