@@ -198,12 +198,12 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
     set<PointerTree::PointerNode *> oner(recombine.begin(), recombine.end());
     LeafDistance targetdist(sourcedist.size(), -1); 
 
-    unsigned maxd = target.updateMaxDists(); // Revert to original values
+    target.updateMaxDists(); // Revert to original values
     //cerr << " baseline root depth = " << target.root()->maxDepth() << endl; 
 //    unsigned maxd = rootDistanceByTraversal(target.root(), dest, oner)-1; // Update to new values
 //    cerr << ", adjusted root depth = " << target.root()->maxDepth() << endl; 
-    assert (maxd != 0);
-    assert (maxd == target.root()->maxDepth());
+    //assert (maxd != 0);
+    unsigned maxd = target.root()->maxDepth();
     
     for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
     {
