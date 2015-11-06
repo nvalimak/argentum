@@ -276,7 +276,7 @@ void PointerTree::rewind(unsigned h)
  */
 unsigned PointerTree::updateMaxDists()
 {
-    return updateMaxDists(nodes[r]);
+    return updateMaxDists(nodes[r])-1;
 }
 unsigned PointerTree::updateMaxDists(PointerTree::PointerNode * pn)
 {

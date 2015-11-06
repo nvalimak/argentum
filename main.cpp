@@ -119,6 +119,11 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
 
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
 
+        cerr << " col at step " << step << ", predt_base " << pred_base << ", cur_base " << cur_base << ": ";
+        for (unsigned i = 0; i < ir.col(step).size(); ++i)
+            cerr << (int)ir.col(step)[i];
+        cerr << endl;
+
         cur_base += ir.position(step);
         while (cur_base > pred_base)
         {
@@ -164,6 +169,11 @@ void output_newick(InputReader &ir, direction_t direction, PointerTree &tree, Tr
         if (direction == direction_backward)
             --step;
 
+        cerr << " col at step " << step << ", ir_base " << ir.position(step) << ": ";
+        for (unsigned i = 0; i < ir.col(step).size(); ++i)
+            cerr << (int)ir.col(step)[i];
+        cerr << endl;
+        
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
         unsigned decreasingStep = ir.size()-increasingStep-1;
         tc.assignLabels(ir.col(step));

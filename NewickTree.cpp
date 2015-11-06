@@ -149,7 +149,7 @@ int NewickTree::updateSizes(Node *pn)
 /* depth version */
 unsigned NewickTree::updateMaxDists()
 {
-    return updateMaxDists(root_);
+    return updateMaxDists(root_)-1;
 }
 unsigned NewickTree::updateMaxDists(Node * pn)
 {
@@ -238,29 +238,34 @@ void NewickTree::parse(string const &s)
     assert(s[i] == ';');
 }
 
-unsigned NewickTree::outputDOT(Node *pn, ostream &of, unsigned id)
+unsigned NewickTree::outputDOT(Node *pn, ostream &of, unsigned id, unsigned base)
 {
     unsigned oid = id;
     if (pn->leaf)
         return id;
+    if (pn->parent == 0)
+        of << "n" << oid << " [label=\"" << base << "\"]" << endl;
     for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
     {
         id ++;
         of << " n" << oid << " -> n" << id << endl;
         of << " n" << id << " [label=\"";
-        if ((*it)->lid)
-            of << (*it)->lid;
+        if ((*it)->leaf)
+            of << (*it)->lid+1;
         else
-            of << id;
-        of << "\"]" << endl;
-        id = outputDOT(*it, of, id);
+            of << "-";
+        of << "\"";
+        if ((*it)->leaf)
+            of << ",shape=box";
+        of << "]" << endl;
+        id = outputDOT(*it, of, id, 0);
     }
     return id;
 }
 /** 
  * Debuging output (Graphwiz DOT format)
  */
-void NewickTree::outputDOT(string const &filename, unsigned position)
+void NewickTree::outputDOT(string const &filename, unsigned position, unsigned base)
 {
     ostream *of = 0;
     if (filename == "-")
@@ -272,7 +277,7 @@ void NewickTree::outputDOT(string const &filename, unsigned position)
         of = new ofstream (fn);
     }
     (*of) << "digraph G {" << endl;
-    outputDOT(root_, *of, 100);
+    outputDOT(root_, *of, 100, base);
     (*of) << "}" << endl;
     if (of != &std::cout)
         delete of;

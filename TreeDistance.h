@@ -36,6 +36,7 @@ protected:
             
     void distanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode *, unsigned, LeafDistance &);
     void distanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode const *, PointerTree::PointerNode const *, std::set<PointerTree::PointerNode *> &, unsigned, LeafDistance &);
+    unsigned rootDistanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode const *, std::set<PointerTree::PointerNode *> &);
 
     PointerTree &target;
     LeafDistance sourcedist;

@@ -52,7 +52,7 @@ int main(int argc, char ** argv)
     while (predt.good() && n < maxr)
     {        
         base += predt.validForBases();
-        predt.outputDOT(fnprefix, n);
+        predt.outputDOT(fnprefix, n, base);
 
         do
         {
