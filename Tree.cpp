@@ -174,12 +174,7 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
 
     // Update history event queue
     if (keephistory)
-    {
-//        if (!pn->tagged())
         history.push_back(Event(nodes[src], pn, step, history.size(), true));
-//        else // Didn't work.
-//            reusedHistoryEvent ++;
-    }
     
     // Clean source subtree if needed
     if (nodes[src]->size() == 1 && !nodes[src]->root())

@@ -53,14 +53,14 @@ void Configuration::print_usage()
 Configuration::Configuration(int argc, char ** argv)
     : prog(argv[0]), inputfile(""), dotfile(""), inputformat(InputReader::input_unset),
       treedistance(TreeDistance::distance_unset), distancescaling(TreeDistance::scaling_none), nrows(~0u),
-      newick(false), verbose(false), debug(false), debug_interval(2000), good(true)
+      newick(false), no_prediction(false), scrm_prediction(false), verbose(false), debug(false), debug_interval(2000), good(true)
 {
     good = parse(argc, argv);
 }
 
 bool Configuration::parse(int argc, char ** argv)
 {
-    enum long_opt_names { debug_skip_opt = 256, forward_opt, backward_forward_opt, forward_backward_forward_opt, distance_opt, scaling_opt };
+    enum long_opt_names { debug_skip_opt = 256, no_prediction_opt, scrm_prediction_opt, forward_opt, backward_forward_opt, forward_backward_forward_opt, distance_opt, scaling_opt };
     
     static struct option long_options[] =
         {
@@ -69,6 +69,8 @@ bool Configuration::parse(int argc, char ** argv)
             {"scrm",      no_argument,       0, 's'},
             {"plaintext", no_argument,       0, 'S'},
             {"newick",    no_argument,       0, 'N'},
+            {"no-prediction", no_argument,       0, no_prediction_opt},
+            {"scrm-prediction", no_argument,       0, scrm_prediction_opt},
             {"forward",   no_argument,       0, forward_opt},
             {"backward-forward", no_argument, 0, backward_forward_opt},
             {"forward-backward-forward", no_argument, 0, forward_backward_forward_opt},
@@ -99,6 +101,10 @@ bool Configuration::parse(int argc, char ** argv)
             inputformat = InputReader::input_plaintext; break;
         case 'N':
             newick = true; break;
+        case no_prediction_opt:
+            no_prediction = true; break;
+        case scrm_prediction_opt:
+            scrm_prediction = true; break;
         case 'n':
             nrows = atoi_min(optarg, 1, "-n,--nrows", argv[0]); break;
         case 'd':
@@ -128,5 +134,12 @@ bool Configuration::parse(int argc, char ** argv)
         cerr << "error: input file needs to be specified (-i, --input)" << endl;
         return false;
     }
+
+    if ((!no_prediction && !scrm_prediction) || (no_prediction == scrm_prediction))
+    {
+        cerr << "error: specify either --no-prediction or --scrm-prediction, and not both" << endl;
+        return false;
+    }
+    
     return true;
 }

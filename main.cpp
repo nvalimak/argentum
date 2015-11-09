@@ -241,6 +241,27 @@ void scrm_forward(Configuration &config, InputReader &inputr)
     }
 }
 
+void nopred_forward(Configuration &config, InputReader &inputr)
+{
+    /**                                                                                                                                                                                                                                       
+     * Forward loop over the input                                                                                                                                                                                                            
+     */
+    PointerTree forward_tree(inputr.front());
+    TreeController forward_tc(forward_tree, config.debug, config.dotfile.empty() ? "" : "forward");
+    extract(inputr, direction_forward, forward_tree, forward_tc, config, "forward");
+    cerr << "Forward scan done after " << inputr.size() << " steps of input. In total " << forward_tree.historySize() << " history events." << endl;
+    
+    /**                                                                                                                                                                                                                                       
+     * Output newick with rewind                                                                                                                                                                                                              
+     */
+    if (config.newick)
+    {
+        cerr << "warning: output in backward order, make sure to pipe it through `tac` or `tail -r` to reverse the line order!" << endl;
+        output_newick(inputr, direction_backward, forward_tree, forward_tc);
+    }
+}
+
+
 /*void backward_forward_backward(Configuration &config)
 {
     FIXME
@@ -272,7 +293,10 @@ int main(int argc, char ** argv)
         cerr << "Input size is " << inputr->col(0).size() << " sequences and " << inputr->size() << " sites." << endl;
 
     //backward_forward(config, *inputr);
-    scrm_forward(config, *inputr);
+    if (config.scrm_prediction)
+        scrm_forward(config, *inputr);
+    else if (config.no_prediction)
+        nopred_forward(config, *inputr);
 
     // Clean up
     delete inputr; inputr = 0;

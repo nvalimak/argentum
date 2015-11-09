@@ -25,6 +25,8 @@ public:
     unsigned nrows;
     unsigned skip;
     bool newick;
+    bool no_prediction;
+    bool scrm_prediction;
     bool verbose;
     bool debug;
     unsigned debug_interval;
