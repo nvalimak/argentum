@@ -88,6 +88,8 @@ int main(int argc, char ** argv)
         {
             // Find next inferred tree
             predt.next();
+            if (!predt.good())
+                break;
             assert (predt.nleaves() == nleaves);
         } while (predt.good() && predt.validForBases() == 0); // Skip if valid only for 0 bases
         n++;
