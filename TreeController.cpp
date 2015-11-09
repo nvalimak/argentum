@@ -476,10 +476,19 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
                 mpn = *it;
             }
         }
-    
-    if (mpn == 0)
-        mpn = recombine.front(); // All tagged, take first
-    
+
+    if (mpn == 0) // All tagged
+    {
+        for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
+        {
+            if (msize < (*it)->nZeros()+(*it)->nOnes())
+            {
+                msize = (*it)->nZeros()+(*it)->nOnes();
+                mpn = *it;
+            }
+        }
+    }
+        
     map<PointerTree::PointerNode *, pair<unsigned,bool> > upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
     unsigned largest_age = mpn->previousUpdate();
