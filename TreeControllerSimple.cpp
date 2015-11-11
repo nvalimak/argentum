@@ -32,6 +32,7 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     recombine.clear();
     recombine.reserve(2 * t.size());
     findReduced(t.root(), 1);
+    nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false);
     
     t.unstash(); // Recover stashed subtrees (inserted to the root)
@@ -69,6 +70,7 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, TreeDi
     recombine.clear();
     recombine.reserve(2 * t.size());
     findReduced(t.root(), 1);
+    nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false, dist);
     
     t.unstash(); // Recover stashed subtrees (inserted to the root)
@@ -661,6 +663,31 @@ void TreeControllerSimple::deTagAll(PointerTree::PointerNode *pn)
 
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
         deTagAll(*it);
+}
+
+// Counts the number of active internal nodes
+unsigned countInternals(PointerTree::PointerNode *pn)
+{
+    if (pn->leaf())
+        return 0;
+    if (pn->ghostbranch())
+        return 0;
+    
+    bool unarypath = false;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
+            unarypath = true;
+    
+    unsigned g = 0;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        g += countInternals(*it);
+    if (!unarypath)
+        g++;
+    return g;
+}
+unsigned TreeControllerSimple::countInternalNodes()
+{
+    return ::countInternals(t.root());
 }
 
 // Counts the number of active nodes
