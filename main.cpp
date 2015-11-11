@@ -244,6 +244,7 @@ void scrm_forward(Configuration &config, InputReader &inputr)
     cerr << "Forward scan done after " << inputr.size() << " steps of input. In total " << forward_tree.historySize() << " history events." << endl;
     cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size()
          << ", reused " << forward_tree.reusedHistoryEvents()
+         << ", reused from root " << forward_tree.reusedRootHistoryEvents()
          << ", stashed " << forward_tree.numberOfStashed()
          << ", relocates " << forward_tree.numberOfRelocates()
          << ", one cuts " << forward_tc.numberOfOneCuts() << endl;
@@ -270,6 +271,7 @@ void nopred_forward(Configuration &config, InputReader &inputr)
     cerr << "Forward scan done after " << inputr.size() << " steps of input. In total " << forward_tree.historySize() << " history events." << endl;
     cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size()
          << ", reused " << forward_tree.reusedHistoryEvents()
+         << ", reused from root " << forward_tree.reusedRootHistoryEvents()
          << ", stashed " << forward_tree.numberOfStashed()
          << ", relocates " << forward_tree.numberOfRelocates()
          << ", one cuts " << forward_tc.numberOfOneCuts() << endl;

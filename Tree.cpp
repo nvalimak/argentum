@@ -11,7 +11,8 @@ const unsigned PointerTree::nohistory = ~0u;
 const int PointerTree::unknown = (int)-1000;
 
 PointerTree::PointerTree(InputColumn const &ic)
-    : nodes(), N(0), r(0), n(ic.size()), leaves(), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(), reusedHistoryEvent(0),
+    : nodes(), N(0), r(0), n(ic.size()), leaves(), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(),
+      reusedRootHistoryEvent(0), reusedHistoryEvent(0),
       nonbranching(), vacant(), nextVacant(0)
 {
     history.reserve(HISTORY_INIT_SIZE);
@@ -133,7 +134,13 @@ void PointerTree::relocate(PointerNode *pn, PointerNode *dest, unsigned destPrev
         else if (getPreviousEventStep(pn) < destPreviousUpdate) // Assert: tagged
             history.push_back(Event(nodes[src], pn, step, history.size(), false));
         else
-            reusedHistoryEvent ++; // Assert: tagged, reused history event
+        {
+            // Assert: tagged, reused history event
+            if (src == r)
+                reusedRootHistoryEvent ++;
+            else
+                reusedHistoryEvent ++;
+        }
     }
         
     // Clean source subtree if needed

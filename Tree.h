@@ -331,6 +331,8 @@ public:
     void clearNonBranchingInternalNodes();
 
     // Debugging
+    unsigned reusedRootHistoryEvents() const
+    { return reusedRootHistoryEvent; }
     unsigned reusedHistoryEvents() const
     { return reusedHistoryEvent; }
     unsigned numberOfStashed() const
@@ -398,6 +400,7 @@ private:
     std::size_t nrelocate;
     std::vector<Event> history;
     std::vector<bool> validationReachable;
+    unsigned reusedRootHistoryEvent;
     unsigned reusedHistoryEvent;
     std::set<PointerTree::PointerNode *> nonbranching;
     std::vector<NodeId> vacant;
