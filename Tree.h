@@ -391,8 +391,10 @@ private:
     NodeId r;
     std::size_t n; // Number of leaves
     std::vector<PointerTree::PointerNode *> leaves;
+public:
     std::vector<PointerTree::PointerNode *> stashv;
     std::size_t nstashed;
+private:
     std::size_t nrelocate;
     std::vector<Event> history;
     std::vector<bool> validationReachable;

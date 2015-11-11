@@ -113,17 +113,8 @@ void TreeDistance::distanceByTraversal(PointerTree::PointerNode * pn, PointerTre
     if (pn == dest)
     {
         unsigned mm = mdepth;
-        //for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
-        //    if (mm < (*it)->maxDepth())
-        //        mm = (*it)->maxDepth();
-        
         for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
-        {
-            //if (*it != dest || dest->leaf())
-                distanceByTraversal(*it, (*it)->parentPtr(), mm, d); // FIXME
-            //else
-            //    distanceByTraversal(*it, (*it)->parentPtr(), mm, d);
-        }
+                distanceByTraversal(*it, (*it)->parentPtr(), mm, d);
         return;
     }
     if (oner.count(pn))
@@ -149,60 +140,12 @@ void TreeDistance::distanceByTraversal(PointerTree::PointerNode * pn, PointerTre
         distanceByTraversal(pn->parentPtr(), pn, dest, oner, mdepth, d);
 }
 
-/*unsigned TreeDistance::rootDistanceByTraversal(PointerTree::PointerNode * pn, PointerTree::PointerNode const *dest, set<PointerTree::PointerNode *> &oner)
-{
-    if (pn == dest)
-    {
-        /unsigned mm = dest->maxDepth();
-        for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
-            if (mm < (*it)->maxDepth())
-                mm = (*it)->maxDepth();
-        if (dest->leaf())
-        {
-            assert (dest->maxDepth() == 0);
-            mm ++;
-            }/
-        return 0;
-    }
-    if (oner.count(pn))
-        return 0; // Subtree not here...
-    
-    if (pn->ghostbranch())
-        return 0;
-    if (pn->leaf())
-    {
-        if (pn->reducedLabel() == 1)
-        {
-            assert (0); // This is obsolete code
-        }        
-        return 1;
-    }
-
-    unsigned mm = 0;
-    unsigned n = 0;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-    {
-        unsigned tmp = rootDistanceByTraversal(*it, dest, oner);
-        if (tmp > 0)
-            n ++;
-        mm = max(mm, tmp);
-    }
-    pn->maxDepth(mm);
-    if (mm > 0)
-        return mm + 1;
-    return mm;
-    }*/
-
 double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> const &recombine, PointerTree::PointerNode *subtree_root, PointerTree::PointerNode *dest)
 {
     set<PointerTree::PointerNode *> oner(recombine.begin(), recombine.end());
     LeafDistance targetdist(sourcedist.size(), -1); 
 
     target.updateMaxDists(); // Revert to original values
-    //cerr << " baseline root depth = " << target.root()->maxDepth() << endl; 
-//    unsigned maxd = rootDistanceByTraversal(target.root(), dest, oner)-1; // Update to new values
-//    cerr << ", adjusted root depth = " << target.root()->maxDepth() << endl; 
-    //assert (maxd != 0);
     unsigned maxd = target.root()->maxDepth();
     
     for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
@@ -243,6 +186,89 @@ double TreeDistance::evaluateDistance(std::vector<PointerTree::PointerNode *> co
     return diff;
 }
 
+
+
+/*void TreeDistance::distanceSkeletonTraversal(PointerTree::PointerNode * pn, PointerTree::PointerNode const *src, PointerTree::PointerNode const *dest, set<PointerTree::PointerNode *> &zeror, unsigned mdepth, LeafDistance &d)
+{
+    mdepth = max(pn->maxDepth(), mdepth);
+    if (pn == dest)
+    {
+        unsigned mm = mdepth;
+//        for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
+//                distanceSkeletonTraversal(*it, (*it)->parentPtr(), mm, d);
+        return;
+    }
+    if (zeror.count(pn))
+        return; // Subtree not here...
+    
+    if (pn->ghostbranch())
+        return;
+    if (pn->reduced() && pn->reducedLabel() == 1)
+        return;
+    if (pn->leaf())
+    {
+        if (pn->reducedLabel() == 1)
+        {
+            assert (0); // This is obsolete code
+            d[pn->leafId()] = mdepth;
+        }
+        return;
+    }
+
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        if (*it != src)
+            distanceSkeletonTraversal(*it, pn, dest, oner, mdepth, d);
+
+    if (!pn->root() && pn->parentPtr() != src)
+        distanceSkeletonTraversal(pn->parentPtr(), pn, dest, oner, mdepth, d);
+}
+
+double TreeDistance::evaluateZeroSkeleton(PointerTree::PointerNode *subtree_root, PointerTree::PointerNode *dest)
+{
+    set<PointerTree::PointerNode *> zeror(target.stashv.begin(), target.stashv.end());
+    LeafDistance targetdist(sourcedist.size(), -1); 
+
+    target.updateMaxDists(); // Revert to original values
+    unsigned maxd = target.root()->maxDepth();
+    
+    for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
+    {
+        PointerTree::PointerNode * pn = target.leaf(l);
+        if (pn->reducedLabel() != 0 || pn->stashed())
+            continue;
+        LeafDistance d(sourcedist.size(), 0);
+        distanceByTraversal(pn->parentPtr(), pn, dest, oner, 0, d);
+        targetdist[l] = 0;
+        for (size_t j = 0; j < d.size(); ++j)
+            if (target.leaf(j)->reducedLabel() == 1)
+            { 
+                //cerr << "d = " << d[j] << ", maxd = " << maxd << endl;
+                targetdist[l] += ::distanceScaling(d[j], maxd);
+            }
+    }
+
+    ::distanceNormalization(targetdist);
+    
+    double diff = 0;
+    for (size_t l = 0; l < target.size(); ++l) // TODO make linear time
+    {
+        PointerTree::PointerNode * pn = target.leaf(l);
+        if (pn->reducedLabel() != 0 || pn->stashed())
+        {
+            assert(targetdist[pn->leafId()] == -1);
+            assert(sourcedist[pn->leafId()] == -1);
+            continue;
+        }
+        if (pn->parentPtr()->root() && pn->tagged())
+            continue;
+        if (false)
+            cerr << "dist[" << pn->leafId() << "] = " <<  sourcedist[pn->leafId()] << ", targetdist[" << pn->leafId() << ", " << dest->nodeId() << "] = " << targetdist[pn->leafId()] << endl;
+        diff += ::distanceDifference(targetdist[pn->leafId()], sourcedist[pn->leafId()]);
+    }
+    assert (!isnan(diff));
+    return diff;
+}
+*/
 NewickDistance::NewickDistance(NewickTree &source_, PointerTree &target_)
     : TreeDistance(target_), source(source_)
 {

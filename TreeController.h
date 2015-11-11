@@ -14,7 +14,7 @@ class TreeController
 {
 public:
     TreeController (PointerTree &t_, bool debug_, std::string dotfile_)
-        : t(t_), recombine(), updatedThisStep(), step(0), debug(debug_), dotfile(dotfile_), printEval(false)
+        : t(t_), recombine(), updatedThisStep(), step(0), debug(debug_), dotfile(dotfile_), printEval(false), nOnesCut(0)
     { }
     void process(InputColumn const &, unsigned);
     void process(InputColumn const &, unsigned, TreeDistance &);
@@ -27,6 +27,9 @@ public:
     unsigned countUnaryGhosts(PointerTree::PointerNode *);
     unsigned countBranchingGhosts(PointerTree::PointerNode *);
     unsigned countActive(PointerTree::PointerNode *);
+    unsigned countInternalNodes();
+    unsigned numberOfOneCuts()
+    { return nOnesCut; }
 private:
     std::pair<int, int> reduce(PointerTree::PointerNode *, InputColumn const &);
     void resolveNonBinary(PointerTree::PointerNode *);
@@ -43,6 +46,7 @@ private:
     bool debug;
     std::string dotfile;
     bool printEval;
+    unsigned nOnesCut;
     
     TreeController();
     // No copy constructor or assignment

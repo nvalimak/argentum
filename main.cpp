@@ -11,8 +11,9 @@ using namespace std;
 /**
  * Extract trees (without extra information)
  */
-void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix)
+unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix)
 {
+    unsigned total_intnodes = 0;
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
     unsigned prev_stashed = 0;
@@ -45,16 +46,19 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
             prev_stashed = tree.numberOfStashed();
             prev_relocates = tree.numberOfRelocates();
         }
+        total_intnodes += tc.countInternalNodes();
         if (direction == direction_forward)
             ++step;
     } while (0 < step && step < ir.size());
+    return total_intnodes;
 }
 
 /**
  * Extract trees (with given rewind tree)
  */
-void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix, TreeController &predictor_tc, PointerTree &predictor_tree, TreeDistance &predictor_dist, bool newick)
+unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix, TreeController &predictor_tc, PointerTree &predictor_tree, TreeDistance &predictor_dist, bool newick)
 {
+    unsigned total_intnodes = 0;
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
     unsigned prev_stashed = 0;
@@ -93,16 +97,19 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
             prev_stashed = tree.numberOfStashed();
             prev_relocates = tree.numberOfRelocates();
         }
+        total_intnodes += tc.countInternalNodes();
         if (direction == direction_forward)
-            ++step;
+            ++step;        
     } while (0 < step && step < ir.size());
+    return total_intnodes;
 }
 
 /**
  * Extract trees (with given Newick tree)
  */
-void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix, NewickTree &predictor_tree, NewickDistance &predictor_dist)
+unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix, NewickTree &predictor_tree, NewickDistance &predictor_dist)
 {
+    unsigned total_intnodes = 0;
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
     unsigned prev_stashed = 0;
@@ -154,16 +161,19 @@ void extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeCont
             prev_stashed = tree.numberOfStashed();
             prev_relocates = tree.numberOfRelocates();
         }
+        total_intnodes += tc.countInternalNodes();
         if (direction == direction_forward)
             ++step;
     } while (0 < step && step < ir.size());
+    return total_intnodes;
 }
 
 /**
  * Rewind and extract Newick trees
  */
-void output_newick(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc)
+unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc)
 {
+    unsigned total_intnodes = 0;
     unsigned step = 0;
     if (direction == direction_backward)
         step = ir.size();
@@ -187,9 +197,11 @@ void output_newick(InputReader &ir, direction_t direction, PointerTree &tree, Tr
         tree.outputNewick("-", ir.position(step));
         tc.rewind(ir.col(step), decreasingStep);
 
+        total_intnodes += tc.countInternalNodes();
         if (direction == direction_forward)
             ++step;
     } while (0 < step && step < ir.size());
+    return total_intnodes;
 }
 
 
@@ -228,16 +240,22 @@ void scrm_forward(Configuration &config, InputReader &inputr)
     PointerTree forward_tree(inputr.front());
     NewickDistance predictor_dist(newick_tree, forward_tree);
     TreeController forward_tc(forward_tree, config.debug, config.dotfile.empty() ? "" : "forward");
-    extract(inputr, direction_forward, forward_tree, forward_tc, config, "forward", newick_tree, predictor_dist);
+    unsigned intnodes = extract(inputr, direction_forward, forward_tree, forward_tc, config, "forward", newick_tree, predictor_dist);
     cerr << "Forward scan done after " << inputr.size() << " steps of input. In total " << forward_tree.historySize() << " history events." << endl;
-
+    cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size()
+         << ", reused " << forward_tree.reusedHistoryEvents()
+         << ", stashed " << forward_tree.numberOfStashed()
+         << ", relocates " << forward_tree.numberOfRelocates()
+         << ", one cuts " << forward_tc.numberOfOneCuts() << endl;
+        
     /**
      * Output newick with rewind
      */
     if (config.newick)        
     {
         cerr << "warning: output in backward order, make sure to pipe it through `tac` or `tail -r` to reverse the line order!" << endl;
-        output_newick(inputr, direction_backward, forward_tree, forward_tc);
+        unsigned intnodes = output_newick(inputr, direction_backward, forward_tree, forward_tc);
+        cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
     }
 }
 
@@ -248,8 +266,13 @@ void nopred_forward(Configuration &config, InputReader &inputr)
      */
     PointerTree forward_tree(inputr.front());
     TreeController forward_tc(forward_tree, config.debug, config.dotfile.empty() ? "" : "forward");
-    extract(inputr, direction_forward, forward_tree, forward_tc, config, "forward");
+    unsigned intnodes = extract(inputr, direction_forward, forward_tree, forward_tc, config, "forward");
     cerr << "Forward scan done after " << inputr.size() << " steps of input. In total " << forward_tree.historySize() << " history events." << endl;
+    cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size()
+         << ", reused " << forward_tree.reusedHistoryEvents()
+         << ", stashed " << forward_tree.numberOfStashed()
+         << ", relocates " << forward_tree.numberOfRelocates()
+         << ", one cuts " << forward_tc.numberOfOneCuts() << endl;
     
     /**                                                                                                                                                                                                                                       
      * Output newick with rewind                                                                                                                                                                                                              
@@ -257,10 +280,10 @@ void nopred_forward(Configuration &config, InputReader &inputr)
     if (config.newick)
     {
         cerr << "warning: output in backward order, make sure to pipe it through `tac` or `tail -r` to reverse the line order!" << endl;
-        output_newick(inputr, direction_backward, forward_tree, forward_tc);
+        unsigned intnodes = output_newick(inputr, direction_backward, forward_tree, forward_tc);
+        cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
     }
 }
-
 
 /*void backward_forward_backward(Configuration &config)
 {

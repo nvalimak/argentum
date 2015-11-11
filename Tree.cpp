@@ -184,11 +184,12 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
 /**
  * Unstash all subtrees (insert them at root)
  */
-void PointerTree::unstash()
+void PointerTree::unstash() //map<PointerNode *,PointerNode *> &destm)
 {
     PointerNode *dest = nodes[r];
     for (vector<PointerNode *>::iterator it = stashv.begin(); it != stashv.end(); ++it)
     {
+        //PointerNode *dest = destm[*it];
         PointerNode *pn = *it;
         dest->insert(pn);
         pn->setParent(dest);

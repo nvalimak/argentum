@@ -36,8 +36,9 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
 
     recombine.clear();
     findReduced(t.root(), 1);
-    recombineSubtrees(t.root(), true, false);
-
+    nOnesCut += recombine.size()-1;
+    recombineSubtrees(t.root(), true, false);    
+    
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
@@ -72,12 +73,16 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
     pair<int,int> checksum = recombineStrategy(root);
     assert (checksum.second <= 1);
 
-    t.unstash(); // Recover stashed subtrees (inserted to the root)
+    t.unstash(); // Recover stashed subtrees
     
     recombine.clear();
     findReduced(t.root(), 1);
+    nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false, dist);
 
+    //map<PointerNode *,PointerNode *> dest_zerob;
+    
+   
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
@@ -553,6 +558,30 @@ unsigned TreeController::countActive(PointerTree::PointerNode *pn)
     return g;
 }
 
+// Counts the number of active internal nodes
+unsigned countInternal(PointerTree::PointerNode *pn)
+{
+    if (pn->leaf())
+        return 0;
+    if (pn->ghostbranch())
+        return 0;
+    
+    bool unarypath = false;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
+            unarypath = true;
+    
+    unsigned g = 0;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        g += countInternal(*it);
+    if (!unarypath)
+        g++;
+    return g;
+}
+unsigned TreeController::countInternalNodes()
+{
+    return ::countInternal(t.root());
+}
 
 // Counts the number of ghostbranch nodes (1 or 0 children)
 unsigned TreeController::countGhostBranches(PointerTree::PointerNode *pn)
