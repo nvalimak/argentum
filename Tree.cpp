@@ -203,8 +203,9 @@ void PointerTree::unstash() //map<PointerNode *,PointerNode *> &destm)
         dest->insert(pn);
         pn->setParent(dest);
         pn->tagged(true);
-        dest->addZeros(pn->nZeros());
-        dest->addOnes(pn->nOnes());        
+        propagateUpwardCounts(dest, pn->nZeros(), pn->nOnes());
+        //dest->addZeros(pn->nZeros());
+        //dest->addOnes(pn->nOnes());        
         pn->stashed(false);
     }
     stashv.clear();
