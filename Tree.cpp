@@ -173,6 +173,7 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
 {
     ++nstashed;
     pn->stashed(true);
+    pn->stashedFrom(pn->parent());
     stashv.push_back(pn);
     NodeId src = pn->parent();
     nodes[src]->erase(pn);
@@ -193,9 +194,10 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
  */
 void PointerTree::unstash() //map<PointerNode *,PointerNode *> &destm)
 {
-    PointerNode *dest = nodes[r];
+    //PointerNode *dest = nodes[r];
     for (vector<PointerNode *>::iterator it = stashv.begin(); it != stashv.end(); ++it)
     {
+        PointerNode *dest = findUnstashDestination(nodes[(*it)->stashedFrom()]);
         //PointerNode *dest = destm[*it];
         PointerNode *pn = *it;
         dest->insert(pn);
@@ -206,6 +208,16 @@ void PointerTree::unstash() //map<PointerNode *,PointerNode *> &destm)
         pn->stashed(false);
     }
     stashv.clear();
+}
+
+
+PointerTree::PointerNode * PointerTree::findUnstashDestination(PointerNode *pn)
+{
+    if (pn->root())
+        return pn;
+    if (!pn->reduced())
+        return pn;    
+    return findUnstashDestination(pn->parentPtr());
 }
 
 /**

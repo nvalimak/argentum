@@ -33,7 +33,7 @@ public:
         explicit PointerNode(PointerTree *t_) // Empty node constructor
             : t(t_), ch(), id(PointerTree::nonreserved), lfId(PointerTree::nonreserved), d(1.0), p(PointerTree::nonreserved),
               nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
-              prevupdate(PointerTree::nohistory), tag(false), preve(PointerTree::nohistory), root_(false), stashed_(false),
+              prevupdate(PointerTree::nohistory), tag(false), preve(PointerTree::nohistory), root_(false), stashed_(false), stashedFrom_(0),
               mdepth(0)
         { }
 
@@ -54,6 +54,10 @@ public:
         { return stashed_; }
         inline void stashed(bool b)
         { stashed_ = b; }
+        inline void stashedFrom(NodeId i)
+        { stashedFrom_ = i; }
+        inline NodeId stashedFrom() const
+        { return stashedFrom_; }
         inline unsigned maxDepth() const
         { return mdepth; }
         inline void maxDepth(unsigned u)
@@ -223,7 +227,8 @@ public:
         bool tag;           // Tagged node
         unsigned preve;     // Previous event number (refers to the history vector)
         bool root_;
-        bool stashed_; 
+        bool stashed_;
+        NodeId stashedFrom_;
         unsigned mdepth;    // Subtree max depth to leaf (in non-reduced tree)
     };
 
@@ -386,7 +391,8 @@ private:
 
     unsigned updateMaxDists(PointerNode *);
     void propagateUpwardCounts(PointerNode *, int, int);
-
+    PointerNode * findUnstashDestination(PointerNode *);
+    
     void outputDOT(PointerNode *, unsigned, std::ostream &);
     void outputNewick(PointerNode *, unsigned, std::ostream &);
     
