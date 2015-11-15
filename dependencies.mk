@@ -2,7 +2,7 @@ Configuration.o: Configuration.cpp Configuration.h default.h \
   InputReader.h TreeDistance.h Tree.h NewickTree.h
 InputReader.o: InputReader.cpp InputReader.h default.h
 NewickTree.o: NewickTree.cpp NewickTree.h default.h
-Tree.o: Tree.cpp Tree.h default.h
+Tree.o: Tree.cpp Tree.h default.h TreeDistance.h NewickTree.h
 TreeController.o: TreeController.cpp TreeController.h default.h Tree.h \
   TreeDistance.h NewickTree.h
 TreeControllerSimple.o: TreeControllerSimple.cpp TreeControllerSimple.h \

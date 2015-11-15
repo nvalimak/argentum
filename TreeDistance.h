@@ -27,6 +27,11 @@ public:
     // Evaluate the distance for the given destination node on the target tree
     double evaluateDistance(std::vector<PointerTree::PointerNode *> const &, PointerTree::PointerNode *, PointerTree::PointerNode *);
 
+
+    // Init for evaluation over zero skeleton
+    virtual void initZeroSkeleton(InputColumn const &) = 0;
+    double evalZeroSkeleton(PointerTree::PointerNode *, PointerTree::PointerNode *);
+    
     virtual ~TreeDistance()
     { }
 protected:
@@ -34,9 +39,10 @@ protected:
         : target(target_), sourcedist()
     { }
             
-    void distanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode *, unsigned, LeafDistance &);
+    void distanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode *, unsigned, LeafDistance &, unsigned);
     void distanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode const *, PointerTree::PointerNode const *, std::set<PointerTree::PointerNode *> &, unsigned, LeafDistance &);
     //unsigned rootDistanceByTraversal(PointerTree::PointerNode *, PointerTree::PointerNode const *, std::set<PointerTree::PointerNode *> &);
+    void distanceSkeletonTraversal(PointerTree::PointerNode *, PointerTree::PointerNode const *, PointerTree::PointerNode const *, PointerTree::PointerNode *, unsigned, LeafDistance &);
 
     PointerTree &target;
     LeafDistance sourcedist;
@@ -52,6 +58,11 @@ public:
 
     // Compute distances to be used for prediction at the given input column
     virtual void recomputeDistances(InputColumn const &);
+
+    virtual void initZeroSkeleton(InputColumn const &);
+
+    virtual ~PointerTreeDistance()
+    { } 
 private:
     PointerTree &source;
 };
@@ -69,11 +80,13 @@ public:
     // Compute distances to be used for prediction at the given input column
     virtual void recomputeDistances(InputColumn const &);
 
+    virtual void initZeroSkeleton(InputColumn const &);
+
     virtual ~NewickDistance()
     { }
 private:
 
-    void distanceByTraversal(NewickTree::Node *, NewickTree::Node *, unsigned, LeafDistance &);
+    void distanceByTraversal(NewickTree::Node *, NewickTree::Node *, unsigned, LeafDistance &, unsigned);
     
     NewickTree &source;
 };

@@ -1,4 +1,5 @@
 #include "Tree.h"
+#include "TreeDistance.h"
 #include <iostream>
 #include <fstream>
 #include <cstdio>
@@ -164,6 +165,15 @@ void PointerTree::propagateUpwardCounts(PointerNode *pn, int nzeros, int nones)
     }
 }
 
+void propagateStashed(PointerTree::PointerNode *pn, bool value)
+{
+    pn->stashed(value);
+    if (pn->leaf())
+        return;
+    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+        propagateStashed(*it, value);
+} 
+
 /**
  * Stash subtree 'pn' (to be later inserted at root)
  * Adds an event into the history queue.
@@ -172,7 +182,7 @@ void PointerTree::propagateUpwardCounts(PointerNode *pn, int nzeros, int nones)
 void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool keepparentcounts)
 {
     ++nstashed;
-    pn->stashed(true);
+    ::propagateStashed(pn, true);
     pn->stashedFrom(pn->parent());
     stashv.push_back(pn);
     NodeId src = pn->parent();
@@ -190,35 +200,95 @@ void PointerTree::stash(PointerNode *pn, unsigned step, bool keephistory, bool k
 }
 
 /**
- * Unstash all subtrees (insert them at root)
+ * Unstash all subtrees (insert them on upward path to root)
  */
-void PointerTree::unstash() //map<PointerNode *,PointerNode *> &destm)
+void PointerTree::unstash()
 {
-    //PointerNode *dest = nodes[r];
     for (vector<PointerNode *>::iterator it = stashv.begin(); it != stashv.end(); ++it)
     {
-        PointerNode *dest = findUnstashDestination(nodes[(*it)->stashedFrom()]);
-        //PointerNode *dest = destm[*it];
         PointerNode *pn = *it;
+        PointerNode *dest = findUnstashUpwardDestination(nodes[pn->stashedFrom()]);
+        dest->insert(pn);
+        pn->setParent(dest);
+        pn->tagged(true);
+        propagateUpwardCounts(dest, pn->nZeros(), pn->nOnes());
+        ::propagateStashed(pn, false);
+    }
+    stashv.clear();
+}
+
+// chooses the first non-reduced parent
+PointerTree::PointerNode * PointerTree::findUnstashUpwardDestination(PointerNode *pn)
+{
+    if (pn->root())
+        return pn;
+    if (!pn->reduced())
+        return pn;    
+    return findUnstashUpwardDestination(pn->parentPtr());
+}
+
+
+// Unstash all subtrees (according to the given tree distance)
+void PointerTree::unstash(TreeDistance &dist)
+{
+    vector<PointerNode *> destv(stashv.size(), 0);
+    for (size_t i = 0; i < stashv.size(); ++i)
+        destv[i] = findUnstashDestination(nodes[(stashv[i])->stashedFrom()], dist);
+
+    for (size_t i = 0; i < stashv.size(); ++i)
+    {
+        PointerNode *pn = stashv[i];
+        PointerNode *dest = destv[i];
         dest->insert(pn);
         pn->setParent(dest);
         pn->tagged(true);
         propagateUpwardCounts(dest, pn->nZeros(), pn->nOnes());
         //dest->addZeros(pn->nZeros());
         //dest->addOnes(pn->nOnes());        
-        pn->stashed(false);
+        ::propagateStashed(pn, false);
     }
     stashv.clear();
 }
 
 
-PointerTree::PointerNode * PointerTree::findUnstashDestination(PointerNode *pn)
+pair<PointerTree::PointerNode *, double> evalZeroSkeleton(PointerTree::PointerNode *dest, PointerTree::PointerNode *best_dest, double best_eval, PointerTree::PointerNode *eval_pn, TreeDistance &dist)
 {
-    if (pn->root())
-        return pn;
-    if (!pn->reduced())
-        return pn;    
-    return findUnstashDestination(pn->parentPtr());
+    if (dest->reduced() && dest->reducedLabel() == 1)
+        return make_pair(best_dest, best_eval);
+
+    bool unarypath = false;
+    for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
+        if ((*it)->nZeros() == dest->nZeros() && (*it)->nOnes() == dest->nOnes())
+            unarypath = true;
+
+    double e = -1.0;
+    if (!unarypath)
+        e = dist.evalZeroSkeleton(dest, eval_pn);
+    if (best_eval < e)
+    {
+        best_eval = e;
+        best_dest = dest;
+    }        
+    for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
+    {
+        pair<PointerTree::PointerNode *, double> tmp = evalZeroSkeleton(*it, best_dest, best_eval, eval_pn, dist);
+        if (best_eval < tmp.second)
+        {
+            best_eval = tmp.second;
+            best_dest = tmp.first;
+        }
+    }
+    return make_pair(best_dest, best_eval);
+}
+
+PointerTree::PointerNode * PointerTree::findUnstashDestination(PointerNode *pn, TreeDistance &dist)
+{
+    pair<PointerNode *, double> eval = ::evalZeroSkeleton(nodes[r], 0, -1.0, pn, dist);
+
+    if (eval.first == 0) // All zero-branches were stashed
+        eval.first = nodes[r];
+     
+    return eval.first;        
 }
 
 /**

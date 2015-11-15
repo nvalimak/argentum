@@ -7,6 +7,8 @@
 #include <iostream>
 #include <cassert>
 
+class TreeDistance;
+
 /**
  * Pointer-based implementation of the tree
  */
@@ -321,6 +323,7 @@ public:
     void relocate(PointerNode *, PointerNode *, unsigned, unsigned, bool, bool);
     void stash(PointerNode *, unsigned, bool, bool);
     void unstash();
+    void unstash(TreeDistance &);
     void rewind(Event &);
     void rewind(unsigned);
     void prerewind(unsigned);
@@ -391,7 +394,8 @@ private:
 
     unsigned updateMaxDists(PointerNode *);
     void propagateUpwardCounts(PointerNode *, int, int);
-    PointerNode * findUnstashDestination(PointerNode *);
+    PointerNode * findUnstashDestination(PointerNode *, TreeDistance &);
+    PointerNode * findUnstashUpwardDestination(PointerNode *);
     
     void outputDOT(PointerNode *, unsigned, std::ostream &);
     void outputNewick(PointerNode *, unsigned, std::ostream &);
