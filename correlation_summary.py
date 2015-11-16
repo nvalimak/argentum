@@ -64,5 +64,7 @@ maxCor = max(averCor)
 ind = [i for i, j in enumerate(averCor) if j == maxCor]
 if ind[0] != 0:
     CreateReport(corrs, 0)
+CreateReport(corrs, 2)
+
 for i in ind:
     CreateReport(corrs, i)

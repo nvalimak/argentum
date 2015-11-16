@@ -82,9 +82,9 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
     nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false, dist);
 
-    //dist.initZeroSkeleton(ic);
-//FIXME    t.unstash(dist); // Recover stashed subtrees
-    t.unstash();
+    dist.initZeroSkeleton(ic);
+    t.unstash(dist); // Recover stashed subtrees
+    //t.unstash();
     
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())

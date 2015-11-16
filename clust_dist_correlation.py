@@ -12,7 +12,11 @@ def num(s):
         return float(s)
 
 def CorrelationRange(r, scrm, argentum, cor12):
+    if (r >= 0):
 	for shift in range(r):
+		cor12.append ( Corr(shift, scrm, argentum) )
+    else:
+	for shift in range(r+1,0):
 		cor12.append ( Corr(shift, scrm, argentum) )
 
 
