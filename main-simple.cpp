@@ -27,6 +27,7 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
             --step;
 
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
+        tc.assignLabels(ir.col(step));
         tc.process(ir.col(step), increasingStep);
 
         if (!config.dotfile.empty())
@@ -73,8 +74,8 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
 
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
         unsigned decreasingStep = ir.size()-increasingStep-1;
+        tc.assignLabels(ir.col(step));
         predictor_tc.assignLabels(ir.col(step));
-        predictor_dist.recomputeDistances(ir.col(step));
         if (newick)
             predictor_tree.outputNewick("-", ir.position(step));
         predictor_tc.rewind(ir.col(step), decreasingStep);

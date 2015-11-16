@@ -35,8 +35,6 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_)
     nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false);
     
-    t.unstash(); // Recover stashed subtrees (inserted to the root)
-
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
@@ -65,6 +63,8 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, TreeDi
     recombine.clear();
     findReduced(root, 1);
     updatedThisStep = recombine;
+
+    dist.recomputeDistances(ic);
     
     deTagAll(t.root());
     recombine.clear();
@@ -73,8 +73,6 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, TreeDi
     nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false, dist);
     
-    t.unstash(); // Recover stashed subtrees (inserted to the root)
-
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
@@ -424,17 +422,16 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
         return; // One subtree cannot be relocated to itself
 
     // Choose the largest, non-tagged subtree as destination
-    int msize = 0;
+    int msize = 0; 
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if (!(*it)->tagged() && (*it)->nZeros()+(*it)->nOnes() > msize)
-        {
+	if (!(*it)->tagged() && (*it)->nZeros()+(*it)->nOnes() > msize) // FIXME
+	{
             msize = (*it)->nZeros()+(*it)->nOnes();
             mpn = *it;
-        }
-
-    if (mpn == 0)
-        mpn = recombine.front(); // All tagged, take first
+	}
+	  
+    assert (mpn != 0);
     
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
@@ -523,136 +520,6 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
         dest->previousUpdate(step);
 }
 
-/*pair<unsigned,unsigned> updateDistanceSums_(PointerTree::PointerNode *pn)
-{
-    if (pn->ghostbranch())
-        return make_pair(0,0);
-    if (pn->leaf())
-    {        
-        if (pn->reducedLabel() == 1)
-        {
-            pn->distSum(0);
-            pn->oneLeaves(1);
-            return make_pair(0,1);
-        }
-        else
-        {
-            pn->distSum(0);
-            pn->oneLeaves(0);
-            return make_pair(0,0);
-        }
-    }
-
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-
-    unsigned distsum = 0;
-    unsigned onebits = 0;
-    
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-    {
-        pair<unsigned,unsigned> tmp = updateDistanceSums_(*it);
-        distsum += tmp.first;
-        onebits += tmp.second;
-    }
-    
-    if (!unarypath)
-        distsum += onebits;
-
-    pn->distSum(distsum);
-    pn->oneLeaves(onebits);
-    return make_pair(distsum,onebits);
-}
-
-
-void distByTraversal_(PointerTree::PointerNode * pn, PointerTree::PointerNode const *src, PointerTree::PointerNode const *dest, set<PointerTree::PointerNode *> &oner, unsigned sup, unsigned sdown, LeafDistance &d)
-{
-    if (pn == dest)
-    {
-        for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it)
-        {
-            if (*it != dest || dest->leaf())
-                distByTraversal_(*it, (*it)->parentPtr(), sup, sdown+1, d);
-            else
-                distByTraversal_(*it, (*it)->parentPtr(), sup, sdown, d);
-        }
-        return;
-    }
-    if (oner.count(pn))
-        return; // Subtree not here...
-    
-    if (pn->ghostbranch())
-        return;
-    if (pn->leaf())
-    {
-        if (pn->reducedLabel() == 1)
-            d[pn->leafId()] = max(sup,sdown);
-        return;
-    }
-
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-    
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if (*it != src)
-            distByTraversal_(*it, pn, dest, oner, sup, unarypath ? sdown : sdown+1, d);
-
-    if (!pn->root() && pn->parentPtr() != src)
-        distByTraversal_(pn->parentPtr(), pn, dest, oner, unarypath ? sup : sup+1, sdown, d);
-}
-
-
-double TreeControllerSimple::evaluateDistance(PointerTree::PointerNode *subtree_root, PointerTree::PointerNode *dest, LeafDistance const & dist)
-{
-    // Collect set of zero leaves (TODO only once per subtree_root!)
-    //set<PointerTree::PointerNode *> zerol;
-    //collectLeafSet(subtree_root, 0, zerol);
-    // Set of reduced 1-nodes (TODO only once per subtree_root!)
-    set<PointerTree::PointerNode *> oner(recombine.begin(), recombine.end());
-    for (set<PointerTree::PointerNode *>::iterator it = oner.begin(); it != oner.end(); ++it) // TODO make linear time
-        updateDistanceSums_(*it);
-        
-    LeafDistance distForDest(dist.size(), 0); 
-    
-    //for (set<PointerTree::PointerNode *>::const_iterator it = zerol.begin(); it != zerol.end(); ++it) // TODO make linear time
-    //{
-    //       PointerTree::PointerNode * pn = *it;
-    for (size_t l = 0; l < t.size(); ++l) // TODO make linear time
-    {
-        PointerTree::PointerNode * pn = t.leaf(l);
-        if (pn->reducedLabel() != 0)
-            continue;
-        LeafDistance d(dist.size(), 0);
-        ::distByTraversal_(pn->parentPtr(), pn, dest, oner, 1, 0, d);
-        
-        distForDest[l] = 0;
-        for (size_t j = 0; j < d.size(); ++j)
-            if (t.leaf(j)->reducedLabel() == 1)
-                distForDest[l] += d[j]; //exp(-d[j]);
-    }
-    
-    int diff = 0;
-    //cerr << "at dest = " << dest->nodeId() << ": ";
-    //for (set<PointerTree::PointerNode *>::iterator it = zerol.begin(); it != zerol.end(); ++it) // TODO make linear time
-    //{
-    for (size_t l = 0; l < t.size(); ++l) // TODO make linear time
-    {
-        PointerTree::PointerNode * pn = t.leaf(l);
-        if (pn->reducedLabel() != 0)
-            continue;
-        double d = 0;
-        if (printEval)
-            cerr << "dist[" << pn->leafId() << "] = " <<  dist[pn->leafId()] << ", distForDest[" << pn->leafId() << ", " << dest->nodeId() << "] = " << distForDest[pn->leafId()] << endl;
-        d = distForDest[pn->leafId()] - dist[pn->leafId()];
-        diff += d*d;
-    }
-    //cerr<<endl;
-    return diff;
-    }*/
 
 // Update the tags in the whole tree
 void TreeControllerSimple::deTagAll(PointerTree::PointerNode *pn)

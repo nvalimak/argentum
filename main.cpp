@@ -27,6 +27,7 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
             --step;
 
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
+        tc.assignLabels(ir.col(step));
         tc.process(ir.col(step), increasingStep);
 
         if (!config.dotfile.empty())
