@@ -32,12 +32,12 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     pair<int,int> checksum = recombineStrategy(root);
     assert (checksum.second <= 1);
         
-    t.unstash(); // Recover stashed subtrees
-
     recombine.clear();
     findReduced(t.root(), 1);
     nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false);    
+
+    t.unstash(); // Recover stashed subtrees
 
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
@@ -73,6 +73,10 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
     pair<int,int> checksum = recombineStrategy(root);
     assert (checksum.second <= 1);
 
+    dist.initZeroSkeleton(ic);
+    t.unstash(dist); // Recover stashed subtrees
+    //t.unstash();
+    
     dist.recomputeDistances(ic);
     
     recombine.clear();
@@ -80,10 +84,6 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
     nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false, dist);
 
-    dist.initZeroSkeleton(ic);
-    t.unstash(dist); // Recover stashed subtrees
-    //t.unstash();
-    
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
             (*it)->previousUpdate(step);
