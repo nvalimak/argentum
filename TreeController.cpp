@@ -76,7 +76,7 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
     dist.initZeroSkeleton(ic);
     t.unstash(dist); // Recover stashed subtrees
     //t.unstash();
-    
+
     dist.recomputeDistances(ic);
     
     recombine.clear();
