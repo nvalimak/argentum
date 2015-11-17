@@ -52,8 +52,6 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
  */
 void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance &dist)
 {
-    deTagAll(t.root());
-
     step = step_;
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
