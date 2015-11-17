@@ -133,7 +133,7 @@ int main(int argc, char ** argv)
     {
         scrm_density[i] /= scrm_count[i];
         predt_density[i] /= predt_count[i];
-        cout << i << '\t' << scrm_density[i] << '\t' << predt_density[i] << endl; 
+        cout << i+1 << '\t' << scrm_density[i] << '\t' << predt_density[i] << endl; 
     }    
     return 0;
 }

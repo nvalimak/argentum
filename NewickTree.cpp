@@ -133,7 +133,8 @@ void updateDensity(NewickTree::Node *pn, unsigned first_pop_total_size, unsigned
     double nfirst = (double)pn->first_pop_size/(double)first_pop_total_size;
     double nsecond = (double)pn->second_pop_size/(double)second_pop_total_size;
     double idens = (nfirst * nsecond * 4) / ((nfirst + nsecond) * (nfirst + nsecond));
-    unsigned s = pn->first_pop_size + pn->second_pop_size;
+    unsigned s = pn->first_pop_size + pn->second_pop_size - 1;
+    assert (s < density.size());
     density[s] += idens;
     count[s] += 1;
     
