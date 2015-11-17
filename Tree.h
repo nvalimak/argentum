@@ -217,9 +217,7 @@ public:
         PointerNode(); // No default constructor
         
         PointerTree *t;
-    public: // FIXME
         children_set_t ch;  // Children
-    private:
         NodeId id;          // Node identifier (unique)
         NodeId lfId;        // Leaf node?
         TreeDepth d;        // Given depth
@@ -405,7 +403,7 @@ private:
     NodeId r;
     std::size_t n; // Number of leaves
     std::vector<PointerTree::PointerNode *> leaves;
-public:
+public: // FIXME
     std::vector<PointerTree::PointerNode *> stashv;
     std::size_t nstashed;
 private:

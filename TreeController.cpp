@@ -31,13 +31,13 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
     recombine.reserve(2 * t.size());
     pair<int,int> checksum = recombineStrategy(root);
     assert (checksum.second <= 1);
-        
+
+    t.unstash(); // Recover stashed subtrees (before recombining 1-subtrees)
+
     recombine.clear();
     findReduced(t.root(), 1);
     nOnesCut += recombine.size()-1;
     recombineSubtrees(t.root(), true, false);    
-
-    t.unstash(); // Recover stashed subtrees
 
     for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
         if (!(*it)->leaf())
@@ -76,8 +76,7 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
     assert (checksum.second <= 1);
 
     dist.initZeroSkeleton(ic);
-    t.unstash(dist); // Recover stashed subtrees
-    //t.unstash();
+    t.unstash(dist); // Recover stashed subtrees (either here or after recombining 1-subtrees)
 
     dist.recomputeDistances(ic);
     
@@ -529,20 +528,8 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
             
             //,cerr << "relocating node " << (*it)->nodeId() << ", to " << dest->nodeId() << ", lca_age = " << lca_age << endl;
 
-            if ((*it)->leaf())
-            {
-                t.relocate(*it, dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
-                (*it)->tagged(true);
-                continue;
-            }
-            vector<NodeId> children((*it)->ch.begin(), (*it)->ch.end()); // Explicit copy, since list gets modified under relocate
-            assert(children.size() == (*it)->ch.size());
-            for (vector<NodeId>::iterator itt = children.begin(); itt != children.end(); ++itt)
-            {
-                t.nodes[*itt]->tagged(false);
-                t.relocate(t.nodes[*itt], dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
-                t.nodes[*itt]->tagged(false);
-            }
+            t.relocate(*it, dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
+            (*it)->tagged(true);
         }
     if (mpn->leaf())
         updatedThisStep.push_back(dest);

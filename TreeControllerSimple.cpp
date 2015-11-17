@@ -425,7 +425,7 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
     int msize = 0; 
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-	if (!(*it)->tagged() && (*it)->nZeros()+(*it)->nOnes() > msize) // FIXME
+	if (!(*it)->tagged() && (*it)->nZeros()+(*it)->nOnes() > msize)
 	{
             msize = (*it)->nZeros()+(*it)->nOnes();
             mpn = *it;
@@ -488,8 +488,7 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
         }
 
     
-    if (mpn == 0)
-        mpn = recombine.front(); // All tagged, take first
+    assert(mpn!= 0);
     
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
