@@ -128,7 +128,7 @@ int main(int argc, char ** argv)
     }
     cerr << n << " sites, " << predt_base << " predt_bases and " << scrm_base << " scrm_bases done." << endl;
 
-    cout << "\tscrm_avg\tpred_avg" << endl;
+    cout << "row\tscrm_avg\tpred_avg" << endl;
     for (unsigned i = 0; i < nleaves; ++i)
     {
         scrm_density[i] /= scrm_count[i];
