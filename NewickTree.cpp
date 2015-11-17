@@ -1,6 +1,7 @@
 #include "NewickTree.h"
 #include <fstream>
 #include <sstream>
+#include <utility>
 #include <cstdlib>
 using namespace std;
 
@@ -102,6 +103,53 @@ NewickTree::~NewickTree()
     root_ = 0;
 }
 
+pair<unsigned, unsigned> updateSubtreeCounts(NewickTree::Node *pn, vector<unsigned> &popv)
+{
+    if (pn->leaf)
+    {
+        if (popv[pn->lid] == 0)
+            return make_pair(1,0);
+        assert (popv[pn->lid] == 1);
+        return make_pair(0,1);
+    }
+
+    pair<unsigned,unsigned> sum(0,0);
+    for (set<NewickTree::Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
+    {
+        pair<unsigned,unsigned> tmp = updateSubtreeCounts(*it, popv);
+        sum.first += tmp.first;
+        sum.second += tmp.second;
+    }
+    pn->first_pop_size = sum.first;
+    pn->second_pop_size = sum.second;
+    return sum;
+}
+
+void updateDensity(NewickTree::Node *pn, unsigned first_pop_total_size, unsigned second_pop_total_size, vector<double> &density, vector<unsigned> &count)
+{
+    if (pn->leaf)
+        return;
+
+    double nfirst = (double)pn->first_pop_size/(double)first_pop_total_size;
+    double nsecond = (double)pn->second_pop_size/(double)second_pop_total_size;
+    double idens = (nfirst * nsecond * 4) / ((nfirst + nsecond) * (nfirst + nsecond));
+    unsigned s = pn->first_pop_size + pn->second_pop_size;
+    density[s] += idens;
+    count[s] += 1;
+    
+    for (set<NewickTree::Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
+        updateDensity(*it, first_pop_total_size, second_pop_total_size, density, count);
+}
+
+
+void NewickTree::updateDensity(vector<unsigned> &popv, unsigned first_pop_total_size, vector<double> &density, vector<unsigned> &count)
+{
+    pair<unsigned,unsigned> tmp = updateSubtreeCounts(root_, popv);
+    assert (tmp.first + tmp.second == popv.size());
+    assert (tmp.first == first_pop_total_size);
+    assert (tmp.second == popv.size() - first_pop_total_size);
+    ::updateDensity(root_, tmp.first, tmp.second, density, count);
+}
 
 void assignLabels(NewickTree::Node *pn, InputColumn const &ic)
 {

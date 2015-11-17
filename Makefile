@@ -3,7 +3,7 @@ CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = Configuration.o InputReader.o NewickTree.o Tree.o TreeController.o TreeControllerSimple.o TreeDistance.o
 
-all: main main-simple newickcomp newick2dot rand-matrix scrm2bin
+all: main main-simple newickcomp newick2dot newick2imbalance-density rand-matrix scrm2bin
 
 main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)
@@ -16,6 +16,9 @@ newickcomp: newickcomp.o NewickTree.o
 
 newick2dot: newick2dot.o NewickTree.o
 	$(CC) $(CPPFLAGS) -o newick2dot newick2dot.o NewickTree.o
+
+newick2imbalance-density: newick2imbalance-density.o NewickTree.o
+	$(CC) $(CPPFLAGS) -o newick2imbalance-density newick2imbalance-density.o NewickTree.o
 
 rand-matrix: rand-matrix.o
 	$(CC) $(CPPFLAGS) -o rand-matrix rand-matrix.o
@@ -33,7 +36,7 @@ dot: main
 	for i in *.dot; do dot -Tpng $$i > $${i%.dot}.png; done
 
 clean:
-	rm -f main main-simple newickcomp rand-matrix scrm2bin *.o *~ *.dot *.png
+	rm -f main main-simple newickcomp newick2dot newick2imbalance-density rand-matrix scrm2bin *.o *~ *.dot *.png
 
 depend:
 	g++ -MM -std=c++11 *.cpp > dependencies.mk

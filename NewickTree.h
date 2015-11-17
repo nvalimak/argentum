@@ -19,10 +19,10 @@ public:
     {
     public:
         Node()
-            : ch(), parent(0), lid(-1), llabel(-1), leaf(false), size(0), mdepth(0)
+            : ch(), parent(0), lid(-1), llabel(-1), leaf(false), size(0), mdepth(0), first_pop_size(0), second_pop_size(0)
         { }
         Node(Node *p)
-            : ch(), parent(p), lid(-1), llabel(-1), leaf(false), size(0), mdepth(0)
+            : ch(), parent(p), lid(-1), llabel(-1), leaf(false), size(0), mdepth(0), first_pop_size(0), second_pop_size(0)
         {
             p->ch.insert(this); // Insert as child to *p
         }
@@ -36,11 +36,17 @@ public:
         bool leaf; // Is leaf?
         unsigned size; // Total number of subtree leaves
         unsigned mdepth; // Max depth for this subtree
+        unsigned first_pop_size;
+        unsigned second_pop_size;
     };
 
     // Distance computation for newickcomp.cpp
     void distanceByTraversal(Node *, Node *, Node *, unsigned, std::vector<unsigned> &);
     void subtreeDistance(std::vector<unsigned> &);
+
+    // Imbalance density
+    void updateDensity(std::vector<unsigned> &, unsigned, std::vector<double> &, std::vector<unsigned> &);
+
     NewickTree(std::string const &i);
     ~NewickTree();
 
