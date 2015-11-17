@@ -217,7 +217,9 @@ public:
         PointerNode(); // No default constructor
         
         PointerTree *t;
+    public: // FIXME
         children_set_t ch;  // Children
+    private:
         NodeId id;          // Node identifier (unique)
         NodeId lfId;        // Leaf node?
         TreeDepth d;        // Given depth

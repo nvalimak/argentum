@@ -52,6 +52,8 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
  */
 void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance &dist)
 {
+    deTagAll(t.root());
+
     step = step_;
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
@@ -526,8 +528,21 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
                 (*it)->tagged(false); // Not tagged for this dest.
             
             //,cerr << "relocating node " << (*it)->nodeId() << ", to " << dest->nodeId() << ", lca_age = " << lca_age << endl;
-            t.relocate(*it, dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
-            (*it)->tagged(true);
+
+            if ((*it)->leaf())
+            {
+                t.relocate(*it, dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
+                (*it)->tagged(true);
+                continue;
+            }
+            vector<NodeId> children((*it)->ch.begin(), (*it)->ch.end()); // Explicit copy, since list gets modified under relocate
+            assert(children.size() == (*it)->ch.size());
+            for (vector<NodeId>::iterator itt = children.begin(); itt != children.end(); ++itt)
+            {
+                t.nodes[*itt]->tagged(false);
+                t.relocate(t.nodes[*itt], dest, lca_age.first, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
+                t.nodes[*itt]->tagged(false);
+            }
         }
     if (mpn->leaf())
         updatedThisStep.push_back(dest);
