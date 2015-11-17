@@ -84,6 +84,7 @@ void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_)
     step = step_;
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
+    t.prerewind(step);
 
     recombine.clear();
     findReduced(root, 1);
@@ -244,113 +245,6 @@ void TreeControllerSimple::findReduced(PointerTree::PointerNode *pn, InputLabel 
         findReduced(*it, il);
 }
 
-/**
- * Recombine strategy
- */
-/*pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *pn)
-{
-    if (pn->ghostbranch())
-        return make_pair(0,0);       // Assert: Ghost branch, ignored here
-    if (pn->leaf())
-    {
-        if (pn->reducedLabel() == 1) // Assert: Leaf node
-            return make_pair(0,1);
-        else
-            return make_pair(1,0);
-    }
-    
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-
-    if (!unarypath && pn->reduced() && !pn->root())
-    {
-        if (pn->reducedLabel() == 1) // Assert: Reduced internal node that is not a unary ghost node
-            return make_pair(0,1);
-        else
-            return make_pair(1,0);
-    }
-    
-    // Assert: 'pn' is an unary ghost node, or a nonreducible node; or the root node
-    int nzeroreduced = 0;
-    int nonereduced = 0;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); pn->nodeId() != PointerTree::nonreserved && it != pn->end(); ++it)
-    {
-        pair<int,int> tmp = recombineStrategy(*it);
-        nzeroreduced += tmp.first;
-        nonereduced += tmp.second;
-    }
-    if (pn->nodeId() == PointerTree::nonreserved)
-        return make_pair(0,0);
-    if (unarypath && !pn->root())
-        return make_pair(nzeroreduced, nonereduced);
-
-    // Assert: pn is a nonreducible node
-    if (nonereduced == 1)
-        return make_pair(nzeroreduced, nonereduced);
-    
-    // Assert: nonereduced >= 2 && nonereduced < nzeroreduced
-    recombine.clear();
-    findReduced(pn, 1);
-    recombineSubtrees(pn, true, false);
-    return make_pair(nzeroreduced, 1);
-    }*/
-
-/**
- * Recombine strategy
- */
-/*pair<int,int> TreeControllerSimple::recombineStrategy(PointerTree::PointerNode *pn, LeafDistance const &dist)
-{
-    if (pn->ghostbranch())
-        return make_pair(0,0);       // Assert: Ghost branch, ignored here
-    if (pn->leaf())
-    {
-        if (pn->reducedLabel() == 1) // Assert: Leaf node
-            return make_pair(0,1);
-        else
-            return make_pair(1,0);
-    }
-    
-    bool unarypath = false;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-        if ((*it)->nZeros() == pn->nZeros() && (*it)->nOnes() == pn->nOnes())
-            unarypath = true;
-
-    if (!unarypath && pn->reduced() && !pn->root())
-    {
-        if (pn->reducedLabel() == 1) // Assert: Reduced internal node that is not a unary ghost node
-            return make_pair(0,1);
-        else
-            return make_pair(1,0);
-    }
-    
-    // Assert: 'pn' is an unary ghost node, or a nonreducible node; or the root node
-    int nzeroreduced = 0;
-    int nonereduced = 0;
-    for (PointerTree::PointerNode::iterator it = pn->begin(); pn->nodeId() != PointerTree::nonreserved && it != pn->end(); ++it)
-    {
-        pair<int,int> tmp = recombineStrategy(*it);
-        nzeroreduced += tmp.first;
-        nonereduced += tmp.second;
-    }
-    if (pn->nodeId() == PointerTree::nonreserved)
-        return make_pair(0,0);
-    if (unarypath && !pn->root())
-        return make_pair(nzeroreduced, nonereduced);
-
-    // Assert: pn is a nonreducible node
-    if (nonereduced == 1)
-        return make_pair(nzeroreduced, nonereduced);
-    
-    // Assert: nonereduced >= 2 && nonereduced < nzeroreduced
-    recombine.clear();
-    findReduced(pn, 1);
-    recombineSubtrees(pn, true, false, dist);
-    return make_pair(nzeroreduced, 1);
-    }*/
-
-
 // Relocates all selected subtrees under new internal node
 void TreeControllerSimple::recombineNonBinarySubtrees(unsigned nones, bool keephistory, bool keepparentcounts)
 {
@@ -366,33 +260,30 @@ void TreeControllerSimple::recombineNonBinarySubtrees(unsigned nones, bool keeph
             msize = (*it)->nZeros()+(*it)->nOnes();
             mpn = *it;
         }
-    if (mpn == 0) // All tagged; choose the youngest tag as destination
-    {
-        msize = 0;
-        for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-            if (t.getPreviousEventStep(*it) >= (unsigned)msize)
-            {
-                msize = t.getPreviousEventStep(*it);
-                mpn = *it;
-            }
-    }
+    assert (mpn != 0);
     
     // Count the number of tags younger than the target subtree
     unsigned dest_updated = mpn->previousUpdate();
+    if (mpn->previousUpdate() == PointerTree::nohistory)
+        dest_updated = 0;    
     unsigned ntags = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
-        if ((*it)->tagged())
+        if ((*it)->tagged() && *it != mpn)
         {
             unsigned flt_created = t.getPreviousEventStep(*it);
-            if (flt_created > dest_updated)
+            if (flt_created >= dest_updated)
                 ntags++;
         }
        
+    // Old version PointerTree::PointerNode * dest = mpn;
+    //if (mpn->leaf() || (ntags < recombine.size()-1 && !mpn->tagged()))
+        //    dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are tags and destination is not tagged
+    //if (dest->tagged())
+    //    keephistory = true;
+
     PointerTree::PointerNode * dest = mpn;
-    if (mpn->leaf() || (ntags < recombine.size()-1 && !mpn->tagged()))
-        dest = t.createDest(mpn, step); // Create new internal node if leaf, or not all siblings are tags and destination is not tagged
-    if (dest->tagged())
-        keephistory = true;
+    dest = t.createDest(mpn, step);
+
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
             t.relocate(*it, dest, step, step, keephistory, keepparentcounts); // Relocate all selected 'recombine' subtrees to destination
@@ -436,10 +327,12 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
     unsigned largest_age = mpn->previousUpdate();
+    if (largest_age == PointerTree::nohistory)
+        largest_age = 0;
     while (tmp != subtree_root)
     {
         tmp = tmp->parentPtr();
-        if (tmp->previousUpdate() > largest_age)
+        if (tmp->previousUpdate() > largest_age && tmp->previousUpdate() != PointerTree::nohistory)
             largest_age = tmp->previousUpdate();
         upward_path[tmp] = largest_age;
     }
@@ -470,13 +363,13 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
         return; // One subtree cannot be relocated to itself
 
     // Choose the destination
-    int eval = -1;
+    double eval = -1;
     int msize = 0;
     PointerTree::PointerNode *mpn = 0;
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (!(*it)->tagged())
         {
-            int e = dist.evaluateDistance(recombine, subtree_root, *it);
+            double e = dist.evaluateDistance(recombine, subtree_root, *it);
             if (printEval)
                 cerr << "eval = " << e << " for dest = " << (*it)->nodeId() << ", isleaf = " << (*it)->leaf() << endl;
             if (eval == -1 || e < eval || (e == eval && msize < (*it)->nZeros()+(*it)->nOnes()))
@@ -493,10 +386,12 @@ void TreeControllerSimple::recombineSubtrees(PointerTree::PointerNode *subtree_r
     map<PointerTree::PointerNode *, unsigned> upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
     unsigned largest_age = mpn->previousUpdate();
+    if (largest_age == PointerTree::nohistory)
+        largest_age = 0;
     while (tmp != subtree_root)
     {
         tmp = tmp->parentPtr();
-        if (tmp->previousUpdate() > largest_age)
+        if (tmp->previousUpdate() > largest_age  && tmp->previousUpdate() != PointerTree::nohistory)
             largest_age = tmp->previousUpdate();
         upward_path[tmp] = largest_age;
     }
