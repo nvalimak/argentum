@@ -40,7 +40,7 @@ void NewickTree::subtreeDistance(vector<unsigned> &cd)
 
 // Create a new tree from the given file
 NewickTree::NewickTree(string const &filename)
-    : root_(0), leaves(), valid(0), fp(0), good_(false) 
+    : root_(0), leaves(), valid(0), fp(0), good_(false), orig_row()
 {
     // Open file handle, "-" uses standard input
     if (filename == "-")
@@ -58,7 +58,7 @@ NewickTree::NewickTree(string const &filename)
         std::getline(*fp, row);
     if (!fp->good())
         return;
-    
+    orig_row = row;
     parse(row);
     updateSizes(root_);
     leaves.resize(root_->size, 0);
@@ -85,7 +85,8 @@ bool NewickTree::next()
         std::getline(*fp, row);
     if (!fp->good())
         return false;
-    
+
+    orig_row = row;
     parse(row);
     updateSizes(root_);
     leaves.resize(root_->size, 0);

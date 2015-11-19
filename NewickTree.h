@@ -58,6 +58,8 @@ public:
     { return root_->size; }
     Node * leaf(size_t i)
     { return leaves[i]; }
+    std::string const & originalRepresentation()
+    { return orig_row; }
     
     void assignLabels(InputColumn const &);
     unsigned updateMaxDists();
@@ -81,5 +83,6 @@ private:
     unsigned valid; // Tree is valid for this many sites
     std::istream *fp;
     bool good_;
+    std::string orig_row;
 };
 #endif
