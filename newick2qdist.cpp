@@ -76,7 +76,7 @@ int main(int argc, char ** argv)
         {
             string ptree(predt.originalRepresentation());
             string stree(scrm.originalRepresentation());        
-            cout << ptree.substr(ptree.find_first_of("(")) << endl
+            cout << ptree.substr(ptree.find_first_of("(")) << '\t'
                  << stree.substr(stree.find_first_of("(")) << endl;
         }
         
