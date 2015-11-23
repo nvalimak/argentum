@@ -49,7 +49,7 @@ int main(int argc, char ** argv)
 
     // Init inferred tree input from <stdin>
     NewickTree predt("-");
-    assert(predt.nleaves() == nleaves);
+    unsigned nleaves = predt.nleaves();
     unsigned predt_base = 0;
     unsigned n = 0;
     while (predt.good())
@@ -64,9 +64,10 @@ int main(int argc, char ** argv)
                 cout << predt_base << '\t' << i+1 << '\t' << j+1 << '\t' << cd[i + nleaves * j] << endl;
 
         // Find next inferred tree
-        predt.next();        
+        predt.next();
+        assert (predt.nleaves() == nleaves);
         n++;
     }
-    cerr << n << " sites, " << predt_base << " predt_bases and " << scrm_base << " scrm_bases done." << endl;
+    cerr << n << " sites, " << predt_base << " predt_bases done." << endl;
     return 0;
 }
