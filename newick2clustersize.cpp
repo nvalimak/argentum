@@ -41,12 +41,14 @@ int atoi_min(char const *value, int min)
     
 int main(int argc, char ** argv)
 {
-    if (argc != 1)
+    if (argc != 2)
     {
-        cerr << "usage: ./main [options] | " << argv[0] << endl;
+        cerr << "usage: ./main [options] | " << argv[0] << " <skip>" << endl;
         return 1;
     }
 
+    unsigned skip = atoi_min(argv[1], 0);
+            
     // Init inferred tree input from <stdin>
     NewickTree predt("-");
     unsigned nleaves = predt.nleaves();
@@ -64,10 +66,15 @@ int main(int argc, char ** argv)
                 cout << predt_base << '\t' << i+1 << '\t' << j+1 << '\t' << cd[i + nleaves * j] << endl;
 
         // Find next inferred tree
-        predt.next();
-        assert (predt.nleaves() == nleaves);
-        n++;
+        unsigned s = 0;
+        while (s <= skip)
+        {
+            predt.next();
+            assert (predt.nleaves() == nleaves);
+            n++;
+            s++;
+        }
     }
-    cerr << n << " sites, " << predt_base << " predt_bases done." << endl;
+    cerr << n << " sites, " << skip << " skipped, " << predt_base << " predt_bases done." << endl;
     return 0;
 }
