@@ -84,7 +84,7 @@ bool PlainTextInputReader::next(InputColumn &ic)
  * Simplistic VCF input
  */
 SimpleVCFInputReader::SimpleVCFInputReader(string file, unsigned nrows)
-    : InputReader(file)
+    : InputReader(file), positions()
 {
     if (!good_)
         return;
@@ -150,7 +150,7 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
                 return false;        
             continue; // Skip multiallelic sites
         } 
-            
+
         if (ref == AA)
             gtaa = 1;
         else if (alt == AA)
@@ -183,6 +183,15 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
         ic[i] = (row[pos+1] == (char)(48+gtaa));
     }
     cols.push_back(ic);
+
+    unsigned vcf_pos = 0;
+    {
+        pos = row.find_first_of("\t") + 1;
+        istringstream iss(row.substr(pos));
+        iss >> pos;
+        assert (pos > 0);
+    }
+    positions.push_back(vcf_pos);
     return true;
 }
 

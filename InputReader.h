@@ -31,7 +31,7 @@ public:
     std::size_t size() const
     { return cols.size(); }
     virtual unsigned position(size_t i)
-    { return 0; } // SCRM input only
+    { return 0; } // SCRM+VCF input only
     
     virtual ~InputReader()
     { if (fp != &std::cin) delete fp; fp = 0; }
@@ -73,6 +73,9 @@ class SimpleVCFInputReader : public InputReader
 {
 public:
     SimpleVCFInputReader(std::string, unsigned);
+    virtual unsigned position(size_t i)
+    { assert(i<positions.size()); return positions[i]; }
+
     virtual ~SimpleVCFInputReader()
     { }
 private:
@@ -81,6 +84,7 @@ private:
     // No copy constructor or assignment
     SimpleVCFInputReader(SimpleVCFInputReader const&);
     SimpleVCFInputReader& operator = (SimpleVCFInputReader const&);
+    std::vector<unsigned> positions;
 };
 
 /**
