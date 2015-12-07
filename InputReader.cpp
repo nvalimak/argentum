@@ -188,7 +188,7 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
     {
         pos = row.find_first_of("\t") + 1;
         istringstream iss(row.substr(pos));
-        iss >> pos;
+        iss >> vcf_pos;
         assert (pos > 0);
     }
     positions.push_back(vcf_pos);
