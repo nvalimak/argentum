@@ -341,12 +341,18 @@ void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
             PointerNode *oldparent = it->getNode()->parentPtr();
             if (te)
             {
-                std::cerr << "prerewind closeChild called oldparent = " << oldparent->uniqueId() << std::endl;
-                te->closeChild(oldparent, it->getNode()->uniqueId(), h+1);
+                std::cerr << "!!!!!!!!!! prerewind closeChild called oldparent = " << oldparent->uniqueId() << " (ghost=" << oldparent->ghostbranch() << ",unary=" << oldparent->isUnary() << "), it = " << it->getNode()->uniqueId() << std::endl;
+
+                if (it->getSource() != it->getNode()->parentPtr())
+                    te->closeChild(oldparent, it->getNode(), h+1);
+                else
+                    it->refreshEnum(false);
             }
             relocate(it->getNode(), nodes[r], 0, 0, false, false);
-            if (te && oldparent->isUnary())
+            if (te && !oldparent->root() && oldparent->isUnary())
                 te->truncate(oldparent, h);
+            else if (te && oldparent->ghostbranch())
+                te->truncateGhost(oldparent, h);
         }
 }
 
@@ -357,6 +363,7 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
+    std::cerr << "!!!!!!!!!! rewind pn " << pn->uniqueId() << " under parent " << pn->parentPtr()->uniqueId() << " to dest " << dest->uniqueId() << std::endl;
     if (pn->nodeId() == PointerTree::nonreserved)
     {
         e.rewind();
@@ -370,8 +377,10 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
     }
 
     if (te && dest->isUnary())
-        te->splitUnary(dest, e.getStep());
-
+        te->splitUnary(dest, e.getStep()); // Was unary
+    else if (te && dest->ghostbranch())
+        te->insertGhost(dest, e.getStep()); // Was ghost
+    
     dest->insert(pn);
     propagateUpwardCounts(dest, pn->nZeros(), pn->nOnes());
     propagateUpwardCounts(src, -(pn->nZeros()), -(pn->nOnes()));
@@ -380,16 +389,20 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
     {
         if (!e.allZeros())
         {
-            std::cerr << "rewind closeChild called src = " << src->uniqueId() << std::endl;
-            te->closeChild(src, pn->uniqueId(), e.getStep()+1);
+            //std::cerr << "rewind closeChild called src = " << src->uniqueId() << std::endl;
+            te->closeChild(src, pn, e.getStep()+1);
         }
-        te->insertChild(dest, pn->uniqueId(), e.getStep());
+        if (e.refreshEnum())
+            te->insertChild(dest, pn->uniqueId(), e.getStep());
+        e.refreshEnum(true);
     }
     
     // Clean source subtree if needed
     src->erase(pn);
     if (te && !e.allZeros() && src->isUnary())
-        te->truncate(src, e.getStep());
+        te->truncate(src, e.getStep()); // Becomes unary
+    else if (te && !e.allZeros() && src->ghostbranch())
+        te->truncateGhost(src, e.getStep()); // Becomes ghost
 
     if (src->size() <= 1 && !src->root())
         PointerTree::clearNonBranchingInternalNode(src);
@@ -402,12 +415,21 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
  */
 void PointerTree::rewind(unsigned h, TreeEnumerator *te)
 {
+    cerr << "--- AT STEP " << h << " ";
+    te->debugPrint();
     if (history.empty())
         return;
+    // Process all rooted subtrees first
+    for (vector<Event>::reverse_iterator it = history.rbegin(); it != history.rend() && it->getStep() == h; ++it)
+        if (it->allZeros())
+            rewind(*it, te);
+
+    // Process rest of the subtress
     Event &e = history.back();
     while (e.getStep() == h)
     {
-        rewind(e, te);
+        if (!e.allZeros())
+            rewind(e, te);
         history.pop_back();
         if (history.empty())
             break;
@@ -516,23 +538,23 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
 {
     if (pn->leaf())
         return;
-    if (pn->ghostbranch())
-        return;
+    //if (pn->ghostbranch())
+    //    return;
 
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
-        if ((*it)->ghostbranch())
-            continue;
+        //if ((*it)->ghostbranch())
+        //    continue;
         bool unarypath = false;
         for (PointerTree::PointerNode::iterator itt = (*it)->begin(); itt != (*it)->end(); ++itt)
             if ((*itt)->nZeros() == (*it)->nZeros() && (*itt)->nOnes() == (*it)->nOnes())
                 unarypath = true;
     
-        if (unarypath)
+        /*if (unarypath)
         {
             outputDOT(*it, id, of);
             continue;
-        }
+            }*/
         of << " n" << id << " -> n" << (*it)->uniqueId() << endl;
         of << " n" << (*it)->uniqueId() << " [label=\"";
         if ((*it)->leaf())
@@ -544,8 +566,11 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
         of << " ";
         if ((*it)->tagged())
         {
-            assert(PointerTree::history.size() > (*it)->previousEvent());
-            of << "F" << PointerTree::history[(*it)->previousEvent()].getStep() << " ";
+            assert((*it)->previousEvent() == PointerTree::nohistory || PointerTree::history.size() >= (*it)->previousEvent());
+            of << "F";
+            if ((*it)->previousEvent() != PointerTree::nohistory)
+                of << PointerTree::history[(*it)->previousEvent()].getStep();
+            of << " ";
         }
         if ((*it)->leaf())
             of << (*it)->nZeros() << "v" << (*it)->nOnes() << "\",shape=box";

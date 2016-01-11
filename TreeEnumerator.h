@@ -20,7 +20,7 @@ public:
     {
         init = false;
         initRightPos(tree.root(), tree.root()->uniqueId(), step);
-        debugPrint();
+        //debugPrint();
     }
 
     ~TreeEnumerator()
@@ -34,7 +34,7 @@ public:
         //insertBuffer.push_back(std::make_pair(pn, cid));
 
         PointerTree::PointerNode *r = pn;
-        while (!r->root() && r->isUnary())
+        while (!r->root() && (r->isUnary() || r->ghostbranch()))
             r = r->parentPtr();
         
         rightPos[r->uniqueId()][cid] = rstep;        
@@ -61,10 +61,11 @@ public:
 
     void splitUnary(PointerTree::PointerNode *pn, PointerTree::PointerNode *dest, PointerTree::PointerNode *r, unsigned step)
     {
+        std::cerr << "recursive splitUnary called pn = " << pn->uniqueId() << ", dest = " << dest->uniqueId() << " (pn ghost=" << pn->ghostbranch() << ",pn unary=" << pn->isUnary() << ")" << std::endl;
         if (pn->leaf())
         {
             assert(rightPos[r->uniqueId()].count(pn->uniqueId()) > 0);
-            closeChild(r, pn->uniqueId(), step+1);
+            closeChild(r, pn, step+1);
             rightPos[dest->uniqueId()][pn->uniqueId()] = step;
             return;
         }
@@ -79,8 +80,13 @@ public:
         }
 
         // Assert: pn is non-unary node that points to r
+        if (rightPos[r->uniqueId()].count(pn->uniqueId())  == 0)
+        {
+            debugPrint();
+            std::cerr << "r = " << r->uniqueId() << ", pn = " << pn->uniqueId() << std::endl;
+        }
         assert(rightPos[r->uniqueId()].count(pn->uniqueId()) > 0);
-        closeChild(r, pn->uniqueId(), step+1);
+        forceCloseChild(r, pn, step+1);
         rightPos[dest->uniqueId()][pn->uniqueId()] = step;
         
         /*for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
@@ -94,7 +100,7 @@ public:
     }
     void splitUnary(PointerTree::PointerNode *dest, unsigned step)
     {
-        std::cerr << "splitUnary called dest = " << dest->uniqueId() << std::endl;
+        std::cerr << "splitUnary called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
         if (dest->root())
             return;
         assert (dest->isUnary());
@@ -108,13 +114,28 @@ public:
             std::cerr << "r == " << r->uniqueId() << std::endl;
         }
         assert (rightPos.count(r->uniqueId()) > 0);
+
         // Assert: r is the lowest common non-unary node
+        std::cerr << "using non-unary r = " << r->uniqueId() << " instead of " << dest->uniqueId() << std::endl;
+        
+        rightPos[r->uniqueId()][dest->uniqueId()] = step;
         
         for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
             splitUnary(*it, dest, r, step);
     }
 
+    void insertGhost(PointerTree::PointerNode *dest, unsigned step)
+    {
+        std::cerr << "insertGhost called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+        assert (dest->ghostbranch());
+        while (dest->ghostbranch() && !dest->root())
+            dest = dest->parentPtr();
+        if (dest->root())
+            return;
 
+        if (dest->isUnary())
+            splitUnary(dest, step); // Unary node "dest" becomes non-unary
+    }
     
     void truncate(PointerTree::PointerNode *pn, PointerTree::PointerNode *dest, PointerTree::PointerNode *r, unsigned step)
     {
@@ -123,7 +144,7 @@ public:
             //debugPrint();
             //std::cerr << "truncate r " << r->uniqueId() << " for pn " << pn->uniqueId() << " and dest " << dest->uniqueId() << std::endl;
             assert(rightPos[dest->uniqueId()].count(pn->uniqueId()) > 0);
-            closeChild(dest, pn->uniqueId(), step+1);
+            closeChild(dest, pn, step+1);
             rightPos[r->uniqueId()][pn->uniqueId()] = step;
             return;
         }
@@ -133,13 +154,13 @@ public:
         if (pn->isUnary())
         {
             for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
-                splitUnary(*it, dest, r, step);
+                truncate(*it, dest, r, step);
             return;
         }
 
         // Assert: pn is non-unary node
         assert (rightPos[dest->uniqueId()].count(pn->uniqueId()) > 0);
-        closeChild(dest, pn->uniqueId(), step+1);
+        closeChild(dest, pn, step+1);
         rightPos[r->uniqueId()][pn->uniqueId()] = step;
         
         /*for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
@@ -159,10 +180,25 @@ public:
             r = r->parentPtr();
 
         assert (rightPos.count(r->uniqueId()) > 0);
-        // Assert: r is the lowest common non-unary node
+        assert (rightPos[r->uniqueId()].count(dest->uniqueId()) > 0);
+        forceCloseChild(r, dest, step+1); // FIXME test
 
+        // Assert: r is the lowest common non-unary node
         for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
             truncate(*it, dest, r, step);
+    }
+
+    void truncateGhost(PointerTree::PointerNode *dest, unsigned step)
+    {
+        std::cerr << "truncateGhost called dest = " << dest->uniqueId() << std::endl;
+        assert (dest->ghostbranch());
+        while (dest->ghostbranch() && !dest->root())
+            dest = dest->parentPtr();
+        if (dest->root())
+            return;
+
+        if (dest->isUnary())
+            truncate(dest, step); // node "dest" became unary
     }
     
     void insertMutation(NodeId uid, NodeId cid, unsigned step)
@@ -183,9 +219,36 @@ public:
         leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
         }*/
 
-    void closeChild(PointerTree::PointerNode *pn, NodeId cid, unsigned lstep)
+    PointerTree::PointerNode * findNonUnaryChild(PointerTree::PointerNode *pn)
     {
-        std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cid << std::endl;
+        while (pn->size() > 0 && pn->isUnary())
+        {
+            PointerTree::PointerNode *new_pn;
+            unsigned checksum = 0;
+            for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
+                if (!(*it)->ghostbranch())
+                {
+                    checksum ++;
+                    new_pn = *it;
+                }
+            assert(checksum == 1);
+            pn = new_pn;
+        }
+        return pn;
+    }
+        
+    void closeChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
+    {
+        std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
+
+        // Find highest non-unary node below cpn
+        if (cpn->isUnary())
+            cpn = findNonUnaryChild(cpn);
+        
+        assert(!cpn->isUnary());
+        NodeId cid = cpn->uniqueId();
+
+        // Find lowest node that cid points to
         NodeId uid = pn->uniqueId();
         while (rightPos.count(uid) == 0 || rightPos[uid].count(cid) == 0)
         {
@@ -195,6 +258,35 @@ public:
             uid = pn->uniqueId();
         }
 
+        std::cerr << "closeChild determined parent " << uid << " child " << cid << std::endl;
+        assert (rightPos.count(uid) > 0);
+        assert (rightPos[uid].count(cid) > 0);
+        
+        unsigned rstep = rightPos[uid][cid];
+        rightPos[uid].erase(cid);
+        if (rightPos[uid].size() == 0)
+            rightPos.erase(uid);
+        
+        leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
+    }
+
+    void forceCloseChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
+    {
+        std::cerr << "forceCloseChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
+
+        NodeId cid = cpn->uniqueId();
+
+        // Find lowest node that cid points to
+        NodeId uid = pn->uniqueId();
+        while (rightPos.count(uid) == 0 || rightPos[uid].count(cid) == 0)
+        {
+            if (pn->root())
+                break;
+            pn = pn->parentPtr();
+            uid = pn->uniqueId();
+        }
+
+        std::cerr << "closeChild determined parent " << uid << " child " << cid << std::endl;
         assert (rightPos.count(uid) > 0);
         assert (rightPos[uid].count(cid) > 0);
         
@@ -288,7 +380,8 @@ private:
             }
         }
         
-        rightPos[parent_uid][pn->uniqueId()] = step;
+        if (!pn->root())
+            rightPos[parent_uid][pn->uniqueId()] = step;
         for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
             initRightPos(*it, pn->uniqueId(), step);
     }

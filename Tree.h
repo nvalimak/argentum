@@ -259,7 +259,7 @@ public:
     {
     public:
         Event(PointerNode *src_, PointerNode *pn_, unsigned step_, unsigned histid, bool allzeros_)
-            : src(src_), pn(pn_), step(step_), preve(PointerTree::nohistory), allzeros(allzeros_)
+            : src(src_), pn(pn_), step(step_), preve(PointerTree::nohistory), allzeros(allzeros_), refreshe(true)
         {
             src->addRef(); // Increase the number of references to src.
             if (!pn->leaf())
@@ -293,6 +293,11 @@ public:
         bool allZeros() const
         { return allzeros; }
 
+        bool refreshEnum() const
+        { return refreshe; }
+        void refreshEnum(bool b)
+        { refreshe = b; }
+
         void rewind()
         {
             src->removeRef(); // Decrease the number of references; may delete src!
@@ -313,7 +318,8 @@ public:
         PointerNode * pn;  // Subtree that was relocated
         unsigned step;     // Column that initiated this event
         unsigned preve;    // Previous event number for 'src' (refers to the history vector)
-        bool allzeros;     // Subtree was all zeros at column 'step' 
+        bool allzeros;     // Subtree was all zeros at column 'step'
+        bool refreshe;
     };
 
 public:
