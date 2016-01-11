@@ -8,6 +8,7 @@
 #include <cassert>
 
 class TreeDistance;
+class TreeEnumerator;
 
 /**
  * Pointer-based implementation of the tree
@@ -33,7 +34,7 @@ public:
         typedef std::set<NodeId> children_set_t;
     public:        
         explicit PointerNode(PointerTree *t_) // Empty node constructor
-            : t(t_), ch(), id(PointerTree::nonreserved), lfId(PointerTree::nonreserved), d(1.0), p(PointerTree::nonreserved),
+            : t(t_), ch(), id(PointerTree::nonreserved), uid(PointerTree::nonreserved), lfId(PointerTree::nonreserved), d(1.0), p(PointerTree::nonreserved),
               nzeros(PointerTree::unknown), nones(PointerTree::unknown), nrefs(0),
               prevupdate(PointerTree::nohistory), tag(false), preve(PointerTree::nohistory), root_(false), stashed_(false), stashedFrom_(0),
               mdepth(0)
@@ -46,6 +47,8 @@ public:
         { return (lfId != PointerTree::nonreserved); }
         inline NodeId nodeId() const
         { return id; }
+        inline NodeId uniqueId() const
+        { return uid; }
         inline LeafId leafId() const
         { return lfId; } 
         inline children_set_t::size_type size() const
@@ -124,6 +127,17 @@ public:
             PointerNode *& operator*() {return t->nodes[*p];}
         };
 
+        bool isUnary() const
+        {
+            if (ghostbranch())
+                return false;
+            bool unarynode = false;
+            for (children_set_t::const_iterator it = ch.begin(); it != ch.end(); ++it)
+                if ((t->nodes[*it])->nZeros() == nZeros() && (t->nodes[*it])->nOnes() == nOnes())
+                    unarynode = true;
+            return unarynode;
+        }
+        
         inline iterator begin()
         { return iterator(t, ch.begin()); }
         inline iterator end()
@@ -172,6 +186,7 @@ public:
         inline void reset()
         {
             id = PointerTree::nonreserved;
+            uid = PointerTree::nonreserved;
             assert (lfId == PointerTree::nonreserved);
             d = 1.0;
             p = PointerTree::nonreserved;
@@ -188,11 +203,13 @@ public:
         }
 
         // Internal node reset
-        inline void reset(NodeId id_, NodeId lfId_, TreeDepth d_, NodeId p_, unsigned step, bool r)
+        inline void reset(NodeId id_, NodeId uid_, NodeId lfId_, TreeDepth d_, NodeId p_, unsigned step, bool r)
         {
             assert(id == PointerTree::nonreserved);
+            assert(uid == PointerTree::nonreserved);
             assert(p == PointerTree::nonreserved);
             id = id_;
+            uid = uid_;
             d = d_;
             p = p_;
             assert (lfId == PointerTree::nonreserved);
@@ -218,7 +235,8 @@ public:
         
         PointerTree *t;
         children_set_t ch;  // Children
-        NodeId id;          // Node identifier (unique)
+        NodeId id;          // Node identifier (non-unique; used for heap allocation)
+        NodeId uid;         // Node identifier (unique)
         NodeId lfId;        // Leaf node?
         TreeDepth d;        // Given depth
         NodeId p;           // Parent node
@@ -324,9 +342,9 @@ public:
     void stash(PointerNode *, unsigned, bool, bool);
     void unstash();
     void unstash(TreeDistance &);
-    void rewind(Event &);
-    void rewind(unsigned);
-    void prerewind(unsigned);
+    void rewind(Event &, TreeEnumerator *);
+    void rewind(unsigned, TreeEnumerator *);
+    void prerewind(unsigned, TreeEnumerator *);
 
     void rewire(PointerNode *pn, PointerNode *new_pn)
     {
@@ -337,6 +355,7 @@ public:
     // Clean nonbranching internal node, if possible
     void clearNonBranchingInternalNode(PointerNode *);
     void clearNonBranchingInternalNodes();
+    void clearNonBranchingInternalNodes(unsigned, TreeEnumerator *);
 
     // Debugging
     unsigned reusedRootHistoryEvents() const
@@ -375,12 +394,12 @@ private:
                 for (size_t i = nodes.size()/2; i < nodes.size(); ++i)
                     nodes[i] = new PointerNode(this);                
             }
-            nodes[nextVacant]->reset(nextVacant, lfId, d_, p_, step, root);
+            nodes[nextVacant]->reset(nextVacant, nextUid++, lfId, d_, p_, step, root);
             return nextVacant++;
         }
         NodeId id = vacant.back();
         vacant.pop_back();
-        nodes[id]->reset(id, lfId, d_, p_, step, root);
+        nodes[id]->reset(id, nextUid++, lfId, d_, p_, step, root);
         return id;
     }
     
@@ -415,5 +434,6 @@ private:
     std::set<PointerTree::PointerNode *> nonbranching;
     std::vector<NodeId> vacant;
     NodeId nextVacant;
+    NodeId nextUid;
 };
 #endif

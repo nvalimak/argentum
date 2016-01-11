@@ -79,12 +79,18 @@ void TreeControllerSimple::process(InputColumn const &ic, unsigned step_, TreeDi
     t.clearNonBranchingInternalNodes();
 }
 
-void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_)
+void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_, TreeEnumerator *te)
 {
     step = step_;
     PointerTree::PointerNode *root = t.root();
     reduce(root, ic);
-    t.prerewind(step);
+
+    if (te && te->initialize())
+        te->initialize(t, step+1);
+
+    if (!dotfile.empty() && debug)
+        t.outputDOT(dotfile + "_prerewind", step);
+    t.prerewind(step, te);
 
     recombine.clear();
     findReduced(root, 1);
@@ -92,8 +98,6 @@ void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_)
     recombine.clear();
     findReduced(root, 0);
     unsigned nzeros = recombine.size();
-    if (!dotfile.empty() && debug)
-        t.outputDOT(dotfile + "_prerewind", step);
 
     if (nones > 1 && nzeros > 1)
     {
@@ -124,7 +128,7 @@ void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_)
         abort();
     }
 
-    t.rewind(step);
+    t.rewind(step, te);
     t.clearNonBranchingInternalNodes();
     if (!dotfile.empty() && debug)
         t.outputDOT(dotfile + "_rewind", step);

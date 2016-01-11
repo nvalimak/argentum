@@ -46,6 +46,7 @@ void Configuration::print_usage()
          << " --scaling <type>     Use distance scaling of <log> or <expm> (default: none)" << endl
          << " -n,--nrows <n>       Process n sites of input" << endl
          << " --newick             Output Newick trees (to standard output)" << endl
+         << " --enumerate          Output parent-child ranges (to standard output)" << endl
          << " -d,--dot <file>      Graphwiz DOT output filename" << endl
          << " -v,--verbose         Verbose output" << endl;
 }
@@ -53,7 +54,7 @@ void Configuration::print_usage()
 Configuration::Configuration(int argc, char ** argv)
     : prog(argv[0]), inputfile(""), dotfile(""), inputformat(InputReader::input_unset),
       treedistance(TreeDistance::distance_unset), distancescaling(TreeDistance::scaling_none), nrows(~0u),
-      newick(false), no_prediction(false), scrm_prediction(false), verbose(false), debug(false), debug_interval(2000), good(true)
+      newick(false), enumerate(false), no_prediction(false), scrm_prediction(false), verbose(false), debug(false), debug_interval(2000), good(true)
 {
     good = parse(argc, argv);
 }
@@ -69,10 +70,11 @@ bool Configuration::parse(int argc, char ** argv)
             {"scrm",      no_argument,       0, 's'},
             {"plaintext", no_argument,       0, 'S'},
             {"newick",    no_argument,       0, 'N'},
-            {"no-prediction", no_argument,       0, no_prediction_opt},
-            {"scrm-prediction", no_argument,       0, scrm_prediction_opt},
+            {"enumerate", no_argument,       0, 'E'},
+            {"no-prediction", no_argument,   0, no_prediction_opt},
+            {"scrm-prediction", no_argument, 0, scrm_prediction_opt},
             {"forward",   no_argument,       0, forward_opt},
-            {"backward-forward", no_argument, 0, backward_forward_opt},
+            {"backward-forward", no_argument,0, backward_forward_opt},
             {"forward-backward-forward", no_argument, 0, forward_backward_forward_opt},
             {"distance",  required_argument, 0, distance_opt},
             {"scaling",   required_argument, 0, scaling_opt},
@@ -86,7 +88,7 @@ bool Configuration::parse(int argc, char ** argv)
         };
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "i:VsSNn:d:vDh",
+    while ((c = getopt_long(argc, argv, "i:VsSNEn:d:vDh",
                             long_options, &option_index)) != -1) 
     {
         switch(c) 
@@ -101,6 +103,8 @@ bool Configuration::parse(int argc, char ** argv)
             inputformat = InputReader::input_plaintext; break;
         case 'N':
             newick = true; break;
+        case 'E':
+            enumerate = true; break;
         case no_prediction_opt:
             no_prediction = true; break;
         case scrm_prediction_opt:
@@ -137,9 +141,14 @@ bool Configuration::parse(int argc, char ** argv)
 
     if ((!no_prediction && !scrm_prediction) || (no_prediction == scrm_prediction))
     {
-        cerr << "error: specify either --no-prediction or --scrm-prediction, and not both" << endl;
+        cerr << "error: specify either --no-prediction or --scrm-prediction, but not both" << endl;
         return false;
     }
-    
+
+    if (enumerate && newick)
+    {
+        cerr << "error: specify either --newick or --enumerate, but not both" << endl;
+        return false;
+    }
     return true;
 }

@@ -96,20 +96,29 @@ void TreeController::assignLabels(InputColumn const &ic)
     reduce(t.root(), ic);
 }   
 
-void TreeController::rewind(InputColumn const &ic, unsigned step_)
+void TreeController::rewind(InputColumn const &ic, unsigned step_, TreeEnumerator *te)
 {
     step = step_;
     PointerTree::PointerNode *root = t.root();    
     reduce(root, ic);
 
+    if (te && te->initialize())
+        te->initialize(t, step+1);
     
     if (!dotfile.empty() && debug)
         t.outputDOT(dotfile + "_prerewind", step);
-    t.prerewind(step);
+    t.prerewind(step, te);
     
     recombine.clear();
     findReduced(root, 1);
     unsigned nones = recombine.size();
+    if (te && nones == 1)
+    {
+        PointerTree::PointerNode *pn = recombine[0];
+        if (!pn->root())
+            te->insertMutation(pn->parentPtr()->uniqueId(), pn->uniqueId(), step);
+    }
+    
     recombine.clear();
     findReduced(root, 0);
     unsigned nzeros = recombine.size();
@@ -143,8 +152,8 @@ void TreeController::rewind(InputColumn const &ic, unsigned step_)
         abort();
     }
 
-    t.rewind(step);
-    t.clearNonBranchingInternalNodes();
+    t.rewind(step, te);
+    t.clearNonBranchingInternalNodes(step, te);
     if (!dotfile.empty() && debug)
         t.outputDOT(dotfile + "_rewind", step);
 

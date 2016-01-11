@@ -3,6 +3,7 @@
 #include "default.h"
 #include "Tree.h"
 #include "TreeDistance.h"
+#include "TreeEnumerator.h"
 #include <vector>
 #include <string>
 #include <utility>
@@ -18,7 +19,7 @@ public:
     { }
     void process(InputColumn const &, unsigned);
     void process(InputColumn const &, unsigned, TreeDistance &);
-    void rewind(InputColumn const &, unsigned);
+    void rewind(InputColumn const &, unsigned, TreeEnumerator *);
     void assignLabels(InputColumn const &);
     void deTagAll(PointerTree::PointerNode *);
 

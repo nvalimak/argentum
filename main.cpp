@@ -3,6 +3,7 @@
 #include "Tree.h"
 #include "TreeController.h"
 #include "TreeDistance.h"
+#include "TreeEnumerator.h"
 #include <sstream>
 #include <cstdlib>
 #include <getopt.h>
@@ -78,7 +79,7 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
         predictor_tc.assignLabels(ir.col(step));
         if (newick)
             predictor_tree.outputNewick("-", ir.position(step));
-        predictor_tc.rewind(ir.col(step), decreasingStep);
+        predictor_tc.rewind(ir.col(step), decreasingStep, 0);
         tc.process(ir.col(step), increasingStep, predictor_dist);
 
         if (!config.dotfile.empty())
@@ -183,20 +184,11 @@ unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree
         if (direction == direction_backward)
             --step;
 
-        /**
-         * debug print
-         *
-        cerr << " col at step " << step << ", ir_base " << ir.position(step) << ": ";
-        for (unsigned i = 0; i < ir.col(step).size(); ++i)
-            cerr << (int)ir.col(step)[i];
-        cerr << endl;
-        */
-        
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
         unsigned decreasingStep = ir.size()-increasingStep-1;
         tc.assignLabels(ir.col(step));
         tree.outputNewick("-", ir.position(step));
-        tc.rewind(ir.col(step), decreasingStep);
+        tc.rewind(ir.col(step), decreasingStep, 0);
 
         total_intnodes += tc.countInternalNodes();
         if (direction == direction_forward)
@@ -205,6 +197,32 @@ unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree
     return total_intnodes;
 }
 
+/**
+ * Rewind and enumerate parent-child ranges (--enumerate)
+ */
+unsigned output_parent_child(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, TreeEnumerator &te)
+{
+    unsigned total_intnodes = 0;
+    unsigned step = 0;
+    if (direction == direction_backward)
+        step = ir.size();
+    do
+    {
+        if (direction == direction_backward)
+            --step;
+        
+        cerr << "at step " << step << endl;
+        unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
+        unsigned decreasingStep = ir.size()-increasingStep-1;
+        tc.assignLabels(ir.col(step));
+        tc.rewind(ir.col(step), decreasingStep, &te);
+
+        total_intnodes += tc.countInternalNodes();
+        if (direction == direction_forward)
+            ++step;
+    } while (0 < step && step < ir.size());
+    return total_intnodes;
+}
 
 void backward_forward(Configuration &config, InputReader &inputr)
 {
@@ -263,8 +281,8 @@ void scrm_forward(Configuration &config, InputReader &inputr)
 
 void nopred_forward(Configuration &config, InputReader &inputr)
 {
-    /**                                                                                                                                                                                                                                       
-     * Forward loop over the input                                                                                                                                                                                                            
+    /**
+     * Forward loop over the input
      */
     PointerTree forward_tree(inputr.front());
     TreeController forward_tc(forward_tree, config.debug, config.dotfile.empty() ? "" : "forward");
@@ -277,8 +295,8 @@ void nopred_forward(Configuration &config, InputReader &inputr)
          << ", relocates " << forward_tree.numberOfRelocates()
          << ", one cuts " << forward_tc.numberOfOneCuts() << endl;
     
-    /**                                                                                                                                                                                                                                       
-     * Output newick with rewind                                                                                                                                                                                                              
+    /**
+     * Output newick with rewind
      */
     if (config.newick)
     {
@@ -286,21 +304,19 @@ void nopred_forward(Configuration &config, InputReader &inputr)
         unsigned intnodes = output_newick(inputr, direction_backward, forward_tree, forward_tc);
         cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
     }
+    /**
+     * Enumerate parent-child ranges
+     */
+    else if (config.enumerate)
+    {
+        cerr << "Gathering parent-child ranges (--enumerate)..." << endl;
+        TreeEnumerator te;
+        unsigned intnodes = output_parent_child(inputr, direction_backward, forward_tree, forward_tc, te);
+        cerr << "Outputting parent-child ranges (--enumerate)..." << endl;
+        te.output();
+        cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
+    }
 }
-
-/*void backward_forward_backward(Configuration &config)
-{
-    FIXME
-
-    **
-     * Final loop over the input data
-     *
-    forward_tc.deTagsAll(forward_tree.root());
-    PointerTree final_tree(inputr->front());
-    TreeController final_tc(final_tree, config.debug, config.dotfile.empty() ? "" : "final");
-    extract(*inputr, direction_backward, final_tree, final_tc, config, "final", forward_tc, forward_tree, false);
-ma    cerr << "Final scan done after " << inputr->size() << " steps of input. In total " << final_tree.historySize() << " history events." << endl;
-}*/
 
 int main(int argc, char ** argv)
 {

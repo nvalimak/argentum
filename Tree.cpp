@@ -1,5 +1,6 @@
 #include "Tree.h"
 #include "TreeDistance.h"
+#include "TreeEnumerator.h"
 #include <iostream>
 #include <fstream>
 #include <cstdio>
@@ -14,7 +15,7 @@ const int PointerTree::unknown = (int)-1000;
 PointerTree::PointerTree(InputColumn const &ic)
     : nodes(), N(0), r(0), n(ic.size()), leaves(), stashv(), nstashed(0), nrelocate(0), history(), validationReachable(),
       reusedRootHistoryEvent(0), reusedHistoryEvent(0),
-      nonbranching(), vacant(), nextVacant(0)
+      nonbranching(), vacant(), nextVacant(0), nextUid(0)
 {
     history.reserve(HISTORY_INIT_SIZE);
     vacant.reserve(HISTORY_INIT_SIZE);
@@ -112,7 +113,39 @@ void PointerTree::clearNonBranchingInternalNodes()
     }
     nonbranching.clear();
 }
-    
+
+void PointerTree::clearNonBranchingInternalNodes(unsigned step, TreeEnumerator *te)
+{
+    for (set<PointerNode *>::iterator it = nonbranching.begin(); it != nonbranching.end(); ++it)
+    {
+        if ((*it)->nodeId() == PointerTree::nonreserved)
+            continue;
+        PointerNode *pn = *it;
+        // Safe to truncate 'pn' out from the tree
+        while (!pn->root() && pn->size() < 2 && pn->numberOfRefs() == 0)
+        {
+            NodeId parent = pn->parent();
+            assert(parent != PointerTree::nonreserved);
+
+            nodes[parent]->erase(pn);
+            if (pn->size() == 1)
+            {
+                // Rewire the only child of pn:
+                PointerNode * only_chld = *(pn->begin());
+                pn->erase(only_chld);      // Release the only child from pn
+                nodes[parent]->insert(only_chld); // Rewire pn's parent to point to the only child
+                only_chld->setParent(parent);
+            }
+            // Now safe to delete 'pn' out from the tree
+            PointerTree::N--;
+            assert(pn->size() == 0); // pn does not own any objects
+            discardNode(pn->nodeId());
+            pn = nodes[parent];
+        }
+    }
+    nonbranching.clear();
+}
+
 /**
  * Relocate subtree 'pn' as a new child of 'dest'.
  * Adds an event into the history queue.
@@ -298,19 +331,29 @@ PointerTree::PointerNode * PointerTree::findUnstashDestination(PointerNode *pn, 
  * all 0-branch events under the root (as a temporary measure).
  * All these 0-branches are then properly rewinded later in rewind(h).
  */
-void PointerTree::prerewind(unsigned h)
+void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
 {
     if (history.empty())
         return;
     for (vector<Event>::reverse_iterator it = history.rbegin(); it != history.rend() && it->getStep() == h; ++it)
         if (it->allZeros())
+        {
+            PointerNode *oldparent = it->getNode()->parentPtr();
+            if (te)
+            {
+                std::cerr << "prerewind closeChild called oldparent = " << oldparent->uniqueId() << std::endl;
+                te->closeChild(oldparent, it->getNode()->uniqueId(), h+1);
+            }
             relocate(it->getNode(), nodes[r], 0, 0, false, false);
+            if (te && oldparent->isUnary())
+                te->truncate(oldparent, h);
+        }
 }
 
 /**
  * Rewind the given event
  */
-void PointerTree::rewind(Event &e)
+void PointerTree::rewind(Event &e, TreeEnumerator *te)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
@@ -324,15 +367,30 @@ void PointerTree::rewind(Event &e)
     {
         e.rewind();
         return;
-    } 
+    }
+
+    if (te && dest->isUnary())
+        te->splitUnary(dest, e.getStep());
+
     dest->insert(pn);
     propagateUpwardCounts(dest, pn->nZeros(), pn->nOnes());
     propagateUpwardCounts(src, -(pn->nZeros()), -(pn->nOnes()));
-
     pn->setParent(dest);
-
+    if (te)
+    {
+        if (!e.allZeros())
+        {
+            std::cerr << "rewind closeChild called src = " << src->uniqueId() << std::endl;
+            te->closeChild(src, pn->uniqueId(), e.getStep()+1);
+        }
+        te->insertChild(dest, pn->uniqueId(), e.getStep());
+    }
+    
     // Clean source subtree if needed
     src->erase(pn);
+    if (te && !e.allZeros() && src->isUnary())
+        te->truncate(src, e.getStep());
+
     if (src->size() <= 1 && !src->root())
         PointerTree::clearNonBranchingInternalNode(src);
 
@@ -342,19 +400,20 @@ void PointerTree::rewind(Event &e)
 /**
  * Rewind the given site, if it is next in the history
  */
-void PointerTree::rewind(unsigned h)
+void PointerTree::rewind(unsigned h, TreeEnumerator *te)
 {
     if (history.empty())
         return;
     Event &e = history.back();
     while (e.getStep() == h)
     {
-        rewind(e);
+        rewind(e, te);
         history.pop_back();
         if (history.empty())
-            return;
+            break;
         e = history.back();
     }
+    te->flushInserts(h);
 }
 
 /**
@@ -459,7 +518,7 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
         return;
     if (pn->ghostbranch())
         return;
-    
+
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
         if ((*it)->ghostbranch())
@@ -474,12 +533,12 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
             outputDOT(*it, id, of);
             continue;
         }
-        of << " n" << id << " -> n" << (*it)->nodeId() << endl;
-        of << " n" << (*it)->nodeId() << " [label=\"";
+        of << " n" << id << " -> n" << (*it)->uniqueId() << endl;
+        of << " n" << (*it)->uniqueId() << " [label=\"";
         if ((*it)->leaf())
             of << (*it)->leafId() + 1;
         else
-            of << (*it)->nodeId();
+            of << (*it)->uniqueId();
         if ((*it)->previousUpdate() != PointerTree::nohistory)
             of << "/" << (*it)->previousUpdate();
         of << " ";
@@ -498,7 +557,7 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
             of << "\"";
         }
         of << "]" << endl;
-        outputDOT(*it, (*it)->nodeId(), of);
+        outputDOT(*it, (*it)->uniqueId(), of);
     }
 }
 void PointerTree::outputDOT(string const &filename, unsigned step)
