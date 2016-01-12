@@ -29,7 +29,7 @@ public:
             std::cerr << "TreeEnumerator()::~TreeEnumerator() warning: size of rightPos at destructor = " << rightPos.size() << std::endl;
     }
     
-    void insertChild(PointerTree::PointerNode *pn, NodeId cid, unsigned rstep)
+    /*void insertChild(PointerTree::PointerNode *pn, NodeId cid, unsigned rstep)
     {
         //insertBuffer.push_back(std::make_pair(pn, cid));
 
@@ -38,8 +38,33 @@ public:
             r = r->parentPtr();
         
         rightPos[r->uniqueId()][cid] = rstep;        
+        }*/
+
+    void insertChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned rstep)
+    {
+        if (cpn->ghostbranch())
+            return;
+        if (!cpn->leaf() && cpn->isUnary())
+        {
+            while (!cpn->leaf() && cpn->isUnary())
+            {
+                PointerTree::PointerNode *unarypn = 0;
+                for (PointerTree::PointerNode::iterator it = cpn->begin(); it != cpn->end(); ++it)
+                    if ((*it)->nZeros() == cpn->nZeros() && (*it)->nOnes() == cpn->nOnes())
+                        unarypn = *it;
+                cpn = unarypn;
+            }                        
+        }
+        unsigned cid = cpn->uniqueId();
+
+        PointerTree::PointerNode *r = pn;
+        while (!r->root() && (r->isUnary() || r->ghostbranch()))
+            r = r->parentPtr();
+        
+        rightPos[r->uniqueId()][cid] = rstep;        
     }
 
+    
     void flushInserts(unsigned rstep)
     {
         /*for (std::vector<std::pair<PointerTree::PointerNode *,NodeId> >::iterator it = insertBuffer.begin(); it != insertBuffer.end(); ++it)

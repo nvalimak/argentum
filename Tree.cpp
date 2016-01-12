@@ -342,11 +342,7 @@ void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
             if (te)
             {
                 std::cerr << "!!!!!!!!!! prerewind closeChild called oldparent = " << oldparent->uniqueId() << " (ghost=" << oldparent->ghostbranch() << ",unary=" << oldparent->isUnary() << "), it = " << it->getNode()->uniqueId() << std::endl;
-
-                if (it->getSource() != it->getNode()->parentPtr())
-                    te->closeChild(oldparent, it->getNode(), h+1);
-                else
-                    it->refreshEnum(false);
+                te->closeChild(oldparent, it->getNode(), h+1);
             }
             relocate(it->getNode(), nodes[r], 0, 0, false, false);
             if (te && !oldparent->root() && oldparent->isUnary())
@@ -392,9 +388,7 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
             //std::cerr << "rewind closeChild called src = " << src->uniqueId() << std::endl;
             te->closeChild(src, pn, e.getStep()+1);
         }
-        if (e.refreshEnum())
-            te->insertChild(dest, pn->uniqueId(), e.getStep());
-        e.refreshEnum(true);
+        te->insertChild(dest, pn, e.getStep());
     }
     
     // Clean source subtree if needed
