@@ -86,7 +86,7 @@ public:
 
     void splitUnary(PointerTree::PointerNode *pn, PointerTree::PointerNode *dest, PointerTree::PointerNode *r, unsigned step)
     {
-        std::cerr << "recursive splitUnary called pn = " << pn->uniqueId() << ", dest = " << dest->uniqueId() << " (pn ghost=" << pn->ghostbranch() << ",pn unary=" << pn->isUnary() << ")" << std::endl;
+        //std::cerr << "recursive splitUnary called pn = " << pn->uniqueId() << ", dest = " << dest->uniqueId() << " (pn ghost=" << pn->ghostbranch() << ",pn unary=" << pn->isUnary() << ")" << std::endl;
         if (pn->leaf())
         {
             assert(rightPos[r->uniqueId()].count(pn->uniqueId()) > 0);
@@ -125,7 +125,7 @@ public:
     }
     void splitUnary(PointerTree::PointerNode *dest, unsigned step)
     {
-        std::cerr << "splitUnary called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+        //std::cerr << "splitUnary called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
         if (dest->root())
             return;
         assert (dest->isUnary());
@@ -141,7 +141,7 @@ public:
         assert (rightPos.count(r->uniqueId()) > 0);
 
         // Assert: r is the lowest common non-unary node
-        std::cerr << "using non-unary r = " << r->uniqueId() << " instead of " << dest->uniqueId() << std::endl;
+        //std::cerr << "using non-unary r = " << r->uniqueId() << " instead of " << dest->uniqueId() << std::endl;
         
         rightPos[r->uniqueId()][dest->uniqueId()] = step;
         
@@ -151,7 +151,7 @@ public:
 
     void insertGhost(PointerTree::PointerNode *dest, unsigned step)
     {
-        std::cerr << "insertGhost called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+        //std::cerr << "insertGhost called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
         assert (dest->ghostbranch());
         while (dest->ghostbranch() && !dest->root())
             dest = dest->parentPtr();
@@ -197,7 +197,7 @@ public:
     }
     void truncate(PointerTree::PointerNode *dest, unsigned step)
     {
-        std::cerr << "truncate called dest = " << dest->uniqueId() << std::endl;
+        //std::cerr << "truncate called dest = " << dest->uniqueId() << std::endl;
         if (dest->root())
             return;
         PointerTree::PointerNode *r = dest;
@@ -215,7 +215,7 @@ public:
 
     void truncateGhost(PointerTree::PointerNode *dest, unsigned step)
     {
-        std::cerr << "truncateGhost called dest = " << dest->uniqueId() << std::endl;
+        //std::cerr << "truncateGhost called dest = " << dest->uniqueId() << std::endl;
         assert (dest->ghostbranch());
         while (dest->ghostbranch() && !dest->root())
             dest = dest->parentPtr();
@@ -265,7 +265,7 @@ public:
         
     void closeChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
     {
-        std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
+        //std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
 
         // Find highest non-unary node below cpn
         if (cpn->isUnary())
@@ -284,7 +284,7 @@ public:
             uid = pn->uniqueId();
         }
 
-        std::cerr << "closeChild determined parent " << uid << " child " << cid << std::endl;
+        //std::cerr << "closeChild determined parent " << uid << " child " << cid << std::endl;
         assert (rightPos.count(uid) > 0);
         assert (rightPos[uid].count(cid) > 0);
         
@@ -298,7 +298,7 @@ public:
 
     void forceCloseChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
     {
-        std::cerr << "forceCloseChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
+        //std::cerr << "forceCloseChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
 
         NodeId cid = cpn->uniqueId();
 
@@ -312,7 +312,7 @@ public:
             uid = pn->uniqueId();
         }
 
-        std::cerr << "closeChild determined parent " << uid << " child " << cid << std::endl;
+        //std::cerr << "closeChild determined parent " << uid << " child " << cid << std::endl;
         assert (rightPos.count(uid) > 0);
         assert (rightPos[uid].count(cid) > 0);
         

@@ -211,7 +211,6 @@ unsigned output_parent_child(InputReader &ir, direction_t direction, PointerTree
         if (direction == direction_backward)
             --step;
         
-        cerr << "at step " << step << endl;
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
         unsigned decreasingStep = ir.size()-increasingStep-1;
         tc.assignLabels(ir.col(step));

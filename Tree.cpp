@@ -341,7 +341,7 @@ void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
             PointerNode *oldparent = it->getNode()->parentPtr();
             if (te)
             {
-                std::cerr << "!!!!!!!!!! prerewind closeChild called oldparent = " << oldparent->uniqueId() << " (ghost=" << oldparent->ghostbranch() << ",unary=" << oldparent->isUnary() << "), it = " << it->getNode()->uniqueId() << std::endl;
+                //std::cerr << "!!!!!!!!!! prerewind closeChild called oldparent = " << oldparent->uniqueId() << " (ghost=" << oldparent->ghostbranch() << ",unary=" << oldparent->isUnary() << "), it = " << it->getNode()->uniqueId() << std::endl;
                 te->closeChild(oldparent, it->getNode(), h+1);
             }
             relocate(it->getNode(), nodes[r], 0, 0, false, false);
@@ -359,7 +359,7 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
 {
     PointerNode *dest = e.getSource();
     PointerNode *pn = e.getNode();
-    std::cerr << "!!!!!!!!!! rewind pn " << pn->uniqueId() << " under parent " << pn->parentPtr()->uniqueId() << " to dest " << dest->uniqueId() << std::endl;
+    //std::cerr << "!!!!!!!!!! rewind pn " << pn->uniqueId() << " under parent " << pn->parentPtr()->uniqueId() << " to dest " << dest->uniqueId() << std::endl;
     if (pn->nodeId() == PointerTree::nonreserved)
     {
         e.rewind();
@@ -409,8 +409,8 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
  */
 void PointerTree::rewind(unsigned h, TreeEnumerator *te)
 {
-    cerr << "--- AT STEP " << h << " ";
-    te->debugPrint();
+    //cerr << "--- AT STEP " << h << " ";
+    //te->debugPrint();
     if (history.empty())
         return;
     // Process all rooted subtrees first
