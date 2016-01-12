@@ -315,7 +315,7 @@ void NewickDistance::distanceByTraversal(NewickTree::Node * pn, NewickTree::Node
     mdepth = max(pn->mdepth, mdepth);
     if (pn->leaf)
     {
-        if (pn->llabel == label)
+        if (pn->llabel == (int)label)
             d[pn->lid] = mdepth;
         return;
     }

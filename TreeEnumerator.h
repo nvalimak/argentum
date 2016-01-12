@@ -248,7 +248,7 @@ public:
     {
         while (pn->size() > 0 && pn->isUnary())
         {
-            PointerTree::PointerNode *new_pn;
+            PointerTree::PointerNode *new_pn = 0;
             unsigned checksum = 0;
             for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
                 if (!(*it)->ghostbranch())
@@ -257,6 +257,7 @@ public:
                     new_pn = *it;
                 }
             assert(checksum == 1);
+            assert(new_pn != 0);
             pn = new_pn;
         }
         return pn;

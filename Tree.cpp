@@ -532,23 +532,23 @@ void PointerTree::outputDOT(PointerNode *pn, unsigned id, ostream &of)
 {
     if (pn->leaf())
         return;
-    //if (pn->ghostbranch())
-    //    return;
+    if (pn->ghostbranch())
+        return;
 
     for (PointerTree::PointerNode::iterator it = pn->begin(); it != pn->end(); ++it)
     {
-        //if ((*it)->ghostbranch())
-        //    continue;
+        if ((*it)->ghostbranch())
+            continue;
         bool unarypath = false;
         for (PointerTree::PointerNode::iterator itt = (*it)->begin(); itt != (*it)->end(); ++itt)
             if ((*itt)->nZeros() == (*it)->nZeros() && (*itt)->nOnes() == (*it)->nOnes())
                 unarypath = true;
     
-        /*if (unarypath)
+        if (unarypath)
         {
             outputDOT(*it, id, of);
             continue;
-            }*/
+        }
         of << " n" << id << " -> n" << (*it)->uniqueId() << endl;
         of << " n" << (*it)->uniqueId() << " [label=\"";
         if ((*it)->leaf())
