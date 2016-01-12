@@ -11,6 +11,7 @@ TreeControllerSimple.o: TreeControllerSimple.cpp TreeControllerSimple.h \
   TreeController.h
 TreeDistance.o: TreeDistance.cpp TreeDistance.h default.h Tree.h \
   NewickTree.h
+enumerate-example.o: enumerate-example.cpp
 main-simple.o: main-simple.cpp Configuration.h default.h InputReader.h \
   TreeDistance.h Tree.h NewickTree.h TreeControllerSimple.h \
   TreeEnumerator.h

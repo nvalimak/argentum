@@ -330,7 +330,7 @@ public:
     /**
      * Naive text format output (TODO: replace with binary output format)
      */
-    void output()
+    void output(unsigned nleaves)
     {
         // Flush open ranges
         for (std::map<NodeId,std::map<NodeId,unsigned> >::iterator it = rightPos.begin(); it != rightPos.end(); ++it)
@@ -343,13 +343,24 @@ public:
         rightPos.clear();
 
         
+        // Print header
+        std::cout << "ARGraph " << nleaves << ' ' << leftRightPos.size() << '\n';
+        
+        
+        // Print data rows
         for (std::map<NodeId,std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > > >::iterator it = leftRightPos.begin(); it != leftRightPos.end(); ++it)
         {
             NodeId uid = it->first;
             unsigned nmut = 0;
             if (mutationPos.count(uid))
                 nmut = mutationPos[uid].size();
-            std::cout << "parent " << uid << " " << it->second.size() << " " << nmut << '\n';
+
+            unsigned nchild = 0;
+            for (std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
+                if (uid != 0 || itt->second.first != itt->second.second)
+                    nchild ++;
+            
+            std::cout << "parent " << uid << ' ' << nchild << ' ' << nmut << '\n';
 
             // Output ranges
             for (std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
@@ -358,14 +369,14 @@ public:
                 std::pair<unsigned,unsigned> range = itt->second;
                 if (uid == 0 && range.first == range.second)
                     continue; // skip prerewind events
-                std::cout << "child " << cid << " " << range.first << " " << range.second << '\n';
+                std::cout << "child " << cid << ' ' << range.first << ' ' << range.second << '\n';
             }
             // Output mutations
             if (nmut)
                 for (std::map<NodeId,unsigned>::iterator itt = mutationPos[uid].begin(); itt != mutationPos[uid].end(); ++itt)
                 {
                     NodeId cid = itt->first;
-                    std::cout << "mutation " << cid << " " << itt->second << '\n';
+                    std::cout << "mutation " << cid << ' ' << itt->second << '\n';
                 }
         }
         

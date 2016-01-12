@@ -312,7 +312,7 @@ void nopred_forward(Configuration &config, InputReader &inputr)
         TreeEnumerator te;
         unsigned intnodes = output_parent_child(inputr, direction_backward, forward_tree, forward_tc, te);
         cerr << "Outputting parent-child ranges (--enumerate)..." << endl;
-        te.output();
+        te.output(forward_tree.size());
         cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
     }
 }
