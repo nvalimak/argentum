@@ -335,6 +335,10 @@ void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
 {
     if (history.empty())
         return;
+
+    //cerr << "--- prerewind AT STEP " << h << " ";
+    //te->debugPrint();
+        
     for (vector<Event>::reverse_iterator it = history.rbegin(); it != history.rend() && it->getStep() == h; ++it)
         if (it->allZeros())
         {
@@ -343,6 +347,7 @@ void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
             {
                 //std::cerr << "!!!!!!!!!! prerewind closeChild called oldparent = " << oldparent->uniqueId() << " (ghost=" << oldparent->ghostbranch() << ",unary=" << oldparent->isUnary() << "), it = " << it->getNode()->uniqueId() << std::endl;
                 te->closeChild(oldparent, it->getNode(), h+1);
+                te->insertChild(nodes[r], it->getNode(), ~0u);
             }
             relocate(it->getNode(), nodes[r], 0, 0, false, false);
             if (te && !oldparent->root() && oldparent->isUnary())
@@ -383,19 +388,19 @@ void PointerTree::rewind(Event &e, TreeEnumerator *te)
     pn->setParent(dest);
     if (te)
     {
-        if (!e.allZeros())
-        {
+        //if (!e.allZeros()) FIXME With old allzero
+        //{
             //std::cerr << "rewind closeChild called src = " << src->uniqueId() << std::endl;
-            te->closeChild(src, pn, e.getStep()+1);
-        }
+        te->closeChild(src, pn, e.getStep()+1);
+            //}
         te->insertChild(dest, pn, e.getStep());
     }
     
     // Clean source subtree if needed
     src->erase(pn);
-    if (te && !e.allZeros() && src->isUnary())
+    if (te && src->isUnary()) //if (te && !e.allZeros() && src->isUnary())
         te->truncate(src, e.getStep()); // Becomes unary
-    else if (te && !e.allZeros() && src->ghostbranch())
+    else if (te && src->ghostbranch()) // FIXME else if (te && !e.allZeros() && src->ghostbranch())
         te->truncateGhost(src, e.getStep()); // Becomes ghost
 
     if (src->size() <= 1 && !src->root())

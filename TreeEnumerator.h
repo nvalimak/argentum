@@ -20,7 +20,6 @@ public:
     {
         init = false;
         initRightPos(tree.root(), tree.root()->uniqueId(), step);
-        //debugPrint();
     }
 
     ~TreeEnumerator()
@@ -206,8 +205,8 @@ public:
 
         assert (rightPos.count(r->uniqueId()) > 0);
         assert (rightPos[r->uniqueId()].count(dest->uniqueId()) > 0);
-        forceCloseChild(r, dest, step+1); // FIXME test
-
+        forceCloseChild(r, dest, step+1);
+               
         // Assert: r is the lowest common non-unary node
         for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
             truncate(*it, dest, r, step);
@@ -241,7 +240,8 @@ public:
         if (rightPos[uid].size() == 0)
             rightPos.erase(uid);
         
-        leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
+            if (rstep != ~0u)
+            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
         }*/
 
     PointerTree::PointerNode * findNonUnaryChild(PointerTree::PointerNode *pn)
@@ -292,8 +292,9 @@ public:
         rightPos[uid].erase(cid);
         if (rightPos[uid].size() == 0)
             rightPos.erase(uid);
-        
-        leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
+
+        if (rstep != ~0u)
+            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
     }
 
     void forceCloseChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
@@ -320,8 +321,9 @@ public:
         rightPos[uid].erase(cid);
         if (rightPos[uid].size() == 0)
             rightPos.erase(uid);
-        
-        leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
+
+        if (rstep != ~0u)
+            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
     }
 
     
@@ -335,7 +337,8 @@ public:
             for (std::map<NodeId,unsigned>::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
             {
                 unsigned rstep = rightPos[it->first][itt->first];
-                leftRightPos[it->first].push_back(std::make_pair(itt->first, std::make_pair(0, rstep)));
+                if (rstep != ~0u)
+                    leftRightPos[it->first].push_back(std::make_pair(itt->first, std::make_pair(0, rstep)));
             }
         rightPos.clear();
 
@@ -353,6 +356,8 @@ public:
             {
                 NodeId cid = itt->first;
                 std::pair<unsigned,unsigned> range = itt->second;
+                if (uid == 0 && range.first == range.second)
+                    continue; // skip prerewind events
                 std::cout << "child " << cid << " " << range.first << " " << range.second << '\n';
             }
             // Output mutations
