@@ -141,7 +141,9 @@ private:
                 cin >> p;
                 arnode.mutation.push_back(make_pair(cid,p));
             }
-            nodes.push_back(arnode);
+            if (nodes.size() <= pid)
+                nodes.resize(pid+1);
+            nodes[pid] = arnode;
         }
         return true;
     }    
