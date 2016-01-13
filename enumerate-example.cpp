@@ -163,10 +163,6 @@ private:
             }
             assert (nodes[pid].child.empty());
             assert (nodes[pid].mutation.empty());
-
-#ifdef VALIDATE_STRUCTURE
-            sort(arnode.child.begin(), arnode.child.end(), ARGraph::childStructCompare);
-#endif
             nodes[pid] = arnode;
         }
         return true;
@@ -185,8 +181,8 @@ private:
     {
         // Init
         set<NodeId> reachableLeaf;
-        for (NodeId i = 1; i <= nleaves; ++i)
-            reachableLeaf.insert(i);
+        for (NodeId j = 1; j <= nleaves; ++j)
+            reachableLeaf.insert(j);
         
         // Recursive traversal
         traverseCol(0, i, reachableLeaf);
