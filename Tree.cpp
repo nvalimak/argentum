@@ -343,7 +343,7 @@ void PointerTree::prerewind(unsigned h, TreeEnumerator *te)
         if (it->allZeros())
         {
             PointerNode *oldparent = it->getNode()->parentPtr();
-            if (te)
+            if (te && !oldparent->root())
             {
                 //std::cerr << "!!!!!!!!!! prerewind closeChild called oldparent = " << oldparent->uniqueId() << " (ghost=" << oldparent->ghostbranch() << ",unary=" << oldparent->isUnary() << "), it = " << it->getNode()->uniqueId() << std::endl;
                 te->closeChild(oldparent, it->getNode(), h+1);

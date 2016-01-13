@@ -24,9 +24,13 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <utility>
 #include <cassert>
 using namespace std;
+
+// Note: disable this for large inputs
+#define VALIDATE_STRUCTURE
 
 typedef unsigned NodeId;
 typedef unsigned Position;
@@ -50,7 +54,7 @@ public:
     };
 
     ARGraph()
-        : nodes(), nleaves(0), ok_(true)
+        : nodes(), nleaves(0), rRangeMax(0), ok_(true)
     {
         ok_ = construct();
     }
@@ -66,14 +70,24 @@ public:
         // Validate the data structure
         // here
         assert (nleaves > 0);
+#ifdef VALIDATE_STRUCTURE
+        for (Position i = 0; i <= rRangeMax; i++)
+            if (!traverseCol(i))
+                return false;
+#else
+        cerr << "warning: VALIDATE_STRUCTURE was not defined; no validation performed" << endl;
+#endif
         return true;
     }
     
 private:
 
-    bool inputError(string msg)
+    bool inputError(unsigned nentries, string msg)
     {
-        cerr << "enumerate-example error: input failed at step " << msg << " after reading " << nodes.size() << " input entries." << endl;
+        if (nentries == ~0u)
+            cerr << "enumerate-example error: input failed while reading header " << msg << "." << endl;
+        else
+            cerr << "enumerate-example error: input failed at step " << msg << " after " << nentries << " input entries remain." << endl;
         return false;
     }
     
@@ -84,32 +98,36 @@ private:
         string s;
         cin >> s;
         if (s != "ARGraph")
-            return inputError("header");
+            return inputError(~0u, "tag");
         cin >> nleaves;
         if (nleaves == 0)
-            return inputError("nleaves");
+            return inputError(~0u, "nleaves");
 
-        unsigned nnodes = 0;
-        cin >> nnodes;
-        if (nnodes == 0)
-            return inputError("nnodes");
+        unsigned largestid;
+        cin >> largestid;
+        if (largestid == 0)
+            return inputError(~0u, "largestid");
+        nodes.resize(largestid+1);
         
-        // Parse the data rows (in total nnodes elements)
-        while (nnodes--)
+        unsigned nentries = 0;
+        cin >> nentries;
+        if (nentries == 0)
+            return inputError(~0u, "nentries");
+        
+        // Parse the data rows (in total nentries elements)
+        cerr << "Reading " << nentries << " entries with largest id of " << largestid << endl;
+        while (nentries--)
         {
             // Read parent header
             cin >> s;
             if (s != "parent")
-                return inputError("parent");
+                return inputError(nentries, "parent");
             NodeId pid = 0;
             cin >> pid; // Parent id
-            // Assumes that the root node is the first element
-            if (pid == 0 && nodes.size() > 0)
-                return inputError("pid");
             unsigned nchild = 0;
             cin >> nchild;
             if (nchild == 0)
-                return inputError("nchild");
+                return inputError(nentries, "nchild");
             unsigned nmut = 0;
             cin >> nmut;
 
@@ -119,37 +137,91 @@ private:
             {
                 cin >> s;
                 if (s != "child")
-                    return inputError("child-tag");
+                    return inputError(nentries, "child-tag");
                 struct ARGchild argchild;
                 cin >> argchild.id; // Child id
                 if (argchild.id == 0)
-                    return inputError("child-id"); // Root cannot appear as a child node
+                    return inputError(nentries, "child-id"); // Root cannot appear as a child node
                 cin >> argchild.lRange;
                 cin >> argchild.rRange;
+                // Keeps track of maximum position value
+                rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
                 arnode.child.push_back(argchild);
             }
             while (nmut--)
             {
                 cin >> s;
                 if (s != "mutation")
-                    return inputError("mutation-tag");
+                    return inputError(nentries, "mutation-tag");
                 NodeId cid = 0;
                 cin >> cid; // Child id
                 if (cid == 0)
-                    return inputError("mutation-id"); // Root cannot appear as a child node
+                    return inputError(nentries, "mutation-id"); // Root cannot appear as a child node
                 Position p = 0;
                 cin >> p;
                 arnode.mutation.push_back(make_pair(cid,p));
             }
-            if (nodes.size() <= pid)
-                nodes.resize(pid+1);
+            assert (nodes[pid].child.empty());
+            assert (nodes[pid].mutation.empty());
+
+#ifdef VALIDATE_STRUCTURE
+            sort(arnode.child.begin(), arnode.child.end(), ARGraph::childStructCompare);
+#endif
             nodes[pid] = arnode;
         }
         return true;
     }    
 
+#ifdef VALIDATE_STRUCTURE
+    static bool childStructCompare(struct ARGchild &i, struct ARGchild &j)
+    {
+        if (i.lRange != j.lRange)
+            return (i.lRange < j.lRange); // lRange values in increasing order
+        return (i.rRange > j.rRange);     // rRange values in decreasing order
+    }
+
+    // Traverse the active tree at column i and check that all the leaf nodes are reachable
+    bool traverseCol(Position i)
+    {
+        // Init
+        set<NodeId> reachableLeaf;
+        for (NodeId i = 1; i <= nleaves; ++i)
+            reachableLeaf.insert(i);
+        
+        // Recursive traversal
+        traverseCol(0, i, reachableLeaf);
+        
+        // Assert: all the leaves must be reachable
+        if (reachableLeaf.size() != 0)
+        {
+            cerr << "error: validation failed for column i = " << i << endl;
+            return false;
+        }
+        return true;        
+    }
+
+    void traverseCol(NodeId id, Position i, set<NodeId> &reachableLeaf)
+    {
+        // Handle leaf nodes
+        if (1 <= id && id <= nleaves)
+        {
+            // Leaf must still exists in the array
+            assert (reachableLeaf.count(id) > 0);
+            // Remove leaf from the array to mark it found
+            reachableLeaf.erase(id);
+            return;
+        }
+        
+        ARNode &arnode = nodes[id];
+        for (vector<struct ARGchild>::iterator it = arnode.child.begin(); it != arnode.child.end(); ++it)
+            if (it->lRange <= i && i <= it->rRange)
+                traverseCol(it->id, i, reachableLeaf);
+    }            
+#endif
+    
     std::vector<ARNode> nodes;
     unsigned nleaves; // Number of leaves
+    Position rRangeMax; // Largest position value encountered
     bool ok_;
 };
 

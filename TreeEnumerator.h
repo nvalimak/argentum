@@ -7,6 +7,8 @@
 #include <map>
 #include <utility>
 
+//#define TE_DEBUG_PRINT
+
 class TreeEnumerator
 {
 public:
@@ -124,7 +126,9 @@ public:
     }
     void splitUnary(PointerTree::PointerNode *dest, unsigned step)
     {
-        //std::cerr << "splitUnary called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+#ifdef TE_DEBUG_PRINT
+        std::cerr << "splitUnary called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+#endif
         if (dest->root())
             return;
         assert (dest->isUnary());
@@ -141,21 +145,24 @@ public:
 
         // Assert: r is the lowest common non-unary node
         //std::cerr << "using non-unary r = " << r->uniqueId() << " instead of " << dest->uniqueId() << std::endl;
-        
-        rightPos[r->uniqueId()][dest->uniqueId()] = step;
+
+        if (!dest->root())
+            rightPos[r->uniqueId()][dest->uniqueId()] = step;
         
         for (PointerTree::PointerNode::iterator it = dest->begin(); it != dest->end(); ++it)
             splitUnary(*it, dest, r, step);
     }
 
     void insertGhost(PointerTree::PointerNode *dest, unsigned step)
-    {
-        //std::cerr << "insertGhost called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+    { 
+#ifdef TE_DEBUG_PRINT
+        std::cerr << "insertGhost called dest = " << dest->uniqueId() << " (ghost=" << dest->ghostbranch() << ",unary=" << dest->isUnary() << ")" << std::endl;
+#endif
         assert (dest->ghostbranch());
         while (dest->ghostbranch() && !dest->root())
             dest = dest->parentPtr();
-        if (dest->root())
-            return;
+        //if (dest->root())
+        //    return;
 
         if (dest->isUnary())
             splitUnary(dest, step); // Unary node "dest" becomes non-unary
@@ -196,7 +203,9 @@ public:
     }
     void truncate(PointerTree::PointerNode *dest, unsigned step)
     {
-        //std::cerr << "truncate called dest = " << dest->uniqueId() << std::endl;
+#ifdef TE_DEBUG_PRINT
+        std::cerr << "truncate called dest = " << dest->uniqueId() << std::endl;
+#endif
         if (dest->root())
             return;
         PointerTree::PointerNode *r = dest;
@@ -214,7 +223,9 @@ public:
 
     void truncateGhost(PointerTree::PointerNode *dest, unsigned step)
     {
-        //std::cerr << "truncateGhost called dest = " << dest->uniqueId() << std::endl;
+#ifdef TE_DEBUG_PRINT
+        std::cerr << "truncateGhost called dest = " << dest->uniqueId() << std::endl;
+#endif
         assert (dest->ghostbranch());
         while (dest->ghostbranch() && !dest->root())
             dest = dest->parentPtr();
@@ -265,8 +276,9 @@ public:
         
     void closeChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
     {
-        //std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
-
+#ifdef TE_DEBUG_PRINT
+        std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
+#endif
         // Find highest non-unary node below cpn
         if (cpn->isUnary())
             cpn = findNonUnaryChild(cpn);
@@ -293,14 +305,15 @@ public:
         if (rightPos[uid].size() == 0)
             rightPos.erase(uid);
 
-        if (rstep != ~0u)
+        if (rstep != ~0u && lstep <= rstep)
             leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
     }
 
     void forceCloseChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
     {
-        //std::cerr << "forceCloseChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
-
+#ifdef TE_DEBUG_PRINT
+        std::cerr << "forceCloseChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
+#endif
         NodeId cid = cpn->uniqueId();
 
         // Find lowest node that cid points to
@@ -322,7 +335,7 @@ public:
         if (rightPos[uid].size() == 0)
             rightPos.erase(uid);
 
-        if (rstep != ~0u)
+        if (rstep != ~0u && lstep <= rstep)
             leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
     }
 
@@ -343,9 +356,8 @@ public:
         rightPos.clear();
 
         
-        // Print header
-        std::cout << "ARGraph " << nleaves << ' ' << leftRightPos.size() << '\n';
-        
+        // Print header:   number of leaves           largest key value                      number of keys
+        std::cout << "ARGraph " << nleaves << ' '  << leftRightPos.rbegin()->first << ' ' << leftRightPos.size() << '\n';
         
         // Print data rows
         for (std::map<NodeId,std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > > >::iterator it = leftRightPos.begin(); it != leftRightPos.end(); ++it)
@@ -357,7 +369,7 @@ public:
 
             unsigned nchild = 0;
             for (std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
-                if (uid != 0 || itt->second.first != itt->second.second)
+                if (1) //uid != 0 || itt->second.first != itt->second.second)
                     nchild ++;
             
             std::cout << "parent " << uid << ' ' << nchild << ' ' << nmut << '\n';
@@ -367,8 +379,8 @@ public:
             {
                 NodeId cid = itt->first;
                 std::pair<unsigned,unsigned> range = itt->second;
-                if (uid == 0 && range.first == range.second)
-                    continue; // skip prerewind events
+                //if (uid == 0 && range.first == range.second)
+                //    continue; // skip prerewind events
                 std::cout << "child " << cid << ' ' << range.first << ' ' << range.second << '\n';
             }
             // Output mutations
