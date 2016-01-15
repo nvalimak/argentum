@@ -88,10 +88,8 @@ public:
             case mutation_event:
                 return mutation[ev.second].second;  
             case insert_child_event:
-                 assert(0);
                 return child[ev.second].lRange; 
             case delete_child_event:
-                 assert(0);
                 return child[ev.second].rRange;
             default:
                 assert (0);
@@ -144,9 +142,45 @@ public:
 #endif
         return true;
     }
-    
-private:
 
+    void assignTimes()
+    {
+        std::vector<NodeId> nodeStack;
+        nodeStack.push_back(0); //root node
+        while( nodeStack.size() )
+        {
+            NodeId nodeRef = nodeStack.back();
+            if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
+            {
+                assignTime(nodeRef);
+                nodeStack.pop_back();
+            }
+            else
+            {
+                NodeId childRef = nodes[ nodeRef ].child[ nodes[nodeRef].childToCheck ].id;
+                nodes[nodeRef].childToCheck++;
+                if ( nodes[childRef].inStack )
+                {
+                    size_t i = nodeStack.size();
+                    do
+                    {
+                        i--;
+                        NodeId n = nodeStack[i];
+                        nodes[n].child[ nodes[n].childToCheck - 1 ].include = false;
+                    } while(nodeStack[i] != childRef);
+                }
+                else
+                {
+                    nodeStack.push_back(childRef);
+                    nodes[childRef].inStack = true;
+                }
+            }
+        }
+    }
+
+    
+
+private:
     bool inputError(unsigned nentries, string msg)
     {
         if (nentries == ~0u)
@@ -237,13 +271,6 @@ private:
     }    
 
 #ifdef VALIDATE_STRUCTURE
-    static bool childStructCompare(struct ARGchild &i, struct ARGchild &j)
-    {
-        if (i.lRange != j.lRange)
-            return (i.lRange < j.lRange); // lRange values in increasing order
-        return (i.rRange > j.rRange);     // rRange values in decreasing order
-    }
-
     // Traverse the active tree at column i and check that all the leaf nodes are reachable
     bool traverseCol(Position i)
     {
@@ -291,10 +318,16 @@ private:
             nodes[ nodeRef ].timestamp = 0;
             return;
         }
+        if (nodeRef <= nleaves)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }
         vector<pair<ARNode::event_t,unsigned> > events = nodes[nodeRef].getEvents();
         nodes[nodeRef].timestamp = 0.0;
         double mu = 0.000001, rho = 0.000001;
         double A = 0.0, B = 0.0, C = 0.0, d = 0.0;
+        assert(events.size() > 0);
         unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0, La = 0, Lb = 0;
         std::set<NodeId> activeNodes;
         
@@ -362,44 +395,7 @@ private:
         if (nodes[ nodeRef ].timestamp < maxTimestamp)
             nodes[ nodeRef ].timestamp = maxTimestamp;
     }
-    
-    
-    void assignTimes()
-    {
-        std::vector<NodeId> nodeStack;
-        nodeStack.push_back(0); //root node
-        while( nodeStack.size() )
-        {
-            NodeId nodeRef = nodeStack.back();
-            if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
-            {
-                assignTime(nodeRef);
-                nodeStack.pop_back();
-            }
-            else
-            {
-                NodeId childRef = nodes[ nodeRef ].child[ nodes[nodeRef].childToCheck ].id;
-                nodes[nodeRef].childToCheck++;
-                if ( nodes[childRef].inStack )
-                {
-                    size_t i = nodeStack.size();
-                    do
-                    {
-                        i--;
-                        NodeId n = nodeStack[i];
-                        nodes[n].child[ nodes[n].childToCheck - 1 ].include = false;
-                    } while(nodeStack[i] != childRef);
-                }
-                else
-                {
-                    nodeStack.push_back(childRef);
-                    nodes[childRef].inStack = true;
-                }
-            }
-        }
-    }
 
-    
     std::vector<ARNode> nodes;
     unsigned nleaves; // Number of leaves
     Position rRangeMax; // Largest position value encountered
@@ -424,5 +420,8 @@ int main()
     }
     
     cout << "ARGraph class constructed OK" << endl;
+
+    
+    arg.assignTimes();
     return 0;
 }

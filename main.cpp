@@ -200,7 +200,7 @@ unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree
 /**
  * Rewind and enumerate parent-child ranges (--enumerate)
  */
-unsigned output_parent_child(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, TreeEnumerator &te)
+unsigned output_parent_child(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, TreeEnumerator &te)
 {
     unsigned total_intnodes = 0;
     unsigned step = 0;
@@ -216,6 +216,9 @@ unsigned output_parent_child(InputReader &ir, direction_t direction, PointerTree
         tc.assignLabels(ir.col(step));
         tc.rewind(ir.col(step), decreasingStep, &te);
 
+        if (config.verbose && increasingStep % config.debug_interval == 0)
+            cerr << "at step " << increasingStep << "/" << ir.size() << endl;
+        
         total_intnodes += tc.countInternalNodes();
         if (direction == direction_forward)
             ++step;
@@ -310,10 +313,10 @@ void nopred_forward(Configuration &config, InputReader &inputr)
     {
         cerr << "Gathering parent-child ranges (--enumerate)..." << endl;
         TreeEnumerator te;
-        unsigned intnodes = output_parent_child(inputr, direction_backward, forward_tree, forward_tc, te);
+        unsigned intnodes = output_parent_child(inputr, direction_backward, forward_tree, forward_tc, config, te);
+        cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
         cerr << "Outputting parent-child ranges (--enumerate)..." << endl;
         te.output(forward_tree.size());
-        cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
     }
 }
 

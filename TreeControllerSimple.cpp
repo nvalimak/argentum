@@ -95,6 +95,13 @@ void TreeControllerSimple::rewind(InputColumn const &ic, unsigned step_, TreeEnu
     recombine.clear();
     findReduced(root, 1);
     unsigned nones = recombine.size();
+    if (te && nones == 1)
+    {
+        PointerTree::PointerNode *pn = recombine[0];
+        if (!pn->root())
+            te->insertMutation(pn->parentPtr()->uniqueId(), pn->uniqueId(), step + 1);
+    }
+
     recombine.clear();
     findReduced(root, 0);
     unsigned nzeros = recombine.size();

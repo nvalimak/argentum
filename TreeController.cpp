@@ -20,6 +20,9 @@ void TreeController::process(InputColumn const &ic, unsigned step_)
         t.outputDOT(dotfile + "_reduced", step);
 
     resolveNonBinary(root);
+    for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
+        if (!(*it)->leaf())
+            (*it)->previousUpdate(step);
     t.clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
         t.outputDOT(dotfile + "_resolvednonbinaryr", step);
@@ -61,6 +64,9 @@ void TreeController::process(InputColumn const &ic, unsigned step_, TreeDistance
         t.outputDOT(dotfile + "_reduced", step);
 
     resolveNonBinary(root);
+    for (vector<PointerTree::PointerNode *>::iterator it = updatedThisStep.begin(); it != updatedThisStep.end(); ++it)
+        if (!(*it)->leaf())
+            (*it)->previousUpdate(step);
     t.clearNonBranchingInternalNodes();
     if (debug && !dotfile.empty())
         t.outputDOT(dotfile + "_resolvednonbinaryr", step);
@@ -116,7 +122,7 @@ void TreeController::rewind(InputColumn const &ic, unsigned step_, TreeEnumerato
     {
         PointerTree::PointerNode *pn = recombine[0];
         if (!pn->root())
-            te->insertMutation(pn->parentPtr()->uniqueId(), pn->uniqueId(), step);
+            te->insertMutation(pn->parentPtr()->uniqueId(), pn->uniqueId(), step + 1);
     }
     
     recombine.clear();
@@ -386,11 +392,7 @@ void TreeController::recombineNonBinarySubtrees(unsigned nones, bool keephistory
         }
        
     PointerTree::PointerNode * dest = mpn;
-    //if (mpn->leaf() || ntags < recombine.size()-1)
-        dest = t.createDest(mpn, PointerTree::nohistory); // Create new internal node if leaf, or not all siblings are tags
-        //else
-        //cerr << "skipped dest creation for " << mpn->nodeId() << ", tagged = " << mpn->tagged() << ", leaf = " << mpn->leaf() << endl
-        //     << "  ntags = " << ntags << ", recomb size = " << recombine.size() << endl;
+    dest = t.createDest(mpn, PointerTree::nohistory); 
     
     for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
         if (*it != mpn)
@@ -428,13 +430,18 @@ void TreeController::recombineSubtrees(PointerTree::PointerNode *subtree_root, b
 
     if (mpn == 0)
         mpn = recombine.front(); // All tagged, take first
+
+    unsigned largest_age = mpn->previousUpdate();
+    if (largest_age == PointerTree::nohistory)
+        largest_age = 0;
+    for (vector<PointerTree::PointerNode *>::iterator it = recombine.begin(); it != recombine.end(); ++it)
+        if ((*it)->previousUpdate() != PointerTree::nohistory && (*it)->previousUpdate() > largest_age)
+            largest_age = (*it)->previousUpdate();
     
     map<PointerTree::PointerNode *, pair<unsigned,bool> > upward_path; // Lowest common ancestor candidates between mpn and rest of the subtrees
     PointerTree::PointerNode *tmp = mpn;
-    unsigned largest_age = mpn->previousUpdate();
     bool tagged_lca = mpn->tagged();
-    if (largest_age == PointerTree::nohistory)
-        largest_age = 0;
+    upward_path[tmp] = make_pair(largest_age, tagged_lca);
     while (tmp != subtree_root)
     {
         tmp = tmp->parentPtr();
