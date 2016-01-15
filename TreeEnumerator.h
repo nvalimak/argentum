@@ -238,7 +238,7 @@ public:
     
     void insertMutation(NodeId uid, NodeId cid, unsigned step)
     {
-        mutationPos[uid][cid] = step;
+        mutationPos[uid][cid].push_back(step);
     }
 
     /*void closeChild(NodeId uid, NodeId cid, unsigned lstep)
@@ -306,7 +306,10 @@ public:
             rightPos.erase(uid);
 
         if (rstep != ~0u && lstep <= rstep)
-            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
+        {
+            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(mutationPos[uid][cid], std::make_pair(lstep, rstep))));
+            mutationPos[uid][cid].clear();
+        }
     }
 
     void forceCloseChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
@@ -336,7 +339,10 @@ public:
             rightPos.erase(uid);
 
         if (rstep != ~0u && lstep <= rstep)
-            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(lstep, rstep)));
+        {
+            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(mutationPos[uid][cid], std::make_pair(lstep, rstep))));
+            mutationPos[uid][cid].clear();
+        }
     }
 
     
@@ -351,45 +357,36 @@ public:
             {
                 unsigned rstep = rightPos[it->first][itt->first];
                 if (rstep != ~0u)
-                    leftRightPos[it->first].push_back(std::make_pair(itt->first, std::make_pair(0, rstep)));
+                    leftRightPos[it->first].push_back(std::make_pair(itt->first, std::make_pair(mutationPos[it->first][itt->first], std::make_pair(0, rstep))));
             }
         rightPos.clear();
-
+    
         
         // Print header:   number of leaves           largest key value                      number of keys
         std::cout << "ARGraph " << nleaves << ' '  << leftRightPos.rbegin()->first << ' ' << leftRightPos.size() << '\n';
         
         // Print data rows
-        for (std::map<NodeId,std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > > >::iterator it = leftRightPos.begin(); it != leftRightPos.end(); ++it)
+        for (std::map<NodeId,std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > > >::iterator it = leftRightPos.begin(); it != leftRightPos.end(); ++it)
         {
             NodeId uid = it->first;
-            unsigned nmut = 0;
-            if (mutationPos.count(uid))
-                nmut = mutationPos[uid].size();
-
-            unsigned nchild = 0;
-            for (std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
-                if (1) //uid != 0 || itt->second.first != itt->second.second)
-                    nchild ++;
-            
-            std::cout << "parent " << uid << ' ' << nchild << ' ' << nmut << '\n';
+            //unsigned nmut = 0;
+            //for (std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
+            //    nmut += itt->second.first.size();
+                
+            std::cout << "parent " << uid << ' ' << it->second.size() << '\n';
 
             // Output ranges
-            for (std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
+            for (std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
             {
                 NodeId cid = itt->first;
-                std::pair<unsigned,unsigned> range = itt->second;
-                //if (uid == 0 && range.first == range.second)
-                //    continue; // skip prerewind events
-                std::cout << "child " << cid << ' ' << range.first << ' ' << range.second << '\n';
+                std::vector<unsigned> muts = itt->second.first;
+                std::pair<unsigned,unsigned> range = itt->second.second;
+                std::cout << "child " << cid << ' ' << range.first << ' ' << range.second << ' ' << muts.size() << '\n';
+                // Output mutations
+                for (std::vector<unsigned>::iterator itt = muts.begin(); itt != muts.end(); ++itt)
+                    std::cout << "mutation " << cid << ' ' << *itt << '\n';
+                
             }
-            // Output mutations
-            if (nmut)
-                for (std::map<NodeId,unsigned>::iterator itt = mutationPos[uid].begin(); itt != mutationPos[uid].end(); ++itt)
-                {
-                    NodeId cid = itt->first;
-                    std::cout << "mutation " << cid << ' ' << itt->second << '\n';
-                }
         }
         
     }
@@ -442,8 +439,8 @@ private:
 
     std::vector<std::pair<PointerTree::PointerNode *,NodeId> > insertBuffer;
     std::map<NodeId,std::map<NodeId,unsigned> > rightPos; // keeps track of right positions (position of child insertion)
-    std::map<NodeId,std::map<NodeId,unsigned> > mutationPos; // keeps track of mutation positions
-    std::map<NodeId,std::vector<std::pair<NodeId,std::pair<unsigned,unsigned> > > > leftRightPos; // final [left,right] positions (positions where active child)
+    std::map<NodeId,std::map<NodeId,std::vector<unsigned> > > mutationPos; // keeps track of mutation positions
+    std::map<NodeId,std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > > > leftRightPos; // final list of mutations and [left,right] positions (positions where active child)
     bool init;
 };
 #endif

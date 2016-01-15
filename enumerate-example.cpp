@@ -44,13 +44,78 @@ public:
         NodeId id;      // Unique ID of the node; 0 == root
         Position lRange;  // Range corresponds to VCF row numbers
         Position rRange; 
+        bool include;
+        ARGchild()
+            : id(0), lRange(0), rRange(0), include(true)
+        { }
     };
     
     class ARNode
     {
     public:
+        enum event_t { mutation_event = 0, insert_child_event, delete_child_event }; 
         vector<struct ARGchild> child;
-        vector<pair<NodeId,Position> > mutation; // id is the unique ID of the node; position is the VCF row number
+        vector<pair<NodeId,Position> > mutation; // id points to the child array; position is the VCF row number
+        unsigned childToCheck;
+        double timestamp;
+        bool inStack;
+        ARNode()
+            : child(), mutation(), childToCheck(0), timestamp(-1.0), inStack(false)
+        {   }
+        
+        //Return value: first of each pair is event type: mutation - 0, inserte child - 1, delete child - 2; second of each pair is a pointer to event: if mutation - index in ARNode.mutation, otherwise index in ARNode.child
+	vector<pair<event_t,unsigned> > getEvents()
+        {
+            vector<pair<event_t,unsigned> > events;
+            for( size_t i = 0; i < mutation.size(); i++ )
+                if ( child[mutation[i].first].include )//TODO - prevents from compiling due to referring to "ARGraph.nodes" instead of "ARNode.child"
+                    events.push_back(std::make_pair(mutation_event, i));
+
+            for( size_t i = 0; i < child.size(); i++ )
+                if (child[i].include)
+                {
+                    events.push_back(std::make_pair(insert_child_event, i));
+                    events.push_back(std::make_pair(delete_child_event, i));
+                }
+            std::sort(events.begin(), events.end(), compareEvents(this) );
+            return events;
+	}
+	
+        unsigned getPosition(const pair<event_t,unsigned> &ev)
+        {
+            switch (ev.first)
+            {
+            case mutation_event:
+                return mutation[ev.second].second;  
+            case insert_child_event:
+                 assert(0);
+                return child[ev.second].lRange; 
+            case delete_child_event:
+                 assert(0);
+                return child[ev.second].rRange;
+            default:
+                assert (0);
+            }
+            return 0;
+        }
+
+        struct compareEvents : std::binary_function<pair<event_t,unsigned>,pair<event_t,unsigned>,bool>
+        {
+            compareEvents(ARNode * p)
+                : instance(p)
+            { }
+            bool operator() (const pair<event_t,unsigned>& o1, const pair<event_t,unsigned>& o2) {
+                return instance->compareEvents_(o1, o2);
+            }
+            ARNode * instance;
+        };
+        bool compareEvents_(const pair<event_t,unsigned> &e1, const pair<event_t,unsigned> &e2)
+        {
+            unsigned pos1, pos2;
+            pos1 = getPosition(e1);
+            pos2 = getPosition(e1);
+            return pos1 < pos2;
+        }
     };
 
     ARGraph()
@@ -128,8 +193,6 @@ private:
             cin >> nchild;
             if (nchild == 0)
                 return inputError(nentries, "nchild");
-            unsigned nmut = 0;
-            cin >> nmut;
 
             // Parse the child ranges
             ARNode arnode;
@@ -147,20 +210,25 @@ private:
                 // Keeps track of maximum position value
                 rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
                 arnode.child.push_back(argchild);
+
+                unsigned nmut = 0;
+                cin >> nmut;
+                while (nmut--)
+                {
+                    cin >> s;
+                    if (s != "mutation")
+                        return inputError(nentries, "mutation-tag");
+                    NodeId cid = 0;
+                    cin >> cid; // Child id
+                    if (cid != argchild.id)
+                        return inputError(nentries, "mutation-id"); // Root cannot appear as a child node
+                    Position p = 0;
+                    cin >> p;
+                    assert (argchild.lRange <= p && p <= argchild.rRange);
+                    arnode.mutation.push_back(std::make_pair(arnode.child.size()-1, p));
+                }
             }
-            while (nmut--)
-            {
-                cin >> s;
-                if (s != "mutation")
-                    return inputError(nentries, "mutation-tag");
-                NodeId cid = 0;
-                cin >> cid; // Child id
-                if (cid == 0)
-                    return inputError(nentries, "mutation-id"); // Root cannot appear as a child node
-                Position p = 0;
-                cin >> p;
-                arnode.mutation.push_back(make_pair(cid,p));
-            }
+            // Assert: there is no overlap in node id's
             assert (nodes[pid].child.empty());
             assert (nodes[pid].mutation.empty());
             nodes[pid] = arnode;
@@ -214,6 +282,123 @@ private:
                 traverseCol(it->id, i, reachableLeaf);
     }            
 #endif
+
+
+    void assignTime(NodeId nodeRef)
+    {
+        if (nodeRef == 0)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }
+        vector<pair<ARNode::event_t,unsigned> > events = nodes[nodeRef].getEvents();
+        nodes[nodeRef].timestamp = 0.0;
+        double mu = 0.000001, rho = 0.000001;
+        double A = 0.0, B = 0.0, C = 0.0, d = 0.0;
+        unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0, La = 0, Lb = 0;
+        std::set<NodeId> activeNodes;
+        
+        for(size_t i = 0; i < events.size(); i++)
+        {
+            switch (events[i].first)
+            {
+            case ARNode::mutation_event:
+                rRange = nodes[nodeRef].getPosition( events[i] );
+                La += (rRange - lRange)*activeNodes.size();
+                d = 0;
+                for (set<NodeId>::iterator it = activeNodes.begin(); it != activeNodes.end(); ++it)
+                    d += nodes[ *it ].timestamp;
+                Lb += (rRange - lRange) * d;
+                    
+                A += mu*La;
+                B += mu*Lb;
+                C += 1;
+                lRange = rRange;
+                La = 0;
+                Lb = 0;
+                break;
+            
+            case ARNode::insert_child_event:
+                rRange = nodes[nodeRef].getPosition( events[i] );
+                La += (rRange - lRange) * activeNodes.size();
+                d = 0;
+                for (set<NodeId>::iterator it = activeNodes.begin(); it != activeNodes.end(); ++it)
+                    d += nodes[ *it ].timestamp;
+                Lb += (rRange - lRange) * d;
+                lRange = rRange;
+                activeNodes.insert( nodes[ nodeRef ].child[events[i].second].id );
+                break;
+                
+            case ARNode::delete_child_event:
+                rRange = nodes[nodeRef].getPosition( events[i] );
+                La += (rRange - lRange) * activeNodes.size();
+                d = 0;
+                for (set<NodeId>::iterator it = activeNodes.begin(); it != activeNodes.end(); ++it)
+                    d += nodes[ *it ].timestamp;
+                Lb += (rRange - lRange) * d;
+                
+                A += rho*La;
+                B += rho*Lb;
+                C += 1;
+                activeNodes.erase( nodes[ nodeRef ].child[events[i].second].id );
+                lRange = rRange;
+                La = 0;
+                Lb = 0;
+                break;
+                
+            default:
+                assert(0);
+            }
+        }
+        
+        nodes[ nodeRef ].timestamp = (B+C)/A;
+        double maxTimestamp = 0;
+        for(size_t i = 0; i < nodes[ nodeRef ].child.size(); i++)
+        {
+            double ts = nodes[nodes[ nodeRef ].child[i].id ].timestamp;
+            maxTimestamp = maxTimestamp > ts ? maxTimestamp : ts;
+        }
+        
+        if (nodes[ nodeRef ].timestamp < maxTimestamp)
+            nodes[ nodeRef ].timestamp = maxTimestamp;
+    }
+    
+    
+    void assignTimes()
+    {
+        std::vector<NodeId> nodeStack;
+        nodeStack.push_back(0); //root node
+        while( nodeStack.size() )
+        {
+            NodeId nodeRef = nodeStack.back();
+            if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
+            {
+                assignTime(nodeRef);
+                nodeStack.pop_back();
+            }
+            else
+            {
+                NodeId childRef = nodes[ nodeRef ].child[ nodes[nodeRef].childToCheck ].id;
+                nodes[nodeRef].childToCheck++;
+                if ( nodes[childRef].inStack )
+                {
+                    size_t i = nodeStack.size();
+                    do
+                    {
+                        i--;
+                        NodeId n = nodeStack[i];
+                        nodes[n].child[ nodes[n].childToCheck - 1 ].include = false;
+                    } while(nodeStack[i] != childRef);
+                }
+                else
+                {
+                    nodeStack.push_back(childRef);
+                    nodes[childRef].inStack = true;
+                }
+            }
+        }
+    }
+
     
     std::vector<ARNode> nodes;
     unsigned nleaves; // Number of leaves
