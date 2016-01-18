@@ -174,7 +174,7 @@ public:
                         i--;
                         NodeId n = nodeStack[i];
                         nodes[n].child[ nodes[n].childToCheck - 1 ].include = false;
-                    } while(nodeStack[i] != childRef);
+                    } while(i > 0 && nodeStack[i] != childRef);
                 }
                 else
                 {
@@ -235,7 +235,6 @@ private:
         
         // Parse the data rows (in total nentries elements)
         cerr << "Reading " << nentries << " entries with largest id of " << largestid << endl;
-        unsigned nmuttot = 0, nskip = 0;
         while (nentries--)
         {
             // Read parent header
@@ -291,16 +290,12 @@ private:
                 pair<size_t,Position> tmp = it->second;
                 if (tmp.second <= p && p <= it->first)
                     arnode.mutation.push_back(std::make_pair(tmp.first, p));
-                else
-                    nskip++;
             }
             // Assert: there is no overlap in node id's
             assert (nodes[pid].child.empty());
             assert (nodes[pid].mutation.empty());
-            nmuttot += arnode.mutation.size();
             nodes[pid] = arnode;
         }
-        cerr << "nskip = " << nskip << ", nmut = " << nmuttot << endl;
         return true;
     }    
 
@@ -358,6 +353,12 @@ private:
             return;
         }
         vector<pair<ARNode::event_t,unsigned> > events = nodes[nodeRef].getEvents();
+        if (events.size() == 0)
+        {
+            // include == false for all events under the node nodeRef
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }   
         nodes[nodeRef].timestamp = 0.0;
         double mu = 0.000001, rho = 0.000001;
         double A = 0.0, B = 0.0, C = 0.0, d = 0.0;
@@ -459,6 +460,6 @@ int main()
     arg.outputRangeDistributions();
 #endif
     
-//    arg.assignTimes();
+    arg.assignTimes();
     return 0;
 }
