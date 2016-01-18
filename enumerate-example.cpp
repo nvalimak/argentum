@@ -203,6 +203,21 @@ public:
                 nodes[itt->id].parent[itt->rRange] = std::distance(nodes.begin(), it);
     }
 
+    pair<unsigned,unsigned> numberOfExcludedNodes()
+    {
+        unsigned nexcluded = 0;
+        unsigned nedges = 0;
+        for (vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+            for (vector<struct ARGchild>::iterator itt = it->child.begin(); itt != it->child.end(); ++itt)
+            {
+                nedges ++;
+                if (!(itt->include))
+                    nexcluded ++;
+            }
+
+        return make_pair(nedges,nexcluded);
+    }
+    
     
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     void outputRangeDistributions()
@@ -397,9 +412,9 @@ private:
             nodes[ nodeRef ].timestamp = 0;
             return;
         }   
-        nodes[nodeRef].timestamp = 0.0;
+        nodes[nodeRef].timestamp = 0;
         double mu = 0.000001, rho = 0.000001;
-        double A = 0.0, B = 0.0, C = 0.0, d = 0.0;
+        double A = 0, B = 0, C = 0, d = 0;
         assert(events.size() > 0);
         unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0, La = 0, Lb = 0;
         std::set<NodeId> activeNodes;
@@ -576,8 +591,12 @@ int main(int argc, char ** argv)
     cerr << "Assigning times..." << endl;
     arg.assignTimes();
 
-    cerr << "Extracting times..." << endl;
+    {
+        pair<unsigned,unsigned> tmp = arg.numberOfExcludedNodes();
+        cerr << "Number of edges = " << tmp.first << ", number of excluded edges = " << tmp.second << endl;
+    }
     
+    cerr << "Extracting times..." << endl;
     for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
     {
         if (it->second != 0)
