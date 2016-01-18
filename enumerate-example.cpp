@@ -171,6 +171,7 @@ public:
             if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
             {
                 assignTime(nodeRef);
+                nodes[ nodeRef ].inStack = false;
                 nodeStack.pop_back();
             }
             else
