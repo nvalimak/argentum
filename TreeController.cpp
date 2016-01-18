@@ -122,7 +122,7 @@ void TreeController::rewind(InputColumn const &ic, unsigned step_, TreeEnumerato
     {
         PointerTree::PointerNode *pn = recombine[0];
         if (!pn->root())
-            te->insertMutation(pn->parentPtr()->uniqueId(), pn->uniqueId(), step + 1);
+            te->insertMutation(pn->parentPtr(), pn->uniqueId(), step + 1);
     }
     
     recombine.clear();

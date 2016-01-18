@@ -434,7 +434,6 @@ void PointerTree::rewind(unsigned h, TreeEnumerator *te)
             break;
         e = history.back();
     }
-    te->flushInserts(h);
 }
 
 /**

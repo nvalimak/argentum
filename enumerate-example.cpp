@@ -26,11 +26,14 @@
 #include <map>
 #include <set>
 #include <utility>
+#include <algorithm>
 #include <cassert>
 using namespace std;
 
 // Note: disable this for large inputs
 #define VALIDATE_STRUCTURE
+
+#define OUTPUT_RANGE_DISTRIBUTION
 
 typedef unsigned NodeId;
 typedef unsigned Position;
@@ -56,6 +59,10 @@ public:
         enum event_t { mutation_event = 0, insert_child_event, delete_child_event }; 
         vector<struct ARGchild> child;
         vector<pair<NodeId,Position> > mutation; // id points to the child array; position is the VCF row number
+#ifdef OUTPUT_RANGE_DISTRIBUTION
+        map<unsigned,unsigned> rangeDist;
+#endif
+
         unsigned childToCheck;
         double timestamp;
         bool inStack;
@@ -178,7 +185,20 @@ public:
         }
     }
 
-    
+#ifdef OUTPUT_RANGE_DISTRIBUTION
+    void outputRangeDistributions()
+    {
+        map<unsigned,unsigned> totals;
+        for (vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+            for (map<unsigned,unsigned>::iterator itt = it->rangeDist.begin(); itt != it->rangeDist.end(); ++itt)
+            {
+                cout << std::distance(nodes.begin(), it) << '\t' << itt->first << '\t' << itt->second << '\n';
+                totals[itt->first] += itt->second;
+            }
+        for (map<unsigned,unsigned>::iterator itt = totals.begin(); itt != totals.end(); ++itt)
+            cout << "TOTAL\t" << itt->first << '\t' << itt->second << '\n';
+    }
+#endif
 
 private:
     bool inputError(unsigned nentries, string msg)
@@ -215,6 +235,7 @@ private:
         
         // Parse the data rows (in total nentries elements)
         cerr << "Reading " << nentries << " entries with largest id of " << largestid << endl;
+        unsigned nmuttot = 0, nskip = 0;
         while (nentries--)
         {
             // Read parent header
@@ -227,9 +248,12 @@ private:
             cin >> nchild;
             if (nchild == 0)
                 return inputError(nentries, "nchild");
-
+            unsigned nmut = 0;
+            cin >> nmut;
+            
             // Parse the child ranges
             ARNode arnode;
+            map<NodeId,map<Position,pair<size_t,Position> > > pos;
             while (nchild--)
             {
                 cin >> s;
@@ -243,30 +267,40 @@ private:
                 cin >> argchild.rRange;
                 // Keeps track of maximum position value
                 rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
+                pos[argchild.id][argchild.rRange] = make_pair(arnode.child.size(), argchild.lRange);
                 arnode.child.push_back(argchild);
-
-                unsigned nmut = 0;
-                cin >> nmut;
-                while (nmut--)
-                {
-                    cin >> s;
-                    if (s != "mutation")
-                        return inputError(nentries, "mutation-tag");
-                    NodeId cid = 0;
-                    cin >> cid; // Child id
-                    if (cid != argchild.id)
-                        return inputError(nentries, "mutation-id"); // Root cannot appear as a child node
-                    Position p = 0;
-                    cin >> p;
-                    assert (argchild.lRange <= p && p <= argchild.rRange);
-                    arnode.mutation.push_back(std::make_pair(arnode.child.size()-1, p));
-                }
+#ifdef OUTPUT_RANGE_DISTRIBUTION
+                arnode.rangeDist[argchild.rRange-argchild.lRange+1] += 1;
+#endif
+            }
+            while (nmut--)
+            {
+                cin >> s;
+                if (s != "mutation")
+                    return inputError(nentries, "mutation-tag");
+                NodeId cid = 0;
+                cin >> cid; // Child id
+                if (pos.count(cid) == 0)
+                    return inputError(nentries, "mutation-id"); // Root cannot appear as a child node
+                Position p = 0;
+                cin >> p;
+                map<Position,pair<size_t,Position> >::iterator it = pos[cid].lower_bound(p);
+                assert (pos.count(cid) > 0);
+                if (it == pos[cid].end())
+                    it = pos[cid].begin();
+                pair<size_t,Position> tmp = it->second;
+                if (tmp.second <= p && p <= it->first)
+                    arnode.mutation.push_back(std::make_pair(tmp.first, p));
+                else
+                    nskip++;
             }
             // Assert: there is no overlap in node id's
             assert (nodes[pid].child.empty());
             assert (nodes[pid].mutation.empty());
+            nmuttot += arnode.mutation.size();
             nodes[pid] = arnode;
         }
+        cerr << "nskip = " << nskip << ", nmut = " << nmuttot << endl;
         return true;
     }    
 
@@ -421,7 +455,10 @@ int main()
     
     cout << "ARGraph class constructed OK" << endl;
 
+#ifdef OUTPUT_RANGE_DISTRIBUTION
+    arg.outputRangeDistributions();
+#endif
     
-    arg.assignTimes();
+//    arg.assignTimes();
     return 0;
 }
