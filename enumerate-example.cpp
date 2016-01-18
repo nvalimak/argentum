@@ -445,11 +445,11 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
     unsigned npop = 0;
     unsigned first_pop_size = 0;
     ifstream ifs(fn);
-    map<unsigned,unsigned> popv;
+    map<unsigned,unsigned> popm;
     if (!ifs.good())
     {
         cerr << "error: unable to read file " << fn << endl;
-        return 1;
+        return popm;
     }
     while (ifs.good())
     {
@@ -460,14 +460,14 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
         ifs >> p;
         assert (p > 0);
         assert (lid > 0);
-        popv[lid-1] = p-1;
+        popm[lid-1] = p-1;
         npop = max(npop, p);
         if (p == 1)
             first_pop_size ++;
     }
     assert (npop == 2); // default assumption for now
     assert (first_pop_size > 0);
-    return popv;
+    return popm;
 }
 
 int main(int argc, char ** argv)
