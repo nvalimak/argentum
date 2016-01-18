@@ -21,6 +21,7 @@
  *
  */
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <map>
@@ -33,7 +34,8 @@ using namespace std;
 // Note: disable this for large inputs
 #define VALIDATE_STRUCTURE
 
-#define OUTPUT_RANGE_DISTRIBUTION
+// Enable this to output range distributions (per node and total sum)
+//#define OUTPUT_RANGE_DISTRIBUTION
 
 typedef unsigned NodeId;
 typedef unsigned Position;
@@ -437,8 +439,51 @@ private:
     bool ok_;
 };
 
-int main()
+map<unsigned,unsigned> init_pop_map(const char *fn)
 {
+    // Init population map
+    unsigned npop = 0;
+    unsigned first_pop_size = 0;
+    ifstream ifs(fn);
+    map<unsigned,unsigned> popv;
+    if (!ifs.good())
+    {
+        cerr << "error: unable to read file " << fn << endl;
+        return 1;
+    }
+    while (ifs.good())
+    {
+        unsigned lid = 0, p = 0;
+        ifs >> lid;
+        if (!ifs.good())
+            break;
+        ifs >> p;
+        assert (p > 0);
+        assert (lid > 0);
+        popv[lid-1] = p-1;
+        npop = max(npop, p);
+        if (p == 1)
+            first_pop_size ++;
+    }
+    assert (npop == 2); // default assumption for now
+    assert (first_pop_size > 0);
+    return popv;
+}
+
+int main(int argc, char ** argv)
+{
+    if (argc != 2)
+    {
+        cerr << "usage: " << argv[0] << " [pairs.txt] < input > output" << endl;
+        cerr << "  where" <<endl;
+        cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
+        cerr << "     input         - standard input (pipe from `./main --enumerate`)" << endl;
+        cerr << "     output        - standard output" << endl;
+        return 1;
+    }
+
+    map<unsigned,unsigned> popmap = init_pop_map(argv[1]);
+    
     // Read data from standard input
     ARGraph arg;
     if (!arg.ok())
@@ -454,12 +499,14 @@ int main()
         return 1;
     }
     
-    cout << "ARGraph class constructed OK" << endl;
+    cerr << "ARGraph class constructed OK" << endl;
 
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     arg.outputRangeDistributions();
 #endif
     
     arg.assignTimes();
+    
+    
     return 0;
 }
