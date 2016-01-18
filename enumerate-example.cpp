@@ -60,6 +60,7 @@ public:
     public:
         enum event_t { mutation_event = 0, insert_child_event, delete_child_event }; 
         vector<struct ARGchild> child;
+        map<Position,NodeId> parent;
         vector<pair<NodeId,Position> > mutation; // id points to the child array; position is the VCF row number
 #ifdef OUTPUT_RANGE_DISTRIBUTION
         map<unsigned,unsigned> rangeDist;
@@ -71,9 +72,17 @@ public:
         ARNode()
             : child(), mutation(), childToCheck(0), timestamp(-1.0), inStack(false)
         {   }
+
+        // Return parent node at step i
+        NodeId getParent(Position i)
+        {
+            map<Position,NodeId>::iterator z = parent.lower_bound(i);            
+            assert (z != parent.end());
+            return z->second;
+        }
         
         //Return value: first of each pair is event type: mutation - 0, inserte child - 1, delete child - 2; second of each pair is a pointer to event: if mutation - index in ARNode.mutation, otherwise index in ARNode.child
-	vector<pair<event_t,unsigned> > getEvents()
+        vector<pair<event_t,unsigned> > getEvents()
         {
             vector<pair<event_t,unsigned> > events;
             for( size_t i = 0; i < mutation.size(); i++ )
@@ -88,8 +97,8 @@ public:
                 }
             std::sort(events.begin(), events.end(), compareEvents(this) );
             return events;
-	}
-	
+        }
+        
         unsigned getPosition(const pair<event_t,unsigned> &ev)
         {
             switch (ev.first)
@@ -187,6 +196,14 @@ public:
         }
     }
 
+    void assignParentPtrs()
+    {
+        for (vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+            for (vector<struct ARGchild>::iterator itt = it->child.begin(); itt != it->child.end(); ++itt)
+                nodes[itt->id].parent[itt->rRange] = std::distance(nodes.begin(), it);
+    }
+
+    
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     void outputRangeDistributions()
     {
@@ -194,14 +211,27 @@ public:
         for (vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
             for (map<unsigned,unsigned>::iterator itt = it->rangeDist.begin(); itt != it->rangeDist.end(); ++itt)
             {
-                cout << std::distance(nodes.begin(), it) << '\t' << itt->first << '\t' << itt->second << '\n';
+                cout << "RANGE\t" << std::distance(nodes.begin(), it) << '\t' << itt->first << '\t' << itt->second << '\n';
                 totals[itt->first] += itt->second;
             }
         for (map<unsigned,unsigned>::iterator itt = totals.begin(); itt != totals.end(); ++itt)
-            cout << "TOTAL\t" << itt->first << '\t' << itt->second << '\n';
+            cout << "RANGE\tTOTAL\t" << itt->first << '\t' << itt->second << '\n';
     }
 #endif
 
+    void outputTimes(NodeId x, NodeId y)
+    {
+        assert (x > 0);
+        assert (y > 0);
+        assert (x <= nleaves);
+        assert (y <= nleaves);
+        for (Position i = 0; i <= rRangeMax; i++)
+        {
+            double ts = getLCATime(i, x, y);
+            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << ts << '\n';
+        }
+    }
+    
 private:
     bool inputError(unsigned nentries, string msg)
     {
@@ -311,7 +341,7 @@ private:
             reachableLeaf.insert(j);
         
         // Recursive traversal
-        traverseCol(0, i, reachableLeaf);
+        traverseCol(0, i, reachableLeaf, 0);
         
         // Assert: all the leaves must be reachable
         if (reachableLeaf.size() != 0)
@@ -322,8 +352,15 @@ private:
         return true;        
     }
 
-    void traverseCol(NodeId id, Position i, set<NodeId> &reachableLeaf)
+    void traverseCol(NodeId id, Position i, set<NodeId> &reachableLeaf, NodeId active_parent)
     {
+        ARNode &arnode = nodes[id];
+        if (id > 0)
+        {
+            // Validate active parent ptr            
+            assert(active_parent == arnode.getParent(i));
+        }
+        
         // Handle leaf nodes
         if (1 <= id && id <= nleaves)
         {
@@ -334,10 +371,9 @@ private:
             return;
         }
         
-        ARNode &arnode = nodes[id];
         for (vector<struct ARGchild>::iterator it = arnode.child.begin(); it != arnode.child.end(); ++it)
             if (it->lRange <= i && i <= it->rRange)
-                traverseCol(it->id, i, reachableLeaf);
+                traverseCol(it->id, i, reachableLeaf, id);
     }            
 #endif
 
@@ -433,6 +469,30 @@ private:
             nodes[ nodeRef ].timestamp = maxTimestamp;
     }
 
+    double getLCATime(Position i, NodeId x, NodeId y)
+    {
+        // Collect all nodes from x to root at position i
+        assert (x > 0);
+        assert (y > 0);
+        set<NodeId> xParents;
+        NodeId j = x;
+        while (j != 0)
+        {
+            xParents.insert(j);
+            j = nodes[j].getParent(i); // Move upwards in the tree
+        }
+
+        // Similarly, traverse from y to root at position i, and check if LCA is found
+        j = y;
+        while (j != 0)
+        {
+            if (xParents.count(j))
+                return nodes[j].timestamp;
+            j = nodes[j].getParent(i); // Move upwards in the tree
+        }
+        return nodes[0].timestamp;
+    }
+    
     std::vector<ARNode> nodes;
     unsigned nleaves; // Number of leaves
     Position rRangeMax; // Largest position value encountered
@@ -460,7 +520,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
         ifs >> p;
         assert (p > 0);
         assert (lid > 0);
-        popm[lid-1] = p-1;
+        popm[lid] = p-1;
         npop = max(npop, p);
         if (p == 1)
             first_pop_size ++;
@@ -483,6 +543,11 @@ int main(int argc, char ** argv)
     }
 
     map<unsigned,unsigned> popmap = init_pop_map(argv[1]);
+    if (popmap.empty())
+    {
+        cerr << "error: unable to read pop map input" << endl;
+        return 1;
+    }
     
     // Read data from standard input
     ARGraph arg;
@@ -491,6 +556,9 @@ int main(int argc, char ** argv)
         cerr << "enumerate-example error: unable to read standard input and construct the ARGraph class!" << endl;
         return 1;
     }
+    
+    // Bidirectional tree
+    arg.assignParentPtrs();
     
     // Validity check
     if (!arg.validate())
@@ -505,8 +573,30 @@ int main(int argc, char ** argv)
     arg.outputRangeDistributions();
 #endif
     
+    cerr << "Assigning times..." << endl;
     arg.assignTimes();
+
+    cerr << "Extracting times..." << endl;
     
+    for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
+    {
+        if (it->second != 0)
+            continue;
+        map<unsigned,unsigned>::iterator itt = popmap.begin();
+        while (itt->second == it->second && itt != popmap.end())
+            ++itt;
+        while (itt != popmap.end())
+        {
+            assert(it->second == 0);  // Compare two different pops
+            assert(itt->second == 1);
+            assert(it->first != itt->first); // and two different leaf nodes
+
+            arg.outputTimes(it->first, itt->first);
+            
+            do ++itt;
+            while (itt->second == it->second && itt != popmap.end());
+        }
+    }
     
     return 0;
 }
