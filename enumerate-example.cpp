@@ -415,7 +415,7 @@ private:
         }   
         nodes[nodeRef].timestamp = 0;
         double mu = 0.000001, rho = 0.000001;
-        double A = 0, B = 0, C = 0, d = 0;
+        double A = 1, B = 0, C = 0, d = 0;
         assert(events.size() > 0);
         unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0, La = 0, Lb = 0;
         std::set<NodeId> activeNodes;
