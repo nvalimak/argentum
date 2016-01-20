@@ -19,10 +19,10 @@ public:
     {
     public:
         Node()
-            : ch(), parent(0), lid(-1), llabel(-1), leaf(false), size(0), mdepth(0), first_pop_size(0), second_pop_size(0)
+            : ch(), parent(0), lid(-1), timestamp(0), llabel(-1), leaf(false), size(0), mdepth(0), first_pop_size(0), second_pop_size(0)
         { }
         Node(Node *p)
-            : ch(), parent(p), lid(-1), llabel(-1), leaf(false), size(0), mdepth(0), first_pop_size(0), second_pop_size(0)
+            : ch(), parent(p), lid(-1), timestamp(0), llabel(-1), leaf(false), size(0), mdepth(0), first_pop_size(0), second_pop_size(0)
         {
             p->ch.insert(this); // Insert as child to *p
         }
@@ -32,6 +32,7 @@ public:
         children_set_t ch; // Children
         Node *parent; 
         int lid; // Leaf ID
+        double timestamp;
         int llabel; // Leaf label
         bool leaf; // Is leaf?
         unsigned size; // Total number of subtree leaves
@@ -40,6 +41,8 @@ public:
         unsigned second_pop_size;
     };
 
+    double getLCATime(int, int);
+    
     // Distance computation for newickcomp.cpp
     void distanceByTraversal(Node *, Node *, Node *, unsigned, std::vector<unsigned> &);
     void subtreeDistance(std::vector<unsigned> &);

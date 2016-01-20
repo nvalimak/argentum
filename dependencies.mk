@@ -22,6 +22,7 @@ newick2dot.o: newick2dot.cpp NewickTree.h default.h
 newick2imbalance-density.o: newick2imbalance-density.cpp NewickTree.h \
   default.h
 newick2qdist.o: newick2qdist.cpp NewickTree.h default.h
+newick2timestamp.o: newick2timestamp.cpp NewickTree.h default.h
 newickcomp.o: newickcomp.cpp NewickTree.h default.h
 rand-matrix.o: rand-matrix.cpp
 scrm2bin.o: scrm2bin.cpp

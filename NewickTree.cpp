@@ -6,6 +6,33 @@
 using namespace std;
 
 /**
+ * Returns the timestamp of LCA of x and y in the current tree
+ */
+double NewickTree::getLCATime(int x, int y)
+{
+    // Collect all nodes from x to root at position i
+    assert (x > 0);
+    assert (y > 0);
+    set<Node *> xParents;
+    Node *j = leaf(x-1);
+    while (j != 0)
+    {
+        xParents.insert(j);
+        j = j->parent; // Move upwards in the tree
+    }
+    
+    // Similarly, traverse from y to root at position i, and check if LCA is found
+    j = leaf(y-1);
+    while (j != 0)
+    {
+        if (xParents.count(j))
+            return j->timestamp;
+        j = j->parent; // Move upwards in the tree
+    }
+    return root_->timestamp;
+}   
+
+/**
  * Update the cluster distance values of 'src_leaf' by traversing whole tree
  */
 void NewickTree::distanceByTraversal(Node *pn, Node *src, Node *src_leaf, unsigned maxval, vector<unsigned> &cd)
@@ -243,6 +270,25 @@ int atoi_min_(char const *value, int min)
     return i;
 }
 
+double atof_min_(char const *value, double min)
+{
+    std::istringstream iss(value);
+    double i;
+    char c;
+    if (!(iss >> i) || iss.get(c))
+    {
+        cerr << "error: value " << value << " must be of type <double>, and greater than or equal to " << min << endl;
+        std::exit(1);
+    }
+
+    if (i < min)
+    {
+        cerr << "error: value " << value << " must be greater than or equal to " << min << endl;
+        std::exit(1);
+    }
+    return i;
+}
+
 // Simple tree parser
 size_t NewickTree::parse(string const &s, size_t i, Node *p)
 {
@@ -259,6 +305,13 @@ size_t NewickTree::parse(string const &s, size_t i, Node *p)
             else
                 j = new Node(p);
             i = parse(s, i+1, j);
+            if (s[i] == ';')
+                return i;
+
+            assert (s[i] == ':');
+            size_t tmp = i+1;
+            j->timestamp = ::atof_min_(s.substr(tmp, s.find_first_of(",)",tmp)-tmp).c_str(), 0.0);
+            i = s.find_first_of(",)",i+1);
             continue;
         }
         else if (s[i] == ',')
@@ -268,13 +321,15 @@ size_t NewickTree::parse(string const &s, size_t i, Node *p)
         }
         else if (s[i] == ')')
         {
-            i = s.find_first_of(",)(;",i+1);
+            i = s.find_first_of(":,)(;",i+1);
             return i;
         }
         else
         {
             Node *j = new Node(p);
-            j->lid = ::atoi_min_(s.substr(i, s.find_first_of(":",i)-i).c_str(), 1)-1;
+            j->lid = ::atoi_min_(s.substr(i, s.find_first_of(":",i)-i).c_str(), 1) - 1;
+            size_t tmp = s.find_first_of(":",i)+1;
+            j->timestamp = ::atof_min_(s.substr(tmp, s.find_first_of(",)",tmp)-tmp).c_str(), 0.0);
             j->llabel = -1;
             j->leaf = true;
             i = s.find_first_of("),",i);
@@ -300,7 +355,7 @@ unsigned NewickTree::outputDOT(Node *pn, ostream &of, unsigned id, unsigned base
     if (pn->leaf)
         return id;
     if (pn->parent == 0)
-        of << "n" << oid << " [label=\"" << base << "\"]" << endl;
+        of << "n" << oid << " [label=\"" << base << "bp:" << pn->timestamp << "\"]" << endl;
     for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
     {
         id ++;
@@ -310,7 +365,7 @@ unsigned NewickTree::outputDOT(Node *pn, ostream &of, unsigned id, unsigned base
             of << (*it)->lid+1;
         else
             of << "-";
-        of << "\"";
+        of << ":" << (*it)->timestamp << "\"";
         if ((*it)->leaf)
             of << ",shape=box";
         of << "]" << endl;
