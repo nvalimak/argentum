@@ -481,9 +481,6 @@ private:
             double ts = nodes[nodes[ nodeRef ].child[i].id ].timestamp;
             maxTimestamp = maxTimestamp > ts ? maxTimestamp : ts;
         }
-        
-        if (nodes[ nodeRef ].timestamp < maxTimestamp)
-            nodes[ nodeRef ].timestamp = maxTimestamp;
     }
 
     double getLCATime(Position i, NodeId x, NodeId y)
