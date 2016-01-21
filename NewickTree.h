@@ -78,7 +78,7 @@ private:
     size_t parse(std::string const &, size_t, Node *);
     int updateSizes(Node *);
     unsigned outputDOT(Node *, std::ostream &, unsigned, unsigned);
-    void collectLeaves(Node *);
+    void collectLeaves(Node *, double);
     unsigned updateMaxDists(Node *);
 
     Node *root_;
