@@ -69,7 +69,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-    if (argc != 4)
+    if (argc != 3)
     {
         cerr << "usage: cat newicktree.txt | " << argv[0] << " <pop_map.txt> <output prefix> <max rows>" << endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
@@ -82,8 +82,7 @@ int main(int argc, char ** argv)
         return 1;
     }
 
-    string fnprefix = string(argv[2]);
-    unsigned maxr = atoi_min(argv[3], 1);
+    unsigned maxr = atoi_min(argv[2], 1);
     
     // Init tree input from <stdin>
     NewickTree predt("-");

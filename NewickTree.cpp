@@ -26,10 +26,10 @@ double NewickTree::getLCATime(int x, int y)
     while (j != 0)
     {
         if (xParents.count(j))
-            return j->timestamp;
+            return leaf(x-1)->timestamp - j->timestamp;
         j = j->parent; // Move upwards in the tree
     }
-    return root_->timestamp;
+    return leaf(x-1)->timestamp - root_->timestamp;
 }   
 
 /**
@@ -89,7 +89,7 @@ NewickTree::NewickTree(string const &filename)
     parse(row);
     updateSizes(root_);
     leaves.resize(root_->size, 0);
-    collectLeaves(root_);
+    collectLeaves(root_, 0);
     assert (root_->size == leaves.size());
     good_ = true;
 }
@@ -117,7 +117,7 @@ bool NewickTree::next()
     parse(row);
     updateSizes(root_);
     leaves.resize(root_->size, 0);
-    collectLeaves(root_);
+    collectLeaves(root_, 0);
     assert (root_->size == leaves.size());
     good_ = true;
     return true;
@@ -198,15 +198,17 @@ void NewickTree::assignLabels(InputColumn const &ic)
     ::assignLabels(root_, ic);
 }   
 
-void NewickTree::collectLeaves(Node *pn)
+void NewickTree::collectLeaves(Node *pn, double ts_parent)
 {
+    pn->timestamp += ts_parent;    
     if (pn->leaf)
     {
         leaves[pn->lid] = pn;
         return;
     }
+    
     for (set<Node *>::iterator it = pn->ch.begin(); it != pn->ch.end(); ++it)
-        collectLeaves(*it);
+        collectLeaves(*it, pn->timestamp);
 }
 
 // Bottom-up cascade of subtree size (n:o leaves)
