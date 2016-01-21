@@ -39,10 +39,9 @@ int atoi_min(char const *value, int min)
 map<unsigned,unsigned> init_pop_map(const char *fn)
 {
     // Init population map
-    unsigned npop = 0;
-    unsigned first_pop_size = 0;
     ifstream ifs(fn);
     map<unsigned,unsigned> popm;
+    map<unsigned,unsigned> popcount;
     if (!ifs.good())
     {
         cerr << "error: unable to read file " << fn << endl;
@@ -57,21 +56,20 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
         ifs >> p;
         assert (p > 0);
         assert (lid > 0);
-        popm[lid] = p-1;
-        npop = max(npop, p);
-        if (p == 1)
-            first_pop_size ++;
+        popm[lid] = p;
+        popcount[p]+=1;
     }
-    assert (npop == 2); // default assumption for now
-    assert (first_pop_size > 0);
+    cerr << "Read " << popcount.size() << " populations:" << endl;
+    for (map<unsigned,unsigned>::iterator it = popcount.begin(); it != popcount.end(); ++it)
+        cerr << "  population " << it->first << " with " << it->second << " leaf ids" << endl;
     return popm;
 }
 
 int main(int argc, char ** argv)
 {
-    if (argc != 3)
+    if (argc != 5)
     {
-        cerr << "usage: cat newicktree.txt | " << argv[0] << " <pop_map.txt> <output prefix> <max rows>" << endl;
+        cerr << "usage: cat newicktree.txt | " << argv[0] << " <pop_map.txt> <pop1> <pop2> <max rows>" << endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         return 1;
     }
@@ -81,8 +79,12 @@ int main(int argc, char ** argv)
         cerr << "error: unable to read pop map input" << endl;
         return 1;
     }
+    
+    unsigned popl = atoi_min(argv[2], 1);
+    unsigned popr = atoi_min(argv[3], 1);
+    cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
 
-    unsigned maxr = atoi_min(argv[2], 1);
+    unsigned maxr = atoi_min(argv[4], 1);
     
     // Init tree input from <stdin>
     NewickTree predt("-");
@@ -94,22 +96,22 @@ int main(int argc, char ** argv)
 
         for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
         {
-            if (it->second != 0)
+            if (it->second != popl)
                 continue;
             map<unsigned,unsigned>::iterator itt = popmap.begin();
-            while (itt->second == it->second && itt != popmap.end())
+            while (itt->second != popr && itt != popmap.end())
                 ++itt;
             while (itt != popmap.end())
             {
-                assert(it->second == 0);  // Compare two different pops
-                assert(itt->second == 1);
-                assert(it->first != itt->first); // and two different leaf nodes
-
-                // Output format:         leaf X               leaf Y                column       bp position    timestamp of pair X,Y at position n
-                cout << "TIME" << '\t' << it->first << '\t' << itt->first << '\t' << n << '\t' << base << '\t' << predt.getLCATime(it->first, itt->first) << '\n';
+                assert(it->second == popl);  // Compare exactly these populations
+                assert(itt->second == popr);
                 
+                if (it->first != itt->first && (popl != popr || it->first < itt->first))
+                    // Output format:         leaf X               leaf Y                column       bp position    timestamp of pair X,Y at position n
+                    cout << "TIME" << '\t' << it->first << '\t' << itt->first << '\t' << n << '\t' << base << '\t' << predt.getLCATime(it->first, itt->first) << '\n';
+
                 do ++itt;
-                while (itt->second == it->second && itt != popmap.end());
+                while (itt->second != popr && itt != popmap.end());
             }
         }
         

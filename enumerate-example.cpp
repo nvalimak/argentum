@@ -21,6 +21,7 @@
  *
  */
 #include <iostream>
+#include <sstream>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -398,7 +399,7 @@ private:
     {
         if (nodeRef == 0)
         {
-            nodes[ nodeRef ].timestamp = 0;
+            nodes[ nodeRef ].timestamp = -1;
             return;
         }
         if (nodeRef <= nleaves)
@@ -515,13 +516,31 @@ private:
     bool ok_;
 };
 
+int atoi_min(char const *value, int min)
+{
+    std::istringstream iss(value);
+    int i;
+    char c;
+    if (!(iss >> i) || iss.get(c))
+    {
+        cerr << "error: value " << value << " must be of type <int>, and greater than or equal to " << min << endl;
+        std::exit(1);
+    }
+
+    if (i < min)
+    {
+        cerr << "error: value " << value << " must be greater than or equal to " << min << endl;
+        std::exit(1);
+    }
+    return i;
+}
+
 map<unsigned,unsigned> init_pop_map(const char *fn)
 {
     // Init population map
-    unsigned npop = 0;
-    unsigned first_pop_size = 0;
     ifstream ifs(fn);
     map<unsigned,unsigned> popm;
+    map<unsigned,unsigned> popcount;
     if (!ifs.good())
     {
         cerr << "error: unable to read file " << fn << endl;
@@ -536,23 +555,24 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
         ifs >> p;
         assert (p > 0);
         assert (lid > 0);
-        popm[lid] = p-1;
-        npop = max(npop, p);
-        if (p == 1)
-            first_pop_size ++;
+        popm[lid] = p;
+        popcount[p]+=1;
     }
-    assert (npop == 2); // default assumption for now
-    assert (first_pop_size > 0);
+    cerr << "Read " << popcount.size() << " populations:" << endl;
+    for (map<unsigned,unsigned>::iterator it = popcount.begin(); it != popcount.end(); ++it)
+        cerr << "  population " << it->first << " with " << it->second << " leaf ids" << endl;
     return popm;
 }
 
 int main(int argc, char ** argv)
 {
-    if (argc != 2)
+    if (argc != 4)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
+        cerr << "     pop1          - Population to compare against" << endl;
+        cerr << "     pop2          - another population/same population." << endl;
         cerr << "     input         - standard input (pipe from `./main --enumerate`)" << endl;
         cerr << "     output        - standard output" << endl;
         return 1;
@@ -564,6 +584,10 @@ int main(int argc, char ** argv)
         cerr << "error: unable to read pop map input" << endl;
         return 1;
     }
+
+    unsigned popl = atoi_min(argv[2], 1);
+    unsigned popr = atoi_min(argv[3], 1);
+    cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
     
     // Read data from standard input
     ARGraph arg;
@@ -600,21 +624,21 @@ int main(int argc, char ** argv)
     cerr << "Extracting times..." << endl;
     for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
     {
-        if (it->second != 0)
+        if (it->second != popl)
             continue;
         map<unsigned,unsigned>::iterator itt = popmap.begin();
-        while (itt->second == it->second && itt != popmap.end())
+        while (itt->second != popr && itt != popmap.end())
             ++itt;
         while (itt != popmap.end())
         {
-            assert(it->second == 0);  // Compare two different pops
-            assert(itt->second == 1);
-            assert(it->first != itt->first); // and two different leaf nodes
+            assert(it->second == popl);  // Compare exactly these populations
+            assert(itt->second == popr);
 
-            arg.outputTimes(it->first, itt->first);
+            if (it->first != itt->first  && (popl != popr || it->first < itt->first))
+                arg.outputTimes(it->first, itt->first);
             
             do ++itt;
-            while (itt->second == it->second && itt != popmap.end());
+            while (itt->second != popr && itt != popmap.end());
         }
     }
     
