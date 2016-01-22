@@ -51,8 +51,9 @@ public:
         Position lRange;  // Range corresponds to VCF row numbers
         Position rRange; 
         bool include;
+        bool recomb; // Was cut at position rRange due to recomb 
         ARGchild()
-            : id(0), lRange(0), rRange(0), include(true)
+            : id(0), lRange(0), rRange(0), include(true), recomb(false)
         { }
     };
     
@@ -313,6 +314,7 @@ private:
                     return inputError(nentries, "child-id"); // Root cannot appear as a child node
                 cin >> argchild.lRange;
                 cin >> argchild.rRange;
+                cin >> argchild.recomb;
                 // Keeps track of maximum position value
                 rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
                 pos[argchild.id][argchild.rRange] = make_pair(arnode.child.size(), argchild.lRange);

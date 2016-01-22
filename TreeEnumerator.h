@@ -11,6 +11,22 @@
 
 class TreeEnumerator
 {
+private:
+    struct ARGChild
+    {
+        NodeId id;      // Unique ID of the node; 0 == root
+        std::vector<unsigned> mutations;
+        unsigned lRange;  // Range corresponds to VCF row numbers
+        unsigned rRange; 
+        bool recomb; // Was cut at position rRange due to recomb
+        ARGChild()
+            : id(0), mutations(), lRange(0), rRange(0), recomb(false)
+        { }
+        ARGChild(NodeId id_, std::vector<unsigned> &mut_, unsigned lRange_, unsigned rRange_)
+            : id(id_), mutations(mut_), lRange(lRange_), rRange(rRange_), recomb(false)
+        { }
+    };
+
 public:
     TreeEnumerator()
         : insertBuffer(), rightPos(), mutationPos(), leftRightPos(), init(true)
@@ -213,7 +229,7 @@ public:
         return pn;
     }
         
-    void closeChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep)
+    void closeChild(PointerTree::PointerNode *pn, PointerTree::PointerNode *cpn, unsigned lstep, bool recomb = false)
     {
 #ifdef TE_DEBUG_PRINT
         std::cerr << "closeChild called for parent " << pn->uniqueId() << " child " << cpn->uniqueId() << std::endl;
@@ -245,7 +261,9 @@ public:
 
         if (rstep != ~0u && lstep <= rstep)
         {
-            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(mutationPos[cid], std::make_pair(lstep, rstep))));
+            leftRightPos[uid].push_back(ARGChild(cid, mutationPos[cid], lstep, rstep));
+            if (recomb)
+                leftRightPos[uid].back().recomb = true;
             mutationPos[cid].clear();
         }
     }
@@ -278,7 +296,7 @@ public:
 
         if (rstep != ~0u && lstep <= rstep)
         {
-            leftRightPos[uid].push_back(std::make_pair(cid, std::make_pair(mutationPos[cid], std::make_pair(lstep, rstep))));
+            leftRightPos[uid].push_back(ARGChild(cid, mutationPos[cid], lstep, rstep));
             mutationPos[cid].clear();
         }
     }
@@ -295,7 +313,7 @@ public:
             {
                 unsigned rstep = rightPos[it->first][itt->first];
                 if (rstep != ~0u)
-                    leftRightPos[it->first].push_back(std::make_pair(itt->first, std::make_pair(mutationPos[itt->first], std::make_pair(0, rstep))));
+                    leftRightPos[it->first].push_back(ARGChild(itt->first, mutationPos[itt->first], 0, rstep));
             }
         rightPos.clear();
     
@@ -304,29 +322,24 @@ public:
         std::cout << "ARGraph " << nleaves << ' '  << leftRightPos.rbegin()->first << ' ' << leftRightPos.size() << '\n';
         
         // Print data rows
-        for (std::map<NodeId,std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > > >::iterator it = leftRightPos.begin(); it != leftRightPos.end(); ++it)
+        for (std::map<NodeId,std::vector<struct ARGChild> >::iterator it = leftRightPos.begin(); it != leftRightPos.end(); ++it)
         {
             NodeId uid = it->first;
             unsigned nmut = 0;
-            for (std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
-                nmut += itt->second.first.size();
+            for (std::vector<struct ARGChild>::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
+                nmut += itt->mutations.size();
                 
             std::cout << "parent " << uid << ' ' << it->second.size() << ' ' << nmut << '\n';
 
             // Output ranges
-            for (std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
-            {
-                NodeId cid = itt->first;
-                std::pair<unsigned,unsigned> range = itt->second.second;
-                std::cout << "child " << cid << ' ' << range.first << ' ' << range.second << '\n';
-            }
+            for (std::vector<struct ARGChild>::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
+                std::cout << "child " << itt->id << ' ' << itt->lRange << ' ' << itt->rRange << ' ' << itt->recomb  << '\n';
             // Output mutations
-            for (std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > >::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
+            for (std::vector<struct ARGChild>::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
             {
-                NodeId cid = itt->first;
-                std::vector<unsigned> muts = itt->second.first;
-                for (std::vector<unsigned>::iterator itt = muts.begin(); itt != muts.end(); ++itt)
-                    std::cout << "mutation " << cid << ' ' << *itt << '\n';
+                std::vector<unsigned> &muts = itt->mutations;
+                for (std::vector<unsigned>::iterator ittt = muts.begin(); ittt != muts.end(); ++ittt)
+                    std::cout << "mutation " << itt->id << ' ' << *ittt << '\n';
             }
         }
         
@@ -380,7 +393,8 @@ private:
     std::vector<std::pair<PointerTree::PointerNode *,NodeId> > insertBuffer;
     std::map<NodeId,std::map<NodeId,unsigned> > rightPos; // keeps track of right positions (position of child insertion)
     std::map<NodeId,std::vector<unsigned> > mutationPos; // keeps track of mutation positions
-    std::map<NodeId,std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > > > leftRightPos; // final list of mutations and [left,right] positions (positions where active child)
+    //std::map<NodeId,std::vector<std::pair<NodeId,std::pair<std::vector<unsigned>,std::pair<unsigned,unsigned> > > > > leftRightPos; // final list of mutations and [left,right] positions (positions where active child)
+    std::map<NodeId,std::vector<struct ARGChild> > leftRightPos;
     bool init;
 };
 #endif
