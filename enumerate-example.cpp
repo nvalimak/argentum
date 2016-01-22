@@ -109,7 +109,7 @@ public:
             case insert_child_event:
                 return child[ev.second].lRange; 
             case delete_child_event:
-                return child[ev.second].rRange;
+                return child[ev.second].rRange + 1;
             default:
                 assert (0);
             }
@@ -415,14 +415,17 @@ private:
             return;
         }   
         nodes[nodeRef].timestamp = 0;
-        double mu = 0.000001, rho = 0.000001;
-        double A = 1, B = 0, C = 0, d = 0;
+        double mu = 0.00000001, rho = 0.00000001;
+        double A = 0, B = 0, C = 0, d = 0;
         assert(events.size() > 0);
         unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0, La = 0, Lb = 0;
         std::set<NodeId> activeNodes;
+		bool stop = false;
         
         for(size_t i = 0; i < events.size(); i++)
         {
+			if (stop)
+				break;
             switch (events[i].first)
             {
             case ARNode::mutation_event:
@@ -459,7 +462,8 @@ private:
                 for (set<NodeId>::iterator it = activeNodes.begin(); it != activeNodes.end(); ++it)
                     d += nodes[ *it ].timestamp;
                 Lb += (rRange - lRange) * d;
-                
+                if (rRange == nodes[nodeRef].getPosition( events[ events.size() - 1 ] ))
+					stop = true;
                 A += rho*La;
                 B += rho*Lb;
                 C += 1;
