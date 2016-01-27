@@ -76,9 +76,10 @@ public:
         unsigned childToCheck;
         double timestamp;
         bool inStack;
-		double nodeProbability;
+		double probability;
+		double weight;
         ARNode()
-            : child(), mutation(), edgesKnown(false), childToCheck(0), timestamp(-1.0), inStack(false), nodeProbability(1.0)
+            : child(), mutation(), edgesKnown(false), childToCheck(0), timestamp(-1.0), inStack(false), probability(1.0)
         {   }
 
         // Return parent node at step i
@@ -326,16 +327,29 @@ public:
     }
 #endif
 
+	void ComputeWeights(){
+		unsigned i;
+		for (i = 0; i < nodes.size(); i++){
+			nodes[i].probability = ComputeProbability(nodes[ i ].timestamp, i);
+		}
+		for (i = 0; i < nodes.size(); i++){
+			nodes[i].weight = ComputeWeight(i);
+		}
+	}
+
     void outputTimes(NodeId x, NodeId y)
     {
         assert (x > 0);
         assert (y > 0);
         assert (x <= nleaves);
         assert (y <= nleaves);
+		ComputeWeights();
         for (Position i = 0; i <= rRangeMax; i++)
         {
-            double ts = getLCATime(i, x, y);
-            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << ts << '\n';
+//            double ts = getLCATime(i, x, y);
+			int nodeRef = getLCATime(i, x, y);
+            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << nodes[nodeRef].timestamp << '\t' << nodes[nodeRef].weight << '\t' << nodes[nodeRef].probability  <<'\n';
+//            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << ts <<'\n';
         }
     }
     
@@ -590,6 +604,23 @@ private:
 		return prob;
 	}
 	
+	double ComputeWeight(NodeId nodeRef){
+		double weight = 1, edge;
+		double lambda;
+		double x = nodes[nodeRef].timestamp;
+		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
+			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
+			edge = pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
+			weight = weight * pow(edge, nodes[ it->first ].probability/edge);
+		}
+		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
+			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
+			edge = pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
+			weight = weight * pow(edge, nodes[ it->first ].probability/edge);
+		}
+		return weight;
+	}
+	
 	double Polynomial(double x, NodeId nodeRef, bool side = true){//side true for left, false for right
 		double s = 0, result = 0, product = 1;
 		unsigned k;
@@ -831,10 +862,12 @@ private:
         while (j != 0)
         {
             if (xParents.count(j))
-                return nodes[j].timestamp;
+				return j;
+//                return nodes[j].timestamp;
             j = nodes[j].getParent(i); // Move upwards in the tree
         }
-        return nodes[0].timestamp;
+		return 0;
+//        return nodes[0].timestamp;
     }
 
 
