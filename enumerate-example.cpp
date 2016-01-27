@@ -749,7 +749,7 @@ private:
 		return result;
 	}
 
-	double RootNewton(NodeId nodeRef, double x, bool side = true){
+	double RootNewton(NodeId nodeRef, double x, bool side = true){//true for -inf, false for +inf
 		double epsilon = pow(10, -9); //TODO precision?
 		double y = PolynomialDerivative(x, nodeRef, side );
 		if (side && y > 0)
@@ -770,8 +770,8 @@ private:
 		assert(a < b);
 		double x = (a + b)/2.0;
 		double Fa, Fb, Fx;
-		Fa = Polynomial(a, nodeRef);
-		Fb = Polynomial(b, nodeRef, false); /**FIXME**/
+		Fa = Polynomial(a, nodeRef, false);
+		Fb = Polynomial(b, nodeRef); /**FIXME**/
 		Fx = Polynomial(x, nodeRef);
 		assert ( signum(Fa) != signum(Fb) );
 		double epsilon = ( Fa + Fb )/1000000.0;
@@ -828,20 +828,37 @@ private:
         
         //maximize ComputeProbability()
         double max_p = 0;
+		double max_x = 0;
         for (size_t i = 0; i < range.size() - 1; ++i)
         {
             NodeId aRef = range[i].first;
             double a = nodes[aRef].timestamp;
             NodeId bRef = range[i+1].first;
             double b = nodes[bRef].timestamp;
-            double x = RootBisection(a, b, nodeRef/*FIXME*/);
-            double new_p = ComputeProbability(x, nodeRef/*FIXME*/);
+			if (a == b)
+				continue;
+            double x = RootBisection(a, b, nodeRef);
+            double new_p = ComputeProbability(x, nodeRef);
 
-            if (max_p < new_p)
+            if (max_p < new_p){
                 max_p = new_p;
+				max_x = x;
+			}
         }
+		double x = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
+		double new_p = ComputeProbability(x, nodeRef);
+        if (max_p < new_p){
+            max_p = new_p;
+			max_x = x;
+		}
+		x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
+		new_p = ComputeProbability(x, nodeRef);
+        if (max_p < new_p){
+            max_p = new_p;
+			max_x = x;
+		}
+		nodes[nodeRef].timestamp = x;
         //update timestamp and node probability - and update probability of all connected nodes?
-        //FIXME
     }
 
     double getLCATime(Position i, NodeId x, NodeId y)
