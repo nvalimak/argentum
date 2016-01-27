@@ -141,7 +141,9 @@ public:
             return pos1 < pos2;
         }
     };
+    
 
+    
     ARGraph()
         : nodes(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
     {
@@ -791,7 +793,7 @@ private:
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it)
             range.push_back(make_pair(it->first, true));
         
-        std::sort(range.begin(), range.end(), ::_eventComp());
+        std::sort(range.begin(), range.end(), compareEvents(this));
         
         //maximize ComputeProbability()
         double max_p = 0;
@@ -834,6 +836,25 @@ private:
         }
         return nodes[0].timestamp;
     }
+
+
+    struct compareEvents : std::binary_function<pair<NodeId,bool>,pair<NodeId,bool>,bool>
+    {
+        compareEvents(ARGraph * p)
+            : instance(p)
+            { }
+        bool operator() (const pair<NodeId,bool>& o1, const pair<NodeId,bool>& o2) {
+            return instance->compareEvents_(o1, o2);
+        }
+        ARGraph * instance;
+    };
+    bool compareEvents_(const pair<NodeId,bool> &e1, const pair<NodeId,bool> &e2)
+    {
+        double ts1 = nodes[e1.first].timestamp;
+        double ts2 = nodes[e2.first].timestamp;
+        return ts1 < ts2;
+    }
+    
     
     std::vector<ARNode> nodes;
     unsigned nleaves; // Number of leaves
