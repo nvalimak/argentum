@@ -30,6 +30,7 @@
 #include <utility>
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 using namespace std;
 
 // Note: disable this for large inputs
@@ -77,7 +78,7 @@ public:
         bool inStack;
 		double nodeProbability;
         ARNode()
-            : child(), mutation(), childToCheck(0), timestamp(-1.0), inStack(false), nodeProbability(1.0), edgesKnown(false)
+            : child(), mutation(), edgesKnown(false), childToCheck(0), timestamp(-1.0), inStack(false), nodeProbability(1.0)
         {   }
 
         // Return parent node at step i
@@ -142,7 +143,7 @@ public:
     };
 
     ARGraph()
-        : nodes(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001);
+        : nodes(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
     {
         ok_ = construct();
     }
@@ -213,7 +214,7 @@ public:
 
     
 	void timeRefine(unsigned iterationNumber){
-		GetEdges();
+		initializeEdges();
 		for (int i = 0; i < iterationNumber; i++){
 			updateTimes();
 			if (i > 0 && i%100 == 0)
@@ -227,7 +228,27 @@ public:
 			it->childToCheck = 0;
 		}
 	}
-	
+
+	void initializeEdges(){
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+				if (it->edgesCh.find(itt->id) == it->edgesCh.end() )
+					it->edgesCh[ itt->id ] = make_pair(0, mu*(itt->rRange - itt->lRange + 1) );
+				else
+					it->edgesCh[ itt->id ].second += mu*(itt->rRange - itt->lRange + 1);
+				if (itt->recomb)
+					it->edgesCh[ itt->id ].first ++;
+			}
+	//		extract mutations
+			for (vector<pair<NodeId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt)
+				it->edgesCh[ itt->first ].first++;
+	//		add	information to child	
+			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ] = it->edgesCh[ itt->id ];
+			}
+		}
+	}
+
     void updateTimes()
     {
         std::vector<NodeId> nodeStack;
@@ -238,7 +259,7 @@ public:
             NodeId nodeRef = nodeStack.back();
             if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
             {
-                updateTime(nodeRef);
+                UpdateTime(nodeRef);
                 nodes[ nodeRef ].inStack = false;
                 nodeStack.pop_back();
             }
@@ -552,26 +573,6 @@ private:
         nodes[ nodeRef ].timestamp = (B+C)/A;
     }
 	
-	void initializeEdges(){
-		for (vector< ARGnode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
-			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				if (it->edgesCh.find(itt->id) == it->edgesCh.end() )
-					it->edgesCh[ itt->id ] = make_pair(0, mu*(itt->rRange - itt->lRange + 1) );
-				else
-					nodes[nodeRef].edgesCh[ itt->id ].second += mu*(itt->rRange - itt->lRange + 1);
-				if (itt->recomb)
-					nodes[nodeRef].edgesCh[ itt->id ].first ++;
-			}
-	//		extract mutations
-			for (vector<pair<NodeId,Position> >::iteratot itt = it->mutation.begin(); itt != it->mutation.end(); ++itt)
-				it->edgesCh[ itt->first ].second.first++;
-	//		add	information to child	
-			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				nodes[ itt->id ].edgesP[ it->id ] = it->edgesCh[ itt->id ];
-			}
-		}
-	}
-	
 	double ComputeProbability(double x, NodeId nodeRef)//Factorial can be dropped for maxima computing
 	{
 		double prob = 1;
@@ -589,7 +590,7 @@ private:
 	
 	double Polynomial(double x, NodeId nodeRef, bool side = true){//side true for left, false for right
 		double s = 0, result = 0, product = 1;
-		unsigned i, k;
+		unsigned k;
 		bool f = false;
 		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
 			if (x != nodes[ it->first ].timestamp)
@@ -612,11 +613,12 @@ private:
 				f = true;
 			}
 		}
-		if (f)
+		if (f){
 			if (side)
 				return -product;
 			else
 				return product;
+		}
 		
 		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
 			k = 0;
@@ -638,7 +640,7 @@ private:
 	
 	double PolynomialDerivative(double x, NodeId nodeRef, bool side = true){//true for -inf, false for +inf
 		double s = 0, result = 0, product = 1, partSum, secondTerm = 0.0, tmp;
-		unsigned i, k;
+		unsigned k;
 		bool f = false;
 		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it)
 		{
@@ -703,7 +705,7 @@ private:
 			}
 			result += k * partSum;
 		}
-		secondTerm = s*secondTerm
+		secondTerm = s*secondTerm;
 		if (!side){
 			result = abs(result);
 			secondTerm = abs(secondTerm);
@@ -720,12 +722,12 @@ private:
 		if (side && y > 0)
 			while (PolynomialDerivative(x, nodeRef, side ) > 0) //TODO step with the distance proportional to timestamps delta
 				y -= 10.0;
-		else if (!size && y < 0)
+		else if (!side && y < 0)
 			while (PolynomialDerivative(x, nodeRef, side ) > 0)
 				y += 10.0;
 		while ( abs( y ) > epsilon){
 			x = x - y / PolynomialDerivative(x, nodeRef, side );
-			y = Polynomial(x, nodeRef, side ));
+			y = Polynomial(x, nodeRef, side );
 		}
 		return x;
 	}
@@ -755,6 +757,20 @@ private:
 		return x;
 	}
 	
+	int Factorial(int k){
+		int f = 1, i;
+		for (i = 2; i < k + 1; i++)
+			f = f * i;
+		return f;
+	}
+
+	int signum(double x){//attention 0!
+		if (x < 0)
+			return -1;
+		else
+			return 1;
+	}
+	
     void UpdateTime(NodeId nodeRef)
     {
         if (nodeRef == 0)
@@ -770,9 +786,9 @@ private:
 		
         // Init range vector; second bool is true for parent pointer
         vector<pair<NodeId,bool> > range;
-        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgeCh.begin(); it != nodes[ nodeRef ].edgeCh.end(); ++it)
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it)
             range.push_back(make_pair(it->first, false));
-        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgeP.begin(); it != nodes[ nodeRef ].edgeP.end(); ++it)
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it)
             range.push_back(make_pair(it->first, true));
         
         std::sort(range.begin(), range.end(), ::_eventComp());
@@ -781,9 +797,9 @@ private:
         double max_p = 0;
         for (size_t i = 0; i < range.size() - 1; ++i)
         {
-            NodeId aRef = range[i]->first;
+            NodeId aRef = range[i].first;
             double a = nodes[aRef].timestamp;
-            NodeId bRef = range[i+1]->first;
+            NodeId bRef = range[i+1].first;
             double b = nodes[bRef].timestamp;
             double x = RootBisection(a, b, nodeRef/*FIXME*/);
             double new_p = ComputeProbability(x, nodeRef/*FIXME*/);
@@ -792,7 +808,7 @@ private:
                 max_p = new_p;
         }
         //update timestamp and node probability - and update probability of all connected nodes?
-        FIXME
+        //FIXME
     }
 
     double getLCATime(Position i, NodeId x, NodeId y)
@@ -845,13 +861,6 @@ int atoi_min(char const *value, int min)
     return i;
 }
 
-int Factorial(int k){
-	int f = 1;
-	for (i = 2; i < k + 1; i++)
-		f = f * i;
-	return f;
-}
-
 map<unsigned,unsigned> init_pop_map(const char *fn)
 {
     // Init population map
@@ -879,13 +888,6 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
     for (map<unsigned,unsigned>::iterator it = popcount.begin(); it != popcount.end(); ++it)
         cerr << "  population " << it->first << " with " << it->second << " leaf ids" << endl;
     return popm;
-}
-
-int signum(double x){//attention 0!
-	if (x < 0)
-		return -1;
-	else
-		return 1;
 }
 
 int main(int argc, char ** argv)
@@ -953,7 +955,7 @@ int main(int argc, char ** argv)
     {
         iter ++;
         cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
-        arg.iterateTimes();
+        arg.updateTimes();
     }
     
     cerr << "Extracting times..." << endl;
