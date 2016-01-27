@@ -723,8 +723,9 @@ private:
 		else if (!size && y < 0)
 			while (PolynomialDerivative(x, nodeRef, side ) > 0)
 				y += 10.0;
-		while ( abs(Polynomial(x, nodeRef, side ) ) > epsilon){
-			x = x - Polynomial(x, nodeRef, side ) / PolynomialDerivative(x, nodeRef, side );
+		while ( abs( y ) > epsilon){
+			x = x - y / PolynomialDerivative(x, nodeRef, side );
+			y = Polynomial(x, nodeRef, side ));
 		}
 		return x;
 	}
