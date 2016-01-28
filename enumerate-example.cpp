@@ -352,7 +352,73 @@ public:
 //            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << ts <<'\n';
         }
     }
+
+    void outputDebug_(NodeId nodeRef, const char *outputPrefix)
+    {
+        // Output timestamps etc.
+        {
+            char fn[256];
+            snprintf(fn, 256, "%s.%u.nodeRef.type.nodeId.timestamp.recomb.range.tsv", outputPrefix, nodeRef);
+            ofstream of(fn);
+            for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it)
+                of << nodeRef << '\t' << "child" << '\t' << it->first << '\t' << nodes[ it->first ].timestamp << '\t' <<  it->second.first << '\t' << it->second.second << '\n';
+            for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it)
+                of << nodeRef << '\t' << "parent" << '\t' << it->first << '\t' << nodes[ it->first ].timestamp << '\t' <<  it->second.first << '\t' << it->second.second << '\n';
+        }
+
+        // Output estimated values (Note: following is copy-paste from UpdateTime()
+        {
+            char fn[256];
+            snprintf(fn, 256, "%s.%u.nodeRef.a.b.x.p.tsv", outputPrefix, nodeRef);
+            ofstream of(fn);
+            
+            // Init range vector; second bool is true for parent pointer
+            vector<pair<NodeId,bool> > range;
+            for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it)
+                range.push_back(make_pair(it->first, false));
+            for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it)
+                range.push_back(make_pair(it->first, true));
+            
+            std::sort(range.begin(), range.end(), compareEvents(this));
+            
+            for (size_t i = 0; i < range.size() - 1; ++i)
+            {
+                NodeId aRef = range[i].first;
+                double a = nodes[aRef].timestamp;
+                NodeId bRef = range[i+1].first;
+                double b = nodes[bRef].timestamp;
+                if (a == b)
+                    continue;
+                double x = RootBisection(a, b, nodeRef);
+                double new_p = ComputeProbability(x, nodeRef);
+                of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << new_p << '\n';
+            }
+            double x = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
+            double new_p = ComputeProbability(x, nodeRef);
+            of << nodeRef << '\t' << "-inf" << '\t' << nodes[range[0].first].timestamp << '\t' << x << '\t' << new_p << '\n';
+            x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
+            new_p = ComputeProbability(x, nodeRef);
+            of << nodeRef << '\t' << nodes[range.back().first].timestamp << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';
+        }
+    }
+
+    NodeId findNextDebugNode(unsigned nEdges, NodeId nodeRef)
+    {
+        while (nodeRef < nodes.size() && nodes[nodeRef].edgesCh.size() + nodes[nodeRef].edgesP.size() != nEdges)
+            ++nodeRef;
+        return nodeRef;
+    }
     
+    void outputDebug(unsigned nEdges, const char *outputPrefix)
+    {
+        NodeId curNode = 0;
+        do
+        {
+            curNode = findNextDebugNode(nEdges, curNode+1);
+            if (curNode < nodes.size())
+                outputDebug_(curNode, outputPrefix);
+        } while (0); // Change to 1 to output *all* nodes with nEdges
+    }
 private:
     bool inputError(unsigned nentries, string msg)
     {
@@ -835,32 +901,32 @@ private:
             double a = nodes[aRef].timestamp;
             NodeId bRef = range[i+1].first;
             double b = nodes[bRef].timestamp;
-			if (a == b)
-				continue;
+            if (a == b)
+                continue;
             double x = RootBisection(a, b, nodeRef);
             double new_p = ComputeProbability(x, nodeRef);
-
+            
             if (max_p < new_p){
                 max_p = new_p;
-				max_x = x;
-			}
+                max_x = x;
+            }
         }
-		double x = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
-		double new_p = ComputeProbability(x, nodeRef);
+        double x = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
+        double new_p = ComputeProbability(x, nodeRef);
         if (max_p < new_p){
             max_p = new_p;
-			max_x = x;
-		}
-		x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
-		new_p = ComputeProbability(x, nodeRef);
+            max_x = x;
+        }
+        x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
+        new_p = ComputeProbability(x, nodeRef);
         if (max_p < new_p){
             max_p = new_p;
-			max_x = x;
-		}
-		nodes[nodeRef].timestamp = x;
+            max_x = x;
+        }
+        nodes[nodeRef].timestamp = x;
         //update timestamp and node probability - and update probability of all connected nodes?
     }
-
+    
     double getLCATime(Position i, NodeId x, NodeId y)
     {
         // Collect all nodes from x to root at position i
@@ -963,14 +1029,16 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-    if (argc != 5)
+    if (argc != 7)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         cerr << "     pop1          - Population to compare against" << endl;
         cerr << "     pop2          - another population/same population." << endl;
         cerr << "     max_iter      - How many iterations to make." << endl;
+        cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
+        cerr << "     output_prefix - Output file prefix." << endl;
         cerr << "     input         - standard input (pipe from `./main --enumerate`)" << endl;
         cerr << "     output        - standard output" << endl;
         return 1;
@@ -1021,6 +1089,16 @@ int main(int argc, char ** argv)
     }
 
     arg.initializeEdges();
+
+
+    // Output debug information
+    unsigned nEdges = atoi_min(argv[5], 3);
+    const char * outputPrefix = argv[6];
+    arg.outputDebug(nEdges, outputPrefix);
+    
+    return 0;
+    // Rest of this function is disabled for now...
+    
     unsigned iter = 0;
     while (iter < max_iter)
     {
@@ -1028,7 +1106,7 @@ int main(int argc, char ** argv)
         cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
         arg.updateTimes();
     }
-    
+
     cerr << "Extracting times..." << endl;
     for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
     {
