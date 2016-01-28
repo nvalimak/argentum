@@ -46,6 +46,16 @@ typedef unsigned Position;
 class ARGraph
 {
 public:
+	void PrintARG(){
+		for (int i = 0; i < nodes.size(); i++){
+			cerr << "id = " << i;
+			for (int j = 0; j < nodes[i].child.size(); j++){
+				cerr << "\t" << nodes[i].child[j].id;
+			}
+			cerr << endl;
+		}
+	}
+	
     struct ARGchild
     {
         NodeId id;      // Unique ID of the node; 0 == root
@@ -57,6 +67,13 @@ public:
             : id(0), lRange(0), rRange(0), include(true), recomb(false)
         { }
     };
+	
+	struct Poly
+	{
+		double t;
+		unsigned k;
+		double e;
+	};
     
     class ARNode
     {
@@ -72,6 +89,7 @@ public:
 		bool edgesKnown;
 		map<NodeId, pair<int, double> > edgesCh;
 		map<NodeId, pair<int, double> > edgesP;
+		vector<Poly> polynom;
 		
         unsigned childToCheck;
         double timestamp;
@@ -146,7 +164,7 @@ public:
 
     
     ARGraph()
-        : nodes(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
+        : nodes(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001*300), rho(0.00000001*300)
     {
         ok_ = construct();
     }
@@ -380,7 +398,18 @@ public:
                 range.push_back(make_pair(it->first, true));
             
             std::sort(range.begin(), range.end(), compareEvents(this));
-            
+            GetPolynom(nodeRef, range);
+/*			for (unsigned i = 0; i < nodes[nodeRef].polynom.size(); i++){
+				cerr << nodes[nodeRef].polynom[i].t << "\t" << nodes[nodeRef].polynom[i].k << "\t" << nodes[nodeRef].polynom[i].e << endl;
+			}
+			
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
+				cerr << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
+			}
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
+				cerr << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
+			}
+*/			
             for (size_t i = 0; i < range.size() - 1; ++i)
             {
                 NodeId aRef = range[i].first;
@@ -401,6 +430,51 @@ public:
             of << nodeRef << '\t' << nodes[range.back().first].timestamp << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';
         }
     }
+	
+	void GetPolynom(NodeId nodeRef, vector<pair<NodeId, bool> > &range){
+		Poly poly;
+		nodes[nodeRef].polynom.clear();
+		nodes[nodeRef].polynom.reserve(range.size());
+		for (unsigned i = 0; i < range.size(); i++){
+			NodeId id = range[i].first;
+			if (nodes[nodeRef].polynom.empty()){
+				poly.t = nodes[id].timestamp;
+				if (range[i].second){
+					poly.k = nodes[nodeRef].edgesP[id].first;
+					poly.e = nodes[nodeRef].edgesP[id].second;
+				}
+				else{
+					poly.k = nodes[nodeRef].edgesCh[id].first;
+					poly.e = nodes[nodeRef].edgesCh[id].second;
+				}
+				nodes[nodeRef].polynom.push_back(poly);
+			}
+			else{
+				if (nodes[id].timestamp == nodes[nodeRef].polynom.back().t){
+					if (range[i].second){
+						poly.k += nodes[nodeRef].edgesP[id].first;
+						poly.e += nodes[nodeRef].edgesP[id].second;
+					}
+					else{
+						poly.k += nodes[nodeRef].edgesCh[id].first;
+						poly.e += nodes[nodeRef].edgesCh[id].second;
+					}
+				}
+				else{
+					poly.t = nodes[id].timestamp;
+					if (range[i].second){
+						poly.k = nodes[nodeRef].edgesP[id].first;
+						poly.e = nodes[nodeRef].edgesP[id].second;
+					}
+					else{
+						poly.k = nodes[nodeRef].edgesCh[id].first;
+						poly.e = nodes[nodeRef].edgesCh[id].second;
+					}
+					nodes[nodeRef].polynom.push_back(poly);
+				}
+			}
+		}
+	}
 
     NodeId findNextDebugNode(unsigned nEdges, NodeId nodeRef)
     {
@@ -586,13 +660,12 @@ private:
             return;
         }   
         nodes[nodeRef].timestamp = 0;
-        double mu = 0.00000001, rho = 0.00000001;
-        double A = 0, B = 0, C = 0, d = 0;
+//        double mu = 0.00000001, rho = 0.00000001;
+        double A = 0, B = 0, C = 0, d = 0, La = 0.0, Lb = 0.0;
         assert(events.size() > 0);
-        unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0, La = 0, Lb = 0;
+        unsigned lRange = nodes[nodeRef].getPosition(events[0]), rRange = 0;
         std::set<NodeId> activeNodes;
 		bool stop = false;
-        
         for(size_t i = 0; i < events.size(); i++)
         {
 			if (stop)
@@ -606,7 +679,7 @@ private:
                 for (set<NodeId>::iterator it = activeNodes.begin(); it != activeNodes.end(); ++it)
                     d += nodes[ *it ].timestamp;
                 Lb += (rRange - lRange) * d;
-                    
+                
                 A += mu*La;
                 B += mu*Lb;
                 C += 1;
@@ -630,7 +703,6 @@ private:
                 rRange = nodes[nodeRef].getPosition( events[i] );
 				if (rRange == rRangeMax + 1){
 					stop = true;
-					break;
 				}
                 La += (rRange - lRange) * activeNodes.size();
                 d = 0;
@@ -653,6 +725,10 @@ private:
             }
         }
         nodes[ nodeRef ].timestamp = (B+C)/A;
+		if (A <= 0){
+			cerr << "assignTime:\tnan produced at " << nodeRef << ", A = " << A << ", number of active nodes " << activeNodes.size() << ", num of events " << events.size() << endl;
+			assert (A > 0);
+		}
     }
 	
 	double ComputeProbability(double x, NodeId nodeRef)//Factorial can be dropped for maxima computing
@@ -689,26 +765,14 @@ private:
 	
 	double Polynomial(double x, NodeId nodeRef, bool side = true){//side true for left, false for right
 		double s = 0, result = 0, product = 1;
-		unsigned k;
 		bool f = false;
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
-			if (x != nodes[ it->first ].timestamp)
-				product = product * abs(x - nodes[ it->first ].timestamp);
-			else{
-				k = 0;
-				if (nodes[nodeRef].edgesP.find(it->first) !=  nodes[nodeRef].edgesP.end() )
-					k = nodes[nodeRef].edgesP[it->first].first;
-				product = product * (it->second.first + k);
-				f = true;
-			}
-		}
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
-			if (nodes[nodeRef].edgesCh.find(it->first) !=  nodes[nodeRef].edgesCh.end() )
+		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+			if (it->k == 0)
 				continue;
-			if (x != nodes[ it->first ].timestamp)
-				product = product * abs(x - nodes[ it->first ].timestamp);
+			if (x != it->t)
+				product = product * abs( x - it->t );
 			else{
-				product = product * it->second.first;
+				product = product * it->k;
 				f = true;
 			}
 		}
@@ -719,99 +783,56 @@ private:
 				return product;
 		}
 		
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
-			k = 0;
-			if (nodes[nodeRef].edgesP.find(it->first) !=  nodes[nodeRef].edgesP.end() )
-				k = nodes[nodeRef].edgesP[it->first].first;
-			result += (it->second.first + k)*product/abs(x - nodes[ it->first ].timestamp) * signum(x - nodes[ it->first ].timestamp);
-			s += signum(x - nodes[ it->first ].timestamp) * it->second.second;
-		}
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
-			if (nodes[nodeRef].edgesCh.find(it->first) ==  nodes[nodeRef].edgesCh.end() )
-				result += it->second.first * product/abs(x - nodes[ it->first ].timestamp) * signum(x - nodes[ it->first ].timestamp);
-			s += signum(x - nodes[ it->first ].timestamp) * it->second.second;
+		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+			if (it->k > 0)
+				result += it->k*product/abs(x - it->t) * signum(x - it->t);
+			s += signum(x - it->t) * it->e;
 		}
 		
 		result -= product*s;
 		
+		if (isnan(result) ){
+			cerr << "nan produced at node" << nodeRef << endl;
+		}
 		return result;
 	}
 	
 	double PolynomialDerivative(double x, NodeId nodeRef, bool side = true){//true for -inf, false for +inf
 		double s = 0, result = 0, product = 1, partSum, secondTerm = 0.0, tmp;
-		unsigned k;
 		bool f = false;
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it)
+		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it)
 		{
-			if (x != nodes[ it->first ].timestamp)
-				product = product * (nodes[ it->first ].timestamp - x);
+			if (x != it->t)
+				product = product * (it->t - x);
 			else
 				f = true;
 		}
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it)
-		{
-			if (nodes[nodeRef].edgesCh.find(it->first) !=  nodes[nodeRef].edgesCh.end() )
-				continue;
-			if (x != nodes[ it->first ].timestamp)
-				product = product * (nodes[ it->first ].timestamp - x);
-			else
-				f = true;
-		}
-		
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
-			s += it->second.second;
-			if ( !(f && nodes[ it->first ].timestamp != x) )
-				secondTerm += product / (nodes[ it->first ].timestamp - x);
-			k = it->second.first;
-			if (nodes[nodeRef].edgesP.find(it->first) !=  nodes[nodeRef].edgesP.end() )
-				k += nodes[nodeRef].edgesP[it->first].first;
+		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+			s += it->e;
+			if ( !(f && it->t != x) )
+				secondTerm += product / (it->t - x);
 			partSum = 0.0;
-			for ( map<NodeId, pair<int, double> >::iterator itt = nodes[nodeRef].edgesCh.begin(); itt != nodes[nodeRef].edgesCh.end(); ++itt){
-				if (it->second.first == itt->second.first)
+			for ( vector<Poly>::iterator itt = nodes[nodeRef].polynom.begin(); itt != nodes[nodeRef].polynom.end(); ++itt){
+				if (it->t == itt->t)
 					continue;
 				if ( f ){
-					if (nodes[ it->first ].timestamp != x && nodes[ itt->first ].timestamp != x )
+					if (it->t != x && itt->t != x )
 						continue;
 					else
-						tmp = nodes[ it->first ].timestamp - x + nodes[ itt->first ].timestamp - x;
+						tmp = it->t - x + itt->t - x;
 				}
 				else
-					tmp = (nodes[ it->first ].timestamp - x) * (nodes[ itt->first ].timestamp - x);
+					tmp = (it->t - x) * (itt->t - x);
 				partSum += result/tmp;
 			}
-			result += k * partSum;
-		}
-		for ( map<NodeId, pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
-			s += it->second.second;
-			if (nodes[nodeRef].edgesCh.find(it->first) !=  nodes[nodeRef].edgesCh.end() )
-				continue;
-			if ( !(f && nodes[ it->first ].timestamp != x) )
-				secondTerm += product / (nodes[ it->first ].timestamp - x);
-			k = it->second.first;
-			partSum = 0.0;
-			for ( map<NodeId, pair<int, double> >::iterator itt = nodes[nodeRef].edgesP.begin(); itt != nodes[nodeRef].edgesP.end(); ++itt){
-				if (it->second.first == itt->second.first)
-					continue;
-				if ( f ){
-					if (nodes[ it->first ].timestamp != x && nodes[ itt->first ].timestamp != x )
-						continue;
-					else
-						tmp = nodes[ it->first ].timestamp - x + nodes[ itt->first ].timestamp - x;
-				}
-				else
-					tmp = (nodes[ it->first ].timestamp - x) * (nodes[ itt->first ].timestamp - x);
-				partSum += result/tmp;
-			}
-			result += k * partSum;
+			result += it->k * partSum;
 		}
 		secondTerm = s*secondTerm;
 		if (!side){
 			result = abs(result);
 			secondTerm = abs(secondTerm);
 		}
-			
 		result -= secondTerm;
-		
 		return result;
 	}
 
@@ -839,6 +860,12 @@ private:
 		Fa = Polynomial(a, nodeRef, false);
 		Fb = Polynomial(b, nodeRef); /**FIXME**/
 		Fx = Polynomial(x, nodeRef);
+		if (signum(Fa) == signum(Fb)){
+			cerr << "node=" << nodeRef << endl;
+			cerr << "Fa=" << Fa << "\ta=" << a << endl;
+			cerr << "Fb=" << Fb << "\tb=" << b << endl;
+			cerr << "F((a+b)/2=)" << Polynomial( (a+b)/2.0, nodeRef) << endl;
+		}
 		assert ( signum(Fa) != signum(Fb) );
 		double epsilon = ( Fa + Fb )/1000000.0;
 		while (abs( Fx ) > epsilon ) {
@@ -891,7 +918,6 @@ private:
             range.push_back(make_pair(it->first, true));
         
         std::sort(range.begin(), range.end(), compareEvents(this));
-        
         //maximize ComputeProbability()
         double max_p = 0;
 		double max_x = 0;
@@ -1079,7 +1105,7 @@ int main(int argc, char ** argv)
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     arg.outputRangeDistributions();
 #endif
-    
+	
     cerr << "Assigning times..." << endl;
     arg.assignTimes();
 
