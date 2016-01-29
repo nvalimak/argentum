@@ -435,14 +435,14 @@ public:
 				i = n - 1;
             }
 			cerr << "outputDebug_: checkpoint 7" << endl;
-			n = FindNextPoint(0, nodeRef);
+/*			n = FindNextPoint(0, nodeRef);
             double x = RootNewton(nodeRef, nodes[nodeRef].polynom[n].t, true);//true for -inf, false for +inf
             double new_p = ComputeProbability(x, nodeRef);
 			cerr << "outputDebug_: checkpoint 8" << endl;
             of << nodeRef << '\t' << "-inf" << '\t' << nodes[range[0].first].timestamp << '\t' << x << '\t' << new_p << '\n';
             x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
             new_p = ComputeProbability(x, nodeRef);
-            of << nodeRef << '\t' << nodes[range.back().first].timestamp << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';
+            of << nodeRef << '\t' << nodes[range.back().first].timestamp << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';*/
         }
     }
 	
