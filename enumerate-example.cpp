@@ -434,25 +434,39 @@ public:
 			}
 */
 			GetPolynom(nodeRef, range);
-			int n = FindNextPoint(0, nodeRef); //TODO
-			assert(n < nodes[nodeRef].polynom.size() );
-            for (size_t i = n; i < nodes[nodeRef].polynom.size() - 1; ++i)
+//			int n = FindNextPoint(0, nodeRef); //TODO
+//			assert(n < nodes[nodeRef].polynom.size() );
+            for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
-				n = FindNextPoint(i+1, nodeRef);//TODO
-				if (n == nodes[nodeRef].polynom.size() )
-					break;
+                //n = FindNextPoint(i+1, nodeRef);//TODO
+                if (n == nodes[nodeRef].polynom.size() )
+                    break;
                 double a = nodes[nodeRef].polynom[i].t;
-                double b = nodes[nodeRef].polynom[n].t;;
-                double x = RootBisection(a, b, nodeRef);
+                double b = nodes[nodeRef].polynom[i+1].t;;
+
+
+                double new_p = 0;
+                double x = 0;
+                if (nodes[nodeRef].polynom[i].k == 0)
+                    x = a;
+                else if (Polynomial(a, nodeRef, false) * Polynomial(b, nodeRef, true) > 0)    //side true for left, false for right
+                    continue;
+                else
+                    x = RootBisection(a, b, nodeRef);
                 double new_p = ComputeProbability(x, nodeRef);
                 of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << new_p << '\n';
-				i = n - 1;
             }
-			n = FindNextPoint(0, nodeRef);
-            double x = RootNewton(nodeRef, nodes[nodeRef].polynom[n].t, true);//true for -inf, false for +inf
+
+            // FIRST
+            double x = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
             double new_p = ComputeProbability(x, nodeRef);
             of << nodeRef << '\t' << "-inf" << '\t' << nodes[range[0].first].timestamp << '\t' << x << '\t' << new_p << '\n';
-            x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
+
+            // LAST 
+            if (nodes[nodeRef].polynom.back().k == 0)
+                x = nodes[nodeRef].polynom.back().t;
+            else 
+                x = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
             new_p = ComputeProbability(x, nodeRef);
             of << nodeRef << '\t' << nodes[range.back().first].timestamp << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';
         }
