@@ -493,8 +493,25 @@ public:
 
     NodeId findNextDebugNode(unsigned nEdges, NodeId nodeRef)
     {
-        while (nodeRef < nodes.size() && nodes[nodeRef].edgesCh.size() + nodes[nodeRef].edgesP.size() != nEdges)
+        unsigned npolyk = 0;
+        do
+        {
             ++nodeRef;
+            if (nodeRef >= nodes.size())
+                break;
+            vector<pair<NodeId,bool> > range;
+            for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it)
+                range.push_back(make_pair(it->first, false));
+            for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it)
+                range.push_back(make_pair(it->first, true));
+            std::sort(range.begin(), range.end(), compareEvents(this));
+	    GetPolynom(nodeRef, range);
+            // check non-zero poly.k values
+            npolyk = 0;
+            for (vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it)
+                if (it->k != 0)
+                    ++npolyk;
+        } while (npolyk != nEdges);
         return nodeRef;
     }
     
@@ -504,7 +521,7 @@ public:
         do
         {
 			cerr << "checkpoint 1" << endl;
-            curNode = findNextDebugNode(nEdges, curNode+1);
+            curNode = findNextDebugNode(nEdges, curNode);
 			cerr << "checkpoint 2" << endl;
             if (curNode < nodes.size())
                 outputDebug_(curNode, outputPrefix);
