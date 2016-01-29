@@ -371,6 +371,12 @@ public:
         }
     }
 
+	int FindNextPoint(int n, NodeId nodeRef){
+		while(nodes[nodeRef].polynom[n].k == 0 && n < nodes[nodeRef].polynom.size())
+			n++;
+		return n;
+	}
+
     void outputDebug_(NodeId nodeRef, const char *outputPrefix)
     {
         // Output timestamps etc.
@@ -383,7 +389,7 @@ public:
             for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it)
                 of << nodeRef << '\t' << "parent" << '\t' << it->first << '\t' << nodes[ it->first ].timestamp << '\t' <<  it->second.first << '\t' << it->second.second << '\n';
         }
-
+		cerr << "outputDebug_: checkpoint 1" << endl;
         // Output estimated values (Note: following is copy-paste from UpdateTime()
         {
             char fn[256];
@@ -398,6 +404,7 @@ public:
                 range.push_back(make_pair(it->first, true));
             
             std::sort(range.begin(), range.end(), compareEvents(this));
+			cerr << "outputDebug_: checkpoint 2" << endl;
             GetPolynom(nodeRef, range);
 /*			for (unsigned i = 0; i < nodes[nodeRef].polynom.size(); i++){
 				cerr << nodes[nodeRef].polynom[i].t << "\t" << nodes[nodeRef].polynom[i].k << "\t" << nodes[nodeRef].polynom[i].e << endl;
@@ -410,20 +417,28 @@ public:
 				cerr << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
 			}
 */			
-            for (size_t i = 0; i < range.size() - 1; ++i)
+			cerr << "outputDebug_: checkpoint 3" << endl;
+			int n = FindNextPoint(0, nodeRef);
+            for (size_t i = n; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
-                NodeId aRef = range[i].first;
-                double a = nodes[aRef].timestamp;
-                NodeId bRef = range[i+1].first;
-                double b = nodes[bRef].timestamp;
-                if (a == b)
-                    continue;
+				n = FindNextPoint(i+1, nodeRef);
+				if (n == nodes[nodeRef].polynom.size() )
+					break;
+				cerr << "outputDebug_: checkpoint 4 iter " << i << endl;
+                double a = nodes[nodeRef].polynom[i].t;
+                double b = nodes[nodeRef].polynom[n].t;;
                 double x = RootBisection(a, b, nodeRef);
+				cerr << "outputDebug_: checkpoint 5" << endl;
                 double new_p = ComputeProbability(x, nodeRef);
+				cerr << "outputDebug_: checkpoint 6" << endl;
                 of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << new_p << '\n';
+				i = n - 1;
             }
-            double x = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
+			cerr << "outputDebug_: checkpoint 7" << endl;
+			n = FindNextPoint(0, nodeRef);
+            double x = RootNewton(nodeRef, nodes[nodeRef].polynom[n].t, true);//true for -inf, false for +inf
             double new_p = ComputeProbability(x, nodeRef);
+			cerr << "outputDebug_: checkpoint 8" << endl;
             of << nodeRef << '\t' << "-inf" << '\t' << nodes[range[0].first].timestamp << '\t' << x << '\t' << new_p << '\n';
             x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
             new_p = ComputeProbability(x, nodeRef);
@@ -488,9 +503,12 @@ public:
         NodeId curNode = 0;
         do
         {
+			cerr << "checkpoint 1" << endl;
             curNode = findNextDebugNode(nEdges, curNode+1);
+			cerr << "checkpoint 2" << endl;
             if (curNode < nodes.size())
                 outputDebug_(curNode, outputPrefix);
+			cerr << "checkpoint 3" << endl;
         } while (0); // Change to 1 to output *all* nodes with nEdges
     }
 private:
@@ -766,6 +784,13 @@ private:
 	double Polynomial(double x, NodeId nodeRef, bool side = true){//side true for left, false for right
 		double s = 0, result = 0, product = 1;
 		bool f = false;
+		cerr << "x = " << x << endl;
+		if (nodeRef == 3){
+			cerr << "t\tk\te" << endl;
+			for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+				cerr << it->t << "\t" << it->k << "\t" << it->e << endl;
+			}
+		}
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k == 0)
 				continue;
@@ -776,6 +801,7 @@ private:
 				f = true;
 			}
 		}
+		cerr << "Polynomial: product = " << product << endl;
 		if (f){
 			if (side)
 				return -product;
@@ -792,7 +818,7 @@ private:
 		result -= product*s;
 		
 		if (isnan(result) ){
-			cerr << "nan produced at node" << nodeRef << endl;
+			cerr << "Polynomial: nan produced at node" << nodeRef << endl;
 		}
 		return result;
 	}
@@ -839,16 +865,24 @@ private:
 	double RootNewton(NodeId nodeRef, double x, bool side = true){//true for -inf, false for +inf
 		double epsilon = pow(10, -9); //TODO precision?
 		double y = PolynomialDerivative(x, nodeRef, side );
+		cerr << "RootNewton - ENTRANCE" << endl;
+		cerr << "\tnode = " << nodeRef << "\tx = " << x << endl;
 		if (side && y > 0)
-			while (PolynomialDerivative(x, nodeRef, side ) > 0) //TODO step with the distance proportional to timestamps delta
-				y -= 10.0;
+			while ( y > 0){ //TODO step with the distance proportional to timestamps delta
+				x -= 10.0;
+				y = PolynomialDerivative(x, nodeRef, side );
+			}
 		else if (!side && y < 0)
-			while (PolynomialDerivative(x, nodeRef, side ) > 0)
-				y += 10.0;
+			while ( y < 0){
+				x += 10.0;
+				y = PolynomialDerivative(x, nodeRef, side );
+			}
+		cerr << "\tnew x = " << x << "\ty = " << y << endl;
 		while ( abs( y ) > epsilon){
 			x = x - y / PolynomialDerivative(x, nodeRef, side );
 			y = Polynomial(x, nodeRef, side );
 		}
+		cerr << "RootNewton - EXIT" << endl;
 		return x;
 	}
 	
@@ -857,17 +891,22 @@ private:
 		assert(a < b);
 		double x = (a + b)/2.0;
 		double Fa, Fb, Fx;
+		char c;
+		cerr << "RootBisection: checkpoint 1" << endl;
 		Fa = Polynomial(a, nodeRef, false);
 		Fb = Polynomial(b, nodeRef); /**FIXME**/
 		Fx = Polynomial(x, nodeRef);
-		if (signum(Fa) == signum(Fb)){
+		cerr << "RootBisection: checkpoint 2" << endl;
+		cin >> c;
+		if (signum(Fa) == signum(Fb) || true){
 			cerr << "node=" << nodeRef << endl;
-			cerr << "Fa=" << Fa << "\ta=" << a << endl;
-			cerr << "Fb=" << Fb << "\tb=" << b << endl;
-			cerr << "F((a+b)/2=)" << Polynomial( (a+b)/2.0, nodeRef) << endl;
+			cerr << "Fa=\t" << Fa << "\ta=" << a << endl;
+			cerr << "Fb=\t" << Fb << "\tb=" << b << endl;
+			cerr << "F((a+b)/2)=\t" << Fx << "\tx=" << x << endl;
 		}
 		assert ( signum(Fa) != signum(Fb) );
-		double epsilon = ( Fa + Fb )/1000000.0;
+		double epsilon = ( Fa + Fb )/100.0;
+		cerr << "RootBisection: checkpoint 3" << endl;
 		while (abs( Fx ) > epsilon ) {
 			if (signum(Fa) == signum (Fx) ){
 				a = x;
@@ -877,8 +916,11 @@ private:
 				b = x;
 				Fb = Fx;
 			}
+			assert(Fa*Fb < 0);
 			x = (a + b)/2.0;
 			Fx = Polynomial(x, nodeRef);
+			cin >> c;
+			return 0;
 		}
 		return x;
 	}
@@ -1116,7 +1158,7 @@ int main(int argc, char ** argv)
 
     arg.initializeEdges();
 
-
+	cerr << "Updating times..." << endl;
     // Output debug information
     unsigned nEdges = atoi_min(argv[5], 3);
     const char * outputPrefix = argv[6];
