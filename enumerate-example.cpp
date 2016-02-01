@@ -170,7 +170,7 @@ public:
 
     
     ARGraph()
-        : nodes(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001*300), rho(0.00000001*300)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001*300), rho(0.00000001*300)
     {
         ok_ = construct();
     }
@@ -234,9 +234,28 @@ public:
 
     void iterateTimes()
     {
-        // skip root
+        // Initialize Knuth shuffle on first call to this method
+        if (knuthShuffle.empty())
+        {
+            knuthShuffle.resize(nodes.size());
+            for (unsigned i = 0; i < nodes.size(); ++i)
+                knuthShuffle[i] = i;
+        }
+        
+        // Knuth shuffle
+        assert (knuthShuffle.size() == nodes.size());
         for (unsigned i = 1; i < nodes.size(); ++i)
-            UpdateTime(i);
+        {
+            unsigned j = rand() % (nodes.size()-1) + 1; // Skip root
+            unsigned tmp = knuthShuffle[i];
+            knuthShuffle[i] = knuthShuffle[j]; // Swap values
+            knuthShuffle[j] = tmp;
+        }
+            
+            
+	timeUpdateReset();
+        for (unsigned i = 1; i < nodes.size(); ++i)
+            UpdateTime(knuthShuffle[i]);
     }
 
     
@@ -943,7 +962,7 @@ private:
 			root.root = x;
 			return root;
 		}
-		cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
+		//cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
 		while ( abs( y ) > epsilon)
 		{
 			double orig_x = x;
@@ -972,8 +991,8 @@ private:
 
 			if ( (side && x > end) || (!side && x < end) ){
 				if (!side){
-					cerr << "RootNewton:\t" << end << '\t' << x << endl;
-					assert(false);
+                                    cerr << "RootNewton:\t" << end << '\t' << x << endl;
+                                    assert(false);
 				}
 				root.success = false;
 				return root;
@@ -1052,8 +1071,7 @@ private:
             nodes[ nodeRef ].timestamp = 0;
             return;
         }
-		
-        // Init range vector; second bool is true for parent pointer
+
         vector<pair<NodeId,bool> > range;
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it)
             range.push_back(make_pair(it->first, false));
@@ -1061,42 +1079,66 @@ private:
             range.push_back(make_pair(it->first, true));
         
         std::sort(range.begin(), range.end(), compareEvents(this));
+        GetPolynom(nodeRef, range);
         //maximize ComputeProbability()
         double max_p = 0;
-		double max_x = 0;
-        for (size_t i = 0; i < range.size() - 1; ++i)
+        double max_x = 0;
+        for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
         {
-            NodeId aRef = range[i].first;
-            double a = nodes[aRef].timestamp;
-            NodeId bRef = range[i+1].first;
-            double b = nodes[bRef].timestamp;
-            if (a == b)
+            double a = nodes[nodeRef].polynom[i].t;
+            double b = nodes[nodeRef].polynom[i+1].t;;
+            double new_p = 0;
+            double x = 0;
+            Root root;
+            root = RootBisection(a, b, nodeRef);
+            if (!root.success){
+                // Probability == NA ?
                 continue;
-			Root root = RootBisection(a, b, nodeRef); 
-            double x = root.root;
-            double new_p = ComputeProbability(x, nodeRef);
-            
-            if (max_p < new_p){
+            }
+            x = root.root;
+            new_p = ComputeProbability(x, nodeRef);
+            if (max_p < new_p)
+            {
                 max_p = new_p;
                 max_x = x;
             }
         }
-		Root root = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
-        double x = root.root;
-        double new_p = ComputeProbability(x, nodeRef);
-        if (max_p < new_p){
-            max_p = new_p;
-            max_x = x;
+        
+        for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i){
+            if (nodes[nodeRef].polynom[i].k != 0)
+                continue;
+            double x = nodes[nodeRef].polynom[i].t;
+            double new_p = ComputeProbability(x, nodeRef);
+            if (max_p < new_p)
+            {
+                max_p = new_p;
+                max_x = x;
+            }
         }
-        root = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
-		x = root.root;
-        new_p = ComputeProbability(x, nodeRef);
-        if (max_p < new_p){
-            max_p = new_p;
-            max_x = x;
+        
+        // FIRST
+        Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
+        if (root.success){
+            double x = root.root;
+            double new_p = ComputeProbability(x, nodeRef);
+            if (max_p < new_p)
+            {
+                max_p = new_p;
+                max_x = x;
+            }
         }
-        nodes[nodeRef].timestamp = x;
-        //update timestamp and node probability - and update probability of all connected nodes?
+        // LAST 
+        root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
+        if (root.success){
+            double x = root.root;
+            double new_p = ComputeProbability(x, nodeRef);
+            if (max_p < new_p)
+            {
+                max_p = new_p;
+                max_x = x;
+            }
+        }
+        nodes[nodeRef].timestamp = max_x;
     }
     
     double getLCATime(Position i, NodeId x, NodeId y)
@@ -1145,6 +1187,7 @@ private:
     
     
     std::vector<ARNode> nodes;
+    std::vector<unsigned> knuthShuffle;
     unsigned nleaves; // Number of leaves
     Position rRangeMax; // Largest position value encountered
     bool ok_;
@@ -1201,9 +1244,10 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
+    srand (time(NULL));
     if (argc != 7)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] [output_prefix] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         cerr << "     pop1          - Population to compare against" << endl;
@@ -1276,7 +1320,8 @@ int main(int argc, char ** argv)
     {
         iter ++;
         cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
-        arg.updateTimes();
+        //arg.updateTimes(); // Linear traversal
+        arg.iterateTimes();  // Random traversal
     }
 
     cerr << "Extracting times..." << endl;
