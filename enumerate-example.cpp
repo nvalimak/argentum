@@ -252,8 +252,7 @@ public:
             knuthShuffle[j] = tmp;
         }
             
-            
-	timeUpdateReset();
+	// timeUpdateReset(); // FIXME Not required anymore!?
         for (unsigned i = 1; i < nodes.size(); ++i)
             UpdateTime(knuthShuffle[i]);
     }
@@ -936,7 +935,7 @@ private:
 	}
 
 	Root RootNewton(NodeId nodeRef, double end, bool side = true){//true for -inf, false for +inf
-		double epsilon = pow(10, -14); //TODO precision?
+		double epsilon = pow(10, -5); //TODO precision?
 		double y;
 		Root root;
 		double x = end;
@@ -987,17 +986,13 @@ private:
 				}
 			}
 			else
-				y = Polynomial(x, nodeRef, side );
+                            y = Polynomial(x, nodeRef, side );
 
 			if ( (side && x > end) || (!side && x < end) ){
-				if (!side){
-                                    cerr << "RootNewton:\t" << end << '\t' << x << endl;
-                                    assert(false);
-				}
 				root.success = false;
 				return root;
 			}
-
+                        assert( orig_x != x );
 		}
 //		cerr << "\troot = " << x << ", precision = " << y << endl;
 		root.success = true;
@@ -1026,7 +1021,7 @@ private:
 		}
 		Fx = Polynomial(x, nodeRef);		
 		double epsilon = min(abs( Fa - Fb )/1000000.0, 0.000000001);
-		while (abs( Fx ) > epsilon ) {
+		while (abs( Fx ) > epsilon) {
 			if (signum(Fa) == signum (Fx) ){
 				a = x;
 				Fa = Fx;
@@ -1036,7 +1031,10 @@ private:
 				Fb = Fx;
 			}
 			assert(Fa*Fb < 0);
+                        double orig_x = x;
 			x = (a + b)/2.0;
+                        if (orig_x == x)
+                            break;
 			Fx = Polynomial(x, nodeRef);
 		}
 //		cerr << "RootBisection: root = " << x << ", precision = " << Fx << endl;
@@ -1244,7 +1242,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-    srand (time(NULL));
+    srand (9823579);
     if (argc != 7)
     {
         cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] [output_prefix] < input > output" << endl;
@@ -1305,16 +1303,16 @@ int main(int argc, char ** argv)
     }
 
     arg.initializeEdges();
+    cerr << "Updating times..." << endl;
 
-	cerr << "Updating times..." << endl;
     // Output debug information
-    unsigned nEdges = atoi_min(argv[5], 0);
+    // Debug function is disabled for now...
+    /*unsigned nEdges = atoi_min(argv[5], 0);
     const char * outputPrefix = argv[6];
     arg.outputDebug(nEdges, outputPrefix);
-    
-    return 0;
-    // Rest of this function is disabled for now...
-    
+    return 0;*/
+
+    // Iterate time updates max_iter times
     unsigned iter = 0;
     while (iter < max_iter)
     {
