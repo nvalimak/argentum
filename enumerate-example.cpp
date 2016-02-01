@@ -854,10 +854,7 @@ private:
 		
 		result -= product*s;
 		
-		if (isnan(result) ){
-			cerr << "Polynomial: nan produced at node" << nodeRef << endl;
-			assert(false);
-		}
+		assert(!isnan(result) );
 		return result;
 	}
 	
