@@ -446,32 +446,32 @@ public:
                 double b = nodes[nodeRef].polynom[i+1].t;;
                 double new_p = 0;
                 double x = 0;
-				Root root;
-				root = RootBisection(a, b, nodeRef);
+                Root root;
+                root = RootBisection(a, b, nodeRef);
                 if (!root.success){
-					of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << "NA" << '\n';
-					continue;
-				}
-				x = root.root;
+                    of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << "NA" << '\n';
+                    continue;
+                }
+                x = root.root;
                 new_p = ComputeProbability(x, nodeRef);
                 of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << new_p << '\n';
             }
-			
-			for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i){
-				if (nodes[nodeRef].polynom[i].k != 0)
-					continue;
-				double x = nodes[nodeRef].polynom[i].t;
+            
+            for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i){
+                if (nodes[nodeRef].polynom[i].k != 0)
+                    continue;
+                double x = nodes[nodeRef].polynom[i].t;
                 double new_p = ComputeProbability(x, nodeRef);
                 of << nodeRef << '\t' << "NA" << '\t' << "NA" << '\t' << x << '\t' << new_p << '\n';
-			}
-
+            }
+            
             // FIRST
             Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
-			if (root.success){
-				double x = root.root;
-				double new_p = ComputeProbability(x, nodeRef);
-				of << nodeRef << '\t' << "-inf" << '\t' << nodes[nodeRef].polynom[0].t << '\t' << x << '\t' << new_p << '\n';
-			}
+            if (root.success){
+                double x = root.root;
+                double new_p = ComputeProbability(x, nodeRef);
+                of << nodeRef << '\t' << "-inf" << '\t' << nodes[nodeRef].polynom[0].t << '\t' << x << '\t' << new_p << '\n';
+            }
             // LAST 
             root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, true);//true for -inf, false for +inf
 			if (root.success){
@@ -938,14 +938,34 @@ private:
 		y = Polynomial(x, nodeRef, side );
 		cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
 		assert(false);
-		while ( abs( y ) > epsilon){
-			x = x - y / PolynomialDerivative(x, nodeRef, side );
-			y = Polynomial(x, nodeRef, side );
-			if ( (side && x > end) || (!side && x < end) ){
-				root.success = false;
-				return root;
-			}
-				
+		while ( abs( y ) > epsilon)
+                {
+                    double orig_x = x;
+                    double tmp = y / PolynomialDerivative(x, nodeRef, side );
+                    x = x - tmp;
+                    if (x == orig_x)
+                    {
+                        if (signum(tmp) > 0)  // minimal increment
+                            x = std::nextafter(x, -std::numeric_limits<double>::infinity());
+                        else
+                            x = std::nextafter(x, std::numeric_limits<double>::infinity());
+                        double orig_y = y;
+                        y = Polynomial(x, nodeRef, side );
+                        if (signum(orig_y) != signum(y))
+                        {
+                            root.success = true;
+                            root.root = x;
+                            return root;
+                        }
+                    }
+                    else
+                        y = Polynomial(x, nodeRef, side );
+                    
+                    if ( (side && x > end) || (!side && x < end) ){
+                        root.success = false;
+                        return root;
+                    }
+                    
 //			cerr << x << endl;
 		}
 //		cerr << "\troot = " << x << ", precision = " << y << endl;
