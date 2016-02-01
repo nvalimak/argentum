@@ -939,7 +939,7 @@ private:
 		double y;
 		Root root;
 		double x = end;
-//		cerr << "RootNewton: x=" << x << endl;
+		cerr << "RootNewton: x=" << x << endl;
 		unsigned degree = 0;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k > 0)
@@ -948,12 +948,17 @@ private:
 		double coef = pow(-1, degree);
 		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0)
 			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0){ //TODO step with the distance proportional to timestamps delta
-				x -= 10.0;
+                            x -= 10.0;
 			}
-		else if (!side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0){
-			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){
-				x += 10.0;
-			}
+		else if (!side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0)
+                {                    
+                    cerr << "bef while1 x = " << x << ", coef = " << coef*PolynomialDerivative(x, nodeRef, side ) << ", pol(x) = " << Polynomial(x, nodeRef, side ) << endl;
+                    while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){
+                        cerr << "in while1 x = " << x << ", coef = " << coef*PolynomialDerivative(x, nodeRef, side ) << ", pol(x) = " << Polynomial(x, nodeRef, side ) << endl;
+                        x += 10.0;
+                    }
+                    cerr << "af while1 x = " << x << endl;
+                    
 		}
 		y = Polynomial(x, nodeRef, side );
 		if (y == 0){
@@ -964,36 +969,37 @@ private:
 		//cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
 		while ( abs( y ) > epsilon)
 		{
-			double orig_x = x;
-			double tmp = y / PolynomialDerivative(x, nodeRef, side );
-			x = x - tmp;
-			if (x == orig_x)
-			{
-				if (signum(tmp) > 0)  // minimal increment
-					x = nextafter(x, -numeric_limits<double>::infinity());
-				else
-					x = nextafter(x, numeric_limits<double>::infinity());
-				double orig_y = y;
-				y = Polynomial(x, nodeRef, side );
-				if (signum(orig_y) != signum(y))
-				{
-					root.success = true;
-					root.root = orig_x;
-					if ( (side && x <= end) || (!side && x >= end) )
-						if ( abs(orig_y) > abs(y) )
-							root.root = x;
-					return root;
-				}
-			}
-			else
-                            y = Polynomial(x, nodeRef, side );
-
-			if ( (side && x > end) || (!side && x < end) ){
-				root.success = false;
-				return root;
-			}
-                        assert( orig_x != x );
+                    double orig_x = x;
+                    double tmp = y / PolynomialDerivative(x, nodeRef, side );
+                    x = x - tmp;
+                    if (x == orig_x)
+                    {
+                        if (signum(tmp) > 0)  // minimal increment
+                            x = nextafter(x, -numeric_limits<double>::infinity());
+                        else
+                            x = nextafter(x, numeric_limits<double>::infinity());
+                        double orig_y = y;
+                        y = Polynomial(x, nodeRef, side );
+                        if (signum(orig_y) != signum(y))
+                        {
+                            root.success = true;
+                            root.root = orig_x;
+                            if ( (side && x <= end) || (!side && x >= end) )
+                                if ( abs(orig_y) > abs(y) )
+                                    root.root = x;
+                            return root;
+                        }
+                    }
+                    else
+                        y = Polynomial(x, nodeRef, side );
+                    
+                    if ( (side && x > end) || (!side && x < end) ){
+                        root.success = false;
+                        return root;
+                    }
+                    assert( orig_x != x );
 		}
+
 //		cerr << "\troot = " << x << ", precision = " << y << endl;
 		root.success = true;
 		root.root = x;
@@ -1078,29 +1084,36 @@ private:
         
         std::sort(range.begin(), range.end(), compareEvents(this));
         GetPolynom(nodeRef, range);
+
+        unsigned nonZero = 0;
+        for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i)
+            if (nodes[nodeRef].polynom[i].k != 0)
+                ++nonZero;
+         
         //maximize ComputeProbability()
         double max_p = 0;
         double max_x = 0;
-        for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
-        {
-            double a = nodes[nodeRef].polynom[i].t;
-            double b = nodes[nodeRef].polynom[i+1].t;;
-            double new_p = 0;
-            double x = 0;
-            Root root;
-            root = RootBisection(a, b, nodeRef);
-            if (!root.success){
-                // Probability == NA ?
-                continue;
-            }
-            x = root.root;
-            new_p = ComputeProbability(x, nodeRef);
-            if (max_p < new_p)
+        if (nonZero != 0)
+            for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
-                max_p = new_p;
-                max_x = x;
+                double a = nodes[nodeRef].polynom[i].t;
+                double b = nodes[nodeRef].polynom[i+1].t;;
+                double new_p = 0;
+                double x = 0;
+                Root root;
+                root = RootBisection(a, b, nodeRef);
+                if (!root.success){
+                    // Probability == NA ?
+                    continue;
+                }
+                x = root.root;
+                new_p = ComputeProbability(x, nodeRef);
+                if (max_p < new_p)
+                {
+                    max_p = new_p;
+                    max_x = x;
+                }
             }
-        }
         
         for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i){
             if (nodes[nodeRef].polynom[i].k != 0)
@@ -1112,6 +1125,12 @@ private:
                 max_p = new_p;
                 max_x = x;
             }
+        }
+
+        if (nonZero == 0)
+        {
+            nodes[nodeRef].timestamp = max_x;
+            return;
         }
         
         // FIRST
