@@ -244,16 +244,16 @@ public:
         
         // Knuth shuffle
         assert (knuthShuffle.size() == nodes.size());
-        for (unsigned i = 1; i < nodes.size(); ++i)
+        for (unsigned i = 1*0; i < nodes.size(); ++i)
         {
-            unsigned j = rand() % (nodes.size()-1) + 1; // Skip root
+            unsigned j = rand() % (nodes.size()-1*0) + 1*0; // Not to Skip root
             unsigned tmp = knuthShuffle[i];
             knuthShuffle[i] = knuthShuffle[j]; // Swap values
             knuthShuffle[j] = tmp;
         }
             
 	// timeUpdateReset(); // FIXME Not required anymore!?
-        for (unsigned i = 1; i < nodes.size(); ++i)
+        for (unsigned i = 1*0; i < nodes.size(); ++i)
             UpdateTime(knuthShuffle[i]);
     }
 
@@ -521,12 +521,12 @@ public:
 			else{
 				if (nodes[id].timestamp == nodes[nodeRef].polynom.back().t){
 					if (range[i].second){
-						poly.k += nodes[nodeRef].edgesP[id].first;
-						poly.e += nodes[nodeRef].edgesP[id].second;
+						nodes[nodeRef].polynom.back().k += nodes[nodeRef].edgesP[id].first;
+						nodes[nodeRef].polynom.back().e += nodes[nodeRef].edgesP[id].second;
 					}
 					else{
-						poly.k += nodes[nodeRef].edgesCh[id].first;
-						poly.e += nodes[nodeRef].edgesCh[id].second;
+						nodes[nodeRef].polynom.back().k += nodes[nodeRef].edgesCh[id].first;
+						nodes[nodeRef].polynom.back().e += nodes[nodeRef].edgesCh[id].second;
 					}
 				}
 				else{
@@ -728,7 +728,7 @@ private:
 
     void assignTime(NodeId nodeRef)
     {
-        if (nodeRef == 0)
+        if (nodeRef == 0 && false)
         {
             nodes[ nodeRef ].timestamp = -1;
             return;
@@ -839,12 +839,18 @@ private:
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
 			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
 			edge = pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
-			weight = weight * pow(edge, nodes[ it->first ].probability/edge);
+			if (edge != 0)
+				weight = weight * pow(edge, nodes[ it->first ].probability/edge);
+			else
+				weight = 0;
 		}
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
 			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
 			edge = pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
-			weight = weight * pow(edge, nodes[ it->first ].probability/edge);
+			if (edge != 0)
+				weight = weight * pow(edge, nodes[ it->first ].probability/edge);
+			else
+				weight = 0;
 		}
 //		assert(!isnan(weight));
 		return weight;
@@ -946,9 +952,11 @@ private:
 				degree++;
 		}
 		double coef = pow(-1, degree);
-		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0)
-			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0) //TODO step with the distance proportional to timestamps delta
+		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0){
+			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){ //TODO step with the distance proportional to timestamps delta
 				x -= 10000.0;
+			}
+		}
 		else if (!side && PolynomialDerivative(x, nodeRef, side ) >= 0)
 			while ( PolynomialDerivative(x, nodeRef, side ) >= 0 )
 				x += 10000.0;
@@ -1057,7 +1065,7 @@ private:
 	
     void UpdateTime(NodeId nodeRef)
     {
-        if (nodeRef == 0)
+        if (nodeRef == 0 && false)
         {
             nodes[ nodeRef ].timestamp = -1;
             return;
@@ -1254,6 +1262,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 int main(int argc, char ** argv)
 {
     srand ( time(0) );
+//	srand(0);
     if (argc != 7)
     {
         cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] [output_prefix] < input > output" << endl;
