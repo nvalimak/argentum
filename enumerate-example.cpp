@@ -846,6 +846,7 @@ private:
 			edge = pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
 			weight = weight * pow(edge, nodes[ it->first ].probability/edge);
 		}
+//		assert(!isnan(weight));
 		return weight;
 	}
 	
@@ -939,7 +940,6 @@ private:
 		double y;
 		Root root;
 		double x = end;
-		cerr << "RootNewton: x=" << x << endl;
 		unsigned degree = 0;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k > 0)
@@ -947,19 +947,11 @@ private:
 		}
 		double coef = pow(-1, degree);
 		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0)
-			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0){ //TODO step with the distance proportional to timestamps delta
-                            x -= 10.0;
-			}
-		else if (!side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0)
-                {                    
-                    cerr << "bef while1 x = " << x << ", coef = " << coef*PolynomialDerivative(x, nodeRef, side ) << ", pol(x) = " << Polynomial(x, nodeRef, side ) << endl;
-                    while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){
-                        cerr << "in while1 x = " << x << ", coef = " << coef*PolynomialDerivative(x, nodeRef, side ) << ", pol(x) = " << Polynomial(x, nodeRef, side ) << endl;
-                        x += 10.0;
-                    }
-                    cerr << "af while1 x = " << x << endl;
-                    
-		}
+			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0) //TODO step with the distance proportional to timestamps delta
+				x -= 10000.0;
+		else if (!side && PolynomialDerivative(x, nodeRef, side ) >= 0)
+			while ( PolynomialDerivative(x, nodeRef, side ) >= 0 )
+				x += 10000.0;
 		y = Polynomial(x, nodeRef, side );
 		if (y == 0){
 			root.success = true;
@@ -1091,7 +1083,7 @@ private:
                 ++nonZero;
          
         //maximize ComputeProbability()
-        double max_p = 0;
+        double max_p = ComputeProbability(0, nodeRef);
         double max_x = 0;
         if (nonZero != 0)
             for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
@@ -1108,7 +1100,7 @@ private:
                 }
                 x = root.root;
                 new_p = ComputeProbability(x, nodeRef);
-                if (max_p < new_p)
+                if (max_p < new_p && x >= 0)
                 {
                     max_p = new_p;
                     max_x = x;
@@ -1120,7 +1112,7 @@ private:
                 continue;
             double x = nodes[nodeRef].polynom[i].t;
             double new_p = ComputeProbability(x, nodeRef);
-            if (max_p < new_p)
+            if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
                 max_x = x;
@@ -1138,7 +1130,7 @@ private:
         if (root.success){
             double x = root.root;
             double new_p = ComputeProbability(x, nodeRef);
-            if (max_p < new_p)
+            if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
                 max_x = x;
@@ -1149,7 +1141,7 @@ private:
         if (root.success){
             double x = root.root;
             double new_p = ComputeProbability(x, nodeRef);
-            if (max_p < new_p)
+            if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
                 max_x = x;
@@ -1261,7 +1253,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-    srand (9823579);
+    srand ( time(0) );
     if (argc != 7)
     {
         cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] [output_prefix] < input > output" << endl;
