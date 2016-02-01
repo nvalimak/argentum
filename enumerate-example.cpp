@@ -473,7 +473,7 @@ public:
                 of << nodeRef << '\t' << "-inf" << '\t' << nodes[nodeRef].polynom[0].t << '\t' << x << '\t' << new_p << '\n';
             }
             // LAST 
-            root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, true);//true for -inf, false for +inf
+            root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
 			if (root.success){
 				double x = root.root;
 				double new_p = ComputeProbability(x, nodeRef);
@@ -838,21 +838,17 @@ private:
 			if (it->k == 0)
 				continue;
 			if (x != it->t)
-				product = product * abs( x - it->t );
+				product = product * ( x - it->t );
 			else{
 				product = product * it->k;
 				f = true;
 			}
 		}
-		if (f){
-			if (side)
-				return -product;
-			else
-				return product;
-		}
+		if (f)
+			return product;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k > 0)
-				result += it->k*product/abs(x - it->t) * signum(x - it->t);
+				result += it->k*product/(x - it->t);
 			s += signum(x - it->t) * it->e;
 		}
 		
@@ -878,95 +874,114 @@ private:
 		}
 		if (nonZero < 2){
 			assert(nonZero==1);
-			if (side)
+			if (!side)
 				return -s;
 			else
 				return s;
 		}
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it)
 		{
+			if ( it->k == 0)
+				continue;
 			if (x != it->t)
-				product = product * (it->t - x);
+				product = product * (x - it->t);
 			else
 				f = true;
 		}
 		s = 0;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			s += it->e;
-			if ( !(f && it->t == x) )
-				secondTerm += product / (it->t - x);
+			if (it->k == 0)
+				continue;
+			if ( it->t == x )
+				secondTerm += product;
+			else if (!f)
+				secondTerm += signum(x - it->t)*product / (x - it->t);
 			partSum = 0.0;
 			for ( vector<Poly>::iterator itt = nodes[nodeRef].polynom.begin(); itt != nodes[nodeRef].polynom.end(); ++itt){
-				if (it->t == itt->t)
+				if (it->t == itt->t || itt->k == 0)
 					continue;
 				if ( f ){
 					if (it->t != x && itt->t != x )
 						continue;
 					else
-						tmp = it->t - x + itt->t - x;
+						tmp = x - it->t + x - itt->t;
 				}
 				else
-					tmp = (it->t - x) * (itt->t - x);
-				partSum += result/tmp;
+					tmp = (x - it->t) * (x - itt->t);
+				partSum += product/tmp;
 				assert(tmp != 0);
 			}
 			result += it->k * partSum;
 		}
 		secondTerm = s*secondTerm;
-		if (!side){
-			result = abs(result);
-			secondTerm = abs(secondTerm);
-		}
 		result -= secondTerm;
 		return result;
 	}
 
 	Root RootNewton(NodeId nodeRef, double end, bool side = true){//true for -inf, false for +inf
-		double epsilon = pow(10, -6); //TODO precision?
+		double epsilon = pow(10, -14); //TODO precision?
 		double y;
 		Root root;
 		double x = end;
-		cerr << "RootNewton: x=" << x << endl;
-		if (side && PolynomialDerivative(x, nodeRef, side ) >= 0)
-			while ( PolynomialDerivative(x, nodeRef, side ) >= 0){ //TODO step with the distance proportional to timestamps delta
+//		cerr << "RootNewton: x=" << x << endl;
+		unsigned degree = 0;
+		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+			if (it->k > 0)
+				degree++;
+		}
+		double coef = pow(-1, degree);
+		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0)
+			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0){ //TODO step with the distance proportional to timestamps delta
 				x -= 10.0;
 			}
-		else if (!side && PolynomialDerivative(x, nodeRef, side ) <= 0)
-			while ( PolynomialDerivative(x, nodeRef, side ) <= 0){
+		else if (!side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0){
+			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){
 				x += 10.0;
 			}
+		}
 		y = Polynomial(x, nodeRef, side );
+		if (y == 0){
+			root.success = true;
+			root.root = x;
+			return root;
+		}
 		cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
-		assert(false);
 		while ( abs( y ) > epsilon)
-                {
-                    double orig_x = x;
-                    double tmp = y / PolynomialDerivative(x, nodeRef, side );
-                    x = x - tmp;
-                    if (x == orig_x)
-                    {
-                        if (signum(tmp) > 0)  // minimal increment
-                            x = std::nextafter(x, -std::numeric_limits<double>::infinity());
-                        else
-                            x = std::nextafter(x, std::numeric_limits<double>::infinity());
-                        double orig_y = y;
-                        y = Polynomial(x, nodeRef, side );
-                        if (signum(orig_y) != signum(y))
-                        {
-                            root.success = true;
-                            root.root = x;
-                            return root;
-                        }
-                    }
-                    else
-                        y = Polynomial(x, nodeRef, side );
-                    
-                    if ( (side && x > end) || (!side && x < end) ){
-                        root.success = false;
-                        return root;
-                    }
-                    
-//			cerr << x << endl;
+		{
+			double orig_x = x;
+			double tmp = y / PolynomialDerivative(x, nodeRef, side );
+			x = x - tmp;
+			if (x == orig_x)
+			{
+				if (signum(tmp) > 0)  // minimal increment
+					x = nextafter(x, -numeric_limits<double>::infinity());
+				else
+					x = nextafter(x, numeric_limits<double>::infinity());
+				double orig_y = y;
+				y = Polynomial(x, nodeRef, side );
+				if (signum(orig_y) != signum(y))
+				{
+					root.success = true;
+					root.root = orig_x;
+					if ( (side && x <= end) || (!side && x >= end) )
+						if ( abs(orig_y) > abs(y) )
+							root.root = x;
+					return root;
+				}
+			}
+			else
+				y = Polynomial(x, nodeRef, side );
+
+			if ( (side && x > end) || (!side && x < end) ){
+				if (!side){
+					cerr << "RootNewton:\t" << end << '\t' << x << endl;
+					assert(false);
+				}
+				root.success = false;
+				return root;
+			}
+
 		}
 //		cerr << "\troot = " << x << ", precision = " << y << endl;
 		root.success = true;
