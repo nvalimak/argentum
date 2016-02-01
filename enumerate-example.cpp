@@ -74,6 +74,12 @@ public:
 		unsigned k;
 		double e;
 	};
+	
+	struct Root
+	{
+		bool success;
+		double root;	
+	};
     
     class ARNode
     {
@@ -414,12 +420,12 @@ public:
 			nodes[nodeRef].edgesCh[2].first = 0;
 			nodes[nodeRef].edgesCh[2].second = 1;
 			nodes[2].timestamp = 2;
-			
+*/
 			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
 				cerr << "ch " << it->first << "\t" << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
 			}
 			
-			nodes[nodeRef].edgesP[9].first = 0;
+/*			nodes[nodeRef].edgesP[9].first = 0;
 			nodes[nodeRef].edgesP[9].second = 1;
 			nodes[9].timestamp = 3;
 			nodes[nodeRef].edgesP[10].first = 0;
@@ -428,47 +434,51 @@ public:
 			nodes[nodeRef].edgesP[13].first = 1;
 			nodes[nodeRef].edgesP[13].second = 1;
 			nodes[13].timestamp = 5;
-			
+*/
 			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
 				cerr << "p " << it->first << "\t" << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
 			}
-*/
+
 			GetPolynom(nodeRef, range);
-//			int n = FindNextPoint(0, nodeRef); //TODO
-//			assert(n < nodes[nodeRef].polynom.size() );
             for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
-                //n = FindNextPoint(i+1, nodeRef);//TODO
-                if (n == nodes[nodeRef].polynom.size() )
-                    break;
                 double a = nodes[nodeRef].polynom[i].t;
                 double b = nodes[nodeRef].polynom[i+1].t;;
-
-
                 double new_p = 0;
                 double x = 0;
-                if (nodes[nodeRef].polynom[i].k == 0)
-                    x = a;
-                else if (Polynomial(a, nodeRef, false) * Polynomial(b, nodeRef, true) > 0)    //side true for left, false for right
-                    continue;
-                else
-                    x = RootBisection(a, b, nodeRef);
-                double new_p = ComputeProbability(x, nodeRef);
+				Root root;
+				root = RootBisection(a, b, nodeRef);
+                if (!root.success){
+					of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << "NA" << '\n';
+					continue;
+				}
+				x = root.root;
+                new_p = ComputeProbability(x, nodeRef);
                 of << nodeRef << '\t' << a << '\t' << b << '\t' << x << '\t' << new_p << '\n';
             }
+			
+			for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i){
+				if (nodes[nodeRef].polynom[i].k != 0)
+					continue;
+				double x = nodes[nodeRef].polynom[i].t;
+                double new_p = ComputeProbability(x, nodeRef);
+                of << nodeRef << '\t' << "NA" << '\t' << "NA" << '\t' << x << '\t' << new_p << '\n';
+			}
 
             // FIRST
-            double x = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
-            double new_p = ComputeProbability(x, nodeRef);
-            of << nodeRef << '\t' << "-inf" << '\t' << nodes[range[0].first].timestamp << '\t' << x << '\t' << new_p << '\n';
-
+            Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
+			if (root.success){
+				double x = root.root;
+				double new_p = ComputeProbability(x, nodeRef);
+				of << nodeRef << '\t' << "-inf" << '\t' << nodes[nodeRef].polynom[0].t << '\t' << x << '\t' << new_p << '\n';
+			}
             // LAST 
-            if (nodes[nodeRef].polynom.back().k == 0)
-                x = nodes[nodeRef].polynom.back().t;
-            else 
-                x = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
-            new_p = ComputeProbability(x, nodeRef);
-            of << nodeRef << '\t' << nodes[range.back().first].timestamp << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';
+            root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, true);//true for -inf, false for +inf
+			if (root.success){
+				double x = root.root;
+				double new_p = ComputeProbability(x, nodeRef);
+				of << nodeRef << '\t' << nodes[nodeRef].polynom.back().t << '\t' << "inf" << '\t' << x << '\t' << new_p << '\n';
+			}
         }
     }
 	
@@ -911,9 +921,12 @@ private:
 		return result;
 	}
 
-	double RootNewton(NodeId nodeRef, double x, bool side = true){//true for -inf, false for +inf
+	Root RootNewton(NodeId nodeRef, double end, bool side = true){//true for -inf, false for +inf
 		double epsilon = pow(10, -6); //TODO precision?
 		double y;
+		Root root;
+		double x = end;
+		cerr << "RootNewton: x=" << x << endl;
 		if (side && PolynomialDerivative(x, nodeRef, side ) >= 0)
 			while ( PolynomialDerivative(x, nodeRef, side ) >= 0){ //TODO step with the distance proportional to timestamps delta
 				x -= 10.0;
@@ -923,27 +936,44 @@ private:
 				x += 10.0;
 			}
 		y = Polynomial(x, nodeRef, side );
-//		cerr << "RootNewton: x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
+		cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
+		assert(false);
 		while ( abs( y ) > epsilon){
 			x = x - y / PolynomialDerivative(x, nodeRef, side );
 			y = Polynomial(x, nodeRef, side );
+			if ( (side && x > end) || (!side && x < end) ){
+				root.success = false;
+				return root;
+			}
+				
 //			cerr << x << endl;
 		}
 //		cerr << "\troot = " << x << ", precision = " << y << endl;
-		return x;
+		root.success = true;
+		root.root = x;
+		return root;
 	}
 	
 
-	double RootBisection(double a, double b, NodeId nodeRef){
-		assert(a < b);
+	Root RootBisection(double a, double b, NodeId nodeRef){
+		Root root;
+		root.success = false;
+		if (a == b){
+			return root;
+		}
+		if (a > b){
+			a = a + b;
+			b = a - b;
+			a = a - b;
+		}
 		double x = (a + b)/2.0;
 		double Fa, Fb, Fx;
-		char c;
 		Fa = Polynomial(a, nodeRef, false);
-		Fb = Polynomial(b, nodeRef); /**FIXME**/
-		Fx = Polynomial(x, nodeRef);
-		cin >> c;
-		assert ( signum(Fa) != signum(Fb) );
+		Fb = Polynomial(b, nodeRef);
+		if ( signum(Fa) == signum(Fb) ){
+			return root;
+		}
+		Fx = Polynomial(x, nodeRef);		
 		double epsilon = min(abs( Fa - Fb )/1000000.0, 0.000000001);
 		while (abs( Fx ) > epsilon ) {
 			if (signum(Fa) == signum (Fx) ){
@@ -959,7 +989,9 @@ private:
 			Fx = Polynomial(x, nodeRef);
 		}
 //		cerr << "RootBisection: root = " << x << ", precision = " << Fx << endl;
-		return x;
+		root.success = true;
+		root.root = x;
+		return root;
 	}
 	
 	int Factorial(int k){
@@ -1008,7 +1040,8 @@ private:
             double b = nodes[bRef].timestamp;
             if (a == b)
                 continue;
-            double x = RootBisection(a, b, nodeRef);
+			Root root = RootBisection(a, b, nodeRef); 
+            double x = root.root;
             double new_p = ComputeProbability(x, nodeRef);
             
             if (max_p < new_p){
@@ -1016,13 +1049,15 @@ private:
                 max_x = x;
             }
         }
-        double x = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
+		Root root = RootNewton(nodeRef, nodes[range[0].first].timestamp, true);//true for -inf, false for +inf
+        double x = root.root;
         double new_p = ComputeProbability(x, nodeRef);
         if (max_p < new_p){
             max_p = new_p;
             max_x = x;
         }
-        x = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
+        root = RootNewton(nodeRef, nodes[range.back().first].timestamp, false);//true for -inf, false for +inf
+		x = root.root;
         new_p = ComputeProbability(x, nodeRef);
         if (max_p < new_p){
             max_p = new_p;
