@@ -420,6 +420,41 @@ public:
             snprintf(fn, 256, "%s.%u.nodeRef.a.b.x.p.tsv", outputPrefix, nodeRef);
             ofstream of(fn);
             
+			
+/*			nodes[nodeRef].edgesCh[1].first = 1;
+			nodes[nodeRef].edgesCh[1].second = 0.5;
+			nodes[1].timestamp = 1;
+			nodes[nodeRef].edgesCh[2].first = 1;
+			nodes[nodeRef].edgesCh[2].second = 1.3;
+			nodes[2].timestamp = 2;
+			nodes[nodeRef].edgesCh[5].first = 1;
+			nodes[nodeRef].edgesCh[5].second = 0.79;
+			nodes[5].timestamp = 3;
+
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
+				if (it->first != 1 && it->first != 2 && it->first != 5)
+					nodes[nodeRef].edgesCh.erase(it->first);
+			}
+			nodes[nodeRef].edgesCh.erase(14);
+			
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
+				cerr << "ch " << it->first << "\t" << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
+			}
+			
+			nodes[nodeRef].edgesP[15].first = 0;
+			nodes[nodeRef].edgesP[15].second = 2.0;
+			nodes[15].timestamp = 4;
+			nodes[nodeRef].edgesP[17].first = 1;
+			nodes[nodeRef].edgesP[17].second = 3.7;
+			nodes[17].timestamp = 5;
+
+
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
+				cerr << "p " << it->first << "\t" << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
+			}*/
+			
+			
+			
             // Init range vector; second bool is true for parent pointer
             vector<pair<NodeId,bool> > range;
             for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it)
@@ -427,37 +462,14 @@ public:
             for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it)
                 range.push_back(make_pair(it->first, true));
             
-            std::sort(range.begin(), range.end(), compareEvents(this));
-/*			for (unsigned i = 0; i < nodes[nodeRef].polynom.size(); i++){
-				cerr << nodes[nodeRef].polynom[i].t << "\t" << nodes[nodeRef].polynom[i].k << "\t" << nodes[nodeRef].polynom[i].e << endl;
-			}
-*/			
-/*			nodes[nodeRef].edgesCh[1].first = 0;
-			nodes[nodeRef].edgesCh[1].second = 1;
-			nodes[1].timestamp = 1;
-			nodes[nodeRef].edgesCh[2].first = 0;
-			nodes[nodeRef].edgesCh[2].second = 1;
-			nodes[2].timestamp = 2;
-*/
-			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
-				cerr << "ch " << it->first << "\t" << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
-			}
-			
-/*			nodes[nodeRef].edgesP[9].first = 0;
-			nodes[nodeRef].edgesP[9].second = 1;
-			nodes[9].timestamp = 3;
-			nodes[nodeRef].edgesP[10].first = 0;
-			nodes[nodeRef].edgesP[10].second = 1;
-			nodes[10].timestamp = 4;
-			nodes[nodeRef].edgesP[13].first = 1;
-			nodes[nodeRef].edgesP[13].second = 1;
-			nodes[13].timestamp = 5;
-*/
-			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
-				cerr << "p " << it->first << "\t" << nodes[it->first].timestamp << "\t" << it->second.first << "\t" << it->second.second << endl;
-			}
+            std::sort(range.begin(), range.end(), compareEvents(this));		
 
 			GetPolynom(nodeRef, range);
+			
+			for (unsigned i = 0; i < nodes[nodeRef].polynom.size(); i++){
+				cerr << nodes[nodeRef].polynom[i].t << "\t" << nodes[nodeRef].polynom[i].k << "\t" << nodes[nodeRef].polynom[i].e << endl;
+			}
+			
             for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
                 double a = nodes[nodeRef].polynom[i].t;
@@ -874,7 +886,12 @@ private:
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k > 0)
 				result += it->k*product/(x - it->t);
-			s += signum(x - it->t) * it->e;
+			if (x == it->t && side)
+				s += (-1)*it->e;
+			else if (x == it->t && !side)
+				s += it->e;
+			else
+				s += signum(x - it->t) * it->e;
 		}
 		
 		result -= product*s;
@@ -1022,9 +1039,8 @@ private:
 		double Fa, Fb, Fx;
 		Fa = Polynomial(a, nodeRef, false);
 		Fb = Polynomial(b, nodeRef);
-		if ( signum(Fa) == signum(Fb) ){
+		if ( signum(Fa) == signum(Fb) )
 			return root;
-		}
 		Fx = Polynomial(x, nodeRef);		
 		double epsilon = min(abs( Fa - Fb )/1000000.0, 0.000000001);
 		while (abs( Fx ) > epsilon) {
@@ -1037,10 +1053,10 @@ private:
 				Fb = Fx;
 			}
 			assert(Fa*Fb < 0);
-                        double orig_x = x;
+			double orig_x = x;
 			x = (a + b)/2.0;
-                        if (orig_x == x)
-                            break;
+			if (orig_x == x)
+				break;
 			Fx = Polynomial(x, nodeRef);
 		}
 //		cerr << "RootBisection: root = " << x << ", precision = " << Fx << endl;
@@ -1327,7 +1343,7 @@ int main(int argc, char ** argv)
 
     // Output debug information
     // Debug function is disabled for now...
-    /*unsigned nEdges = atoi_min(argv[5], 0);
+/*    unsigned nEdges = atoi_min(argv[5], 0);
     const char * outputPrefix = argv[6];
     arg.outputDebug(nEdges, outputPrefix);
     return 0;*/
