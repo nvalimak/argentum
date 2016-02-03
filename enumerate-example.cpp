@@ -241,7 +241,6 @@ public:
             for (unsigned i = 0; i < nodes.size(); ++i)
                 knuthShuffle[i] = i;
         }
-        
         // Knuth shuffle
         assert (knuthShuffle.size() == nodes.size());
         for (unsigned i = 1*0; i < nodes.size(); ++i)
@@ -251,7 +250,6 @@ public:
             knuthShuffle[i] = knuthShuffle[j]; // Swap values
             knuthShuffle[j] = tmp;
         }
-            
 	// timeUpdateReset(); // FIXME Not required anymore!?
         for (unsigned i = 1*0; i < nodes.size(); ++i)
             UpdateTime(knuthShuffle[i]);
@@ -829,17 +827,21 @@ private:
 		}
     }
 	
-	double ComputeProbability(double x, NodeId nodeRef)//Factorial can be dropped for maxima computing
+	double ComputeProbability(double x, NodeId nodeRef, bool fast = false)// fast = true: cactorial is dropped for maxima computing
 	{
 		double prob = 1;
 		double lambda;
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
 			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
-			prob = prob * pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
+			prob = prob * pow(lambda, it->second.first)*exp(-lambda);
+			if (!fast)
+				prob = prob/Factorial(it->second.first);
 		}
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
 			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
-			prob = prob * pow(lambda, it->second.first)*exp(-lambda)/Factorial(it->second.first);
+			prob = prob * pow(lambda, it->second.first)*exp(-lambda);
+			if (!fast)
+				prob = prob/Factorial(it->second.first);
 		}
 		return prob;
 	}
@@ -871,13 +873,16 @@ private:
 	double Polynomial(double x, NodeId nodeRef, bool side = true){//side true for left, false for right
 		double s = 0, result = 0, product = 1;
 		bool f = false;
+		double norm = 1.0;
+		if (nodes[nodeRef].polynom.back().t > 1)
+			norm = nodes[nodeRef].polynom.back().t;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k == 0)
 				continue;
 			if (x != it->t)
-				product = product * ( x - it->t );
+				product = product * ( x - it->t )/norm;
 			else{
-				product = product * it->k;
+				product = product * it->k/norm;
 				f = true;
 			}
 		}
@@ -885,18 +890,26 @@ private:
 			return product;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k > 0)
-				result += it->k*product/(x - it->t);
+				result += it->k*product/(x - it->t);	
 			if (x == it->t && side)
-				s += (-1)*it->e;
+				s -= it->e;
 			else if (x == it->t && !side)
 				s += it->e;
 			else
 				s += signum(x - it->t) * it->e;
 		}
-		
+		double tmp = result;
 		result -= product*s;
-		
-		assert(!isnan(result) );
+		if (isnan(result)){
+			cerr << "RootNewton: node " << nodeRef << " produces nan." << endl;
+			cerr << "RootNewton: prod = " << product << ", s = " << s << ", first term = " << tmp << endl;
+			cerr << "RootNewton: x = " << x << ", side = " << side << endl;
+			for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+				cerr << "\tk = " << it->k << "\te = " << it->e << "\tt = " << it->t << endl;
+			}
+			assert(false);
+		}
+//		assert(!isnan(result) );
 		return result;
 	}
 	
@@ -918,14 +931,19 @@ private:
 			else
 				return s;
 		}
+		double norm = 1.0;
+		if (nodes[nodeRef].polynom.back().t > 1)
+			norm = nodes[nodeRef].polynom.back().t;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it)
 		{
 			if ( it->k == 0)
 				continue;
 			if (x != it->t)
-				product = product * (x - it->t);
-			else
+				product = product * (x - it->t)/norm;
+			else{
+				product = product/norm;
 				f = true;
+			}
 		}
 		s = 0;
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
@@ -964,6 +982,8 @@ private:
 		Root root;
 		double x = end;
 		unsigned degree = 0;
+		time_t ts, tc;
+		time(&ts);
 		for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 			if (it->k > 0)
 				degree++;
@@ -971,50 +991,94 @@ private:
 		double coef = pow(-1, degree);
 		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0){
 			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){ //TODO step with the distance proportional to timestamps delta
-				x -= 10000.0;
+				x -= 1000.0;
+				time(&tc);
+				if (abs(difftime(tc, ts) ) > 2){
+					cerr << "node " << nodeRef << " takes too much time. Checkpoint 1." << endl;
+					cerr << "RootNewton: x = " << x << ", pol(x) = " << Polynomial(x, nodeRef, side ) << ", der(x) = " << PolynomialDerivative(x, nodeRef, side ) << ", side = " << side << endl;
+					for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+						cerr << "\tk = " << it->k << "\te = " << it->e << "\tt = " << it->t << endl;
+					}
+					assert(false);
+				}
 			}
 		}
 		else if (!side && PolynomialDerivative(x, nodeRef, side ) >= 0)
-			while ( PolynomialDerivative(x, nodeRef, side ) >= 0 )
-				x += 10000.0;
+			while ( PolynomialDerivative(x, nodeRef, side ) >= 0 ){
+				x += 1000.0;
+				time(&tc);
+				if (abs(difftime(tc, ts) ) > 2){
+					cerr << "node " << nodeRef << " takes too much time. Checkpoint 2." << endl;
+					cerr << "RootNewton: x = " << x << ", pol(x) = " << Polynomial(x, nodeRef, side ) << ", der(x) = " << PolynomialDerivative(x, nodeRef, side ) << ", side = " << side << endl;
+					for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+						cerr << "\tk = " << it->k << "\te = " << it->e << "\tt = " << it->t << endl;
+					}
+					assert(false);
+				}
+			}
 		y = Polynomial(x, nodeRef, side );
 		if (y == 0){
 			root.success = true;
 			root.root = x;
 			return root;
 		}
+		time(&ts);
 		//cerr << "RootNewton: new x=" << x << "\ty=" << y << "\ty'=" << PolynomialDerivative(x, nodeRef, side ) << "\tside=" << side << endl;
-		while ( abs( y ) > epsilon)
+		int counter = 0;
+		int counterDebug = 0;
+		while ( abs( y ) > epsilon && counter < 100)
 		{
-                    double orig_x = x;
-                    double tmp = y / PolynomialDerivative(x, nodeRef, side );
-                    x = x - tmp;
-                    if (x == orig_x)
-                    {
-                        if (signum(tmp) > 0)  // minimal increment
-                            x = nextafter(x, -numeric_limits<double>::infinity());
-                        else
-                            x = nextafter(x, numeric_limits<double>::infinity());
-                        double orig_y = y;
-                        y = Polynomial(x, nodeRef, side );
-                        if (signum(orig_y) != signum(y))
-                        {
-                            root.success = true;
-                            root.root = orig_x;
-                            if ( (side && x <= end) || (!side && x >= end) )
-                                if ( abs(orig_y) > abs(y) )
-                                    root.root = x;
-                            return root;
-                        }
-                    }
-                    else
-                        y = Polynomial(x, nodeRef, side );
-                    
-                    if ( (side && x > end) || (!side && x < end) ){
-                        root.success = false;
-                        return root;
-                    }
-                    assert( orig_x != x );
+			counter++;
+	        double orig_x = x;
+	        double tmp = y / PolynomialDerivative(x, nodeRef, side );
+			time(&tc);
+	        x = x - tmp;
+			if (abs(difftime(tc, ts) ) > 2){
+//			if (nodeRef == 31587){
+//				cerr << "RootNewton: node " << nodeRef << " takes too much time. Checkpoint 3." << endl;
+				
+				cerr << "RootNewton: x = " << x << ", pol(x) = " << y << ", der(x) = " << PolynomialDerivative(x, nodeRef, side ) << ", side = " << side << endl;
+				cerr << x - orig_x << endl;
+//				for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+//					cerr << "\tk = " << it->k << "\te = " << it->e << "\tt = " << it->t << endl;
+//				}
+				counterDebug ++;
+				if (counterDebug == 20)
+					assert(false);
+			}
+	        if (x == orig_x)
+	        {
+	            if (signum(tmp) > 0)  // minimal increment
+	                x = nextafter(x, -numeric_limits<double>::infinity());
+	            else
+	                x = nextafter(x, numeric_limits<double>::infinity());
+	            double orig_y = y;
+	            y = Polynomial(x, nodeRef, side );
+	            if (signum(orig_y) != signum(y))
+	            {
+	                root.success = true;
+	                root.root = orig_x;
+	                if ( (side && x <= end) || (!side && x >= end) )
+	                    if ( abs(orig_y) > abs(y) )
+	                        root.root = x;
+	                return root;
+	            }
+	        }
+	        else if (abs(x - orig_x) <= 0.00000001*abs(x) ){
+				double orig_y = y;
+				y = Polynomial(x, nodeRef, side );
+				if ( signum(y) != signum(orig_y) )
+					break;
+			}
+			else {
+				y = Polynomial(x, nodeRef, side );
+			}
+        
+	        if ( (side && x > end) || (!side && x < end) ){
+	            root.success = false;
+	            return root;
+	        }
+	        assert( orig_x != x );
 		}
 
 //		cerr << "\troot = " << x << ", precision = " << y << endl;
@@ -1043,7 +1107,18 @@ private:
 			return root;
 		Fx = Polynomial(x, nodeRef);		
 		double epsilon = min(abs( Fa - Fb )/1000000.0, 0.000000001);
+		time_t ts, tc;
+		time(&ts);
 		while (abs( Fx ) > epsilon) {
+			time(&tc);
+			if (abs(difftime(tc, ts) ) > 2){
+				cerr << "RootNewton: node " << nodeRef << " takes too much time." << endl;
+				cerr << "RootNewton: x = " << x << ", Fa = " << Fa << ", Fb = " << Fb << endl;
+				for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
+					cerr << "\tk = " << it->k << "\te = " << it->e << "\tt = " << it->t << endl;
+				}
+				assert(false);
+			}
 			if (signum(Fa) == signum (Fx) ){
 				a = x;
 				Fa = Fx;
@@ -1052,7 +1127,6 @@ private:
 				b = x;
 				Fb = Fx;
 			}
-			assert(Fa*Fb < 0);
 			double orig_x = x;
 			x = (a + b)/2.0;
 			if (orig_x == x)
@@ -1107,8 +1181,8 @@ private:
                 ++nonZero;
          
         //maximize ComputeProbability()
-        double max_p = ComputeProbability(0, nodeRef);
-        double max_x = 0;
+        double max_x = nodes[nodeRef].timestamp;
+        double max_p = ComputeProbability(max_x, nodeRef, true);
         if (nonZero != 0)
             for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
@@ -1123,7 +1197,7 @@ private:
                     continue;
                 }
                 x = root.root;
-                new_p = ComputeProbability(x, nodeRef);
+                new_p = ComputeProbability(x, nodeRef, true);
                 if (max_p < new_p && x >= 0)
                 {
                     max_p = new_p;
@@ -1135,7 +1209,7 @@ private:
             if (nodes[nodeRef].polynom[i].k != 0)
                 continue;
             double x = nodes[nodeRef].polynom[i].t;
-            double new_p = ComputeProbability(x, nodeRef);
+            double new_p = ComputeProbability(x, nodeRef, true);
             if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
@@ -1150,10 +1224,10 @@ private:
         }
         
         // FIRST
-        Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
+/*        Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
         if (root.success){
             double x = root.root;
-            double new_p = ComputeProbability(x, nodeRef);
+            double new_p = ComputeProbability(x, nodeRef, true);
             if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
@@ -1164,13 +1238,13 @@ private:
         root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
         if (root.success){
             double x = root.root;
-            double new_p = ComputeProbability(x, nodeRef);
+            double new_p = ComputeProbability(x, nodeRef, true);
             if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
                 max_x = x;
             }
-        }
+        }*/
         nodes[nodeRef].timestamp = max_x;
     }
     
@@ -1277,8 +1351,8 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-    srand ( time(0) );
-//	srand(0);
+//    srand ( time(0) );
+	srand(0);
     if (argc != 7)
     {
         cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] [output_prefix] < input > output" << endl;
@@ -1353,7 +1427,8 @@ int main(int argc, char ** argv)
     while (iter < max_iter)
     {
         iter ++;
-        cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
+		if (iter % 100 == 0 )
+			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
         //arg.updateTimes(); // Linear traversal
         arg.iterateTimes();  // Random traversal
     }
