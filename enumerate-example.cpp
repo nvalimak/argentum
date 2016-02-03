@@ -743,7 +743,7 @@ private:
             nodes[ nodeRef ].timestamp = -1;
             return;
         }
-        if (nodeRef <= nleaves)
+        if (nodeRef <= nleaves && nodeRef != 0)
         {
             nodes[ nodeRef ].timestamp = 0;
             return;
@@ -843,6 +843,7 @@ private:
 			if (!fast)
 				prob = prob/Factorial(it->second.first);
 		}
+		prob = pow(prob, 1/(nodes[nodeRef].edgesCh.size()+nodes[nodeRef].edgesP.size() ) );
 		return prob;
 	}
 	
@@ -1160,7 +1161,7 @@ private:
             nodes[ nodeRef ].timestamp = -1;
             return;
         }
-        if (nodeRef <= nleaves)
+        if (nodeRef <= nleaves && nodeRef != 0)
         {
             nodes[ nodeRef ].timestamp = 0;
             return;
@@ -1427,7 +1428,7 @@ int main(int argc, char ** argv)
     while (iter < max_iter)
     {
         iter ++;
-		if (iter % 100 == 0 )
+		if (iter % 1 == 0 )
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
         //arg.updateTimes(); // Linear traversal
         arg.iterateTimes();  // Random traversal
