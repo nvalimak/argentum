@@ -40,6 +40,7 @@ using namespace std;
 //#define OUTPUT_RANGE_DISTRIBUTION
 
 typedef unsigned NodeId;
+typedef unsigned ChildId;
 typedef unsigned Position;
 
 // Example class structure to be constructed
@@ -87,7 +88,7 @@ public:
         enum event_t { mutation_event = 0, insert_child_event, delete_child_event }; 
         vector<struct ARGchild> child;
         map<Position,NodeId> parent;
-        vector<pair<NodeId,Position> > mutation; // id points to the child array; position is the VCF row number
+        vector<pair<ChildId,Position> > mutation; // id points to the child array; position is the VCF row number
 #ifdef OUTPUT_RANGE_DISTRIBUTION
         map<unsigned,unsigned> rangeDist;
 #endif
@@ -298,9 +299,9 @@ public:
 				}
 			}
 	//		extract mutations
-			for (vector<pair<NodeId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
-				if (it->edgesCh.find(itt->first) != it->edgesCh.end())
-					it->edgesCh[ itt->first ].first++;
+			for (vector<pair<ChildId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
+                            assert (it->edgesCh.find(it->child[itt->first].id) != it->edgesCh.end());
+                            it->edgesCh[ it->child[itt->first].id ].first++;
 			}
 			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
 			{
