@@ -232,7 +232,7 @@ public:
         }
     }
 
-    void iterateTimes()
+    void iterateTimes(bool output = false)
     {
         // Initialize Knuth shuffle on first call to this method
         if (knuthShuffle.empty())
@@ -257,8 +257,10 @@ public:
 		mean_rel_change = 0.0;
         for (unsigned i = 1*0; i < nodes.size(); ++i)
             UpdateTime(knuthShuffle[i]);
-		cerr << "Iteration max  norm: absolute = " << it_norm_abs << "\trelative = " << it_norm_rel << endl;
-		cerr << "Iteration mean norm: absolute = " << mean_abs_change/nodes.size() << "\trelative = " << mean_rel_change/nodes.size() << endl;
+		if (output){
+			cerr << "Iteration max  norm: absolute = " << it_norm_abs << "\trelative = " << it_norm_rel << endl;
+			cerr << "Iteration mean norm: absolute = " << mean_abs_change/nodes.size() << "\trelative = " << mean_rel_change/nodes.size() << endl;
+		}
     }
 
     
@@ -1185,8 +1187,56 @@ private:
 		else
 			return 1;
 	}
-	
+
     void UpdateTime(NodeId nodeRef)
+    {
+        if (nodeRef == 0 && false)
+        {
+            nodes[ nodeRef ].timestamp = -1;
+            return;
+        }
+        if (nodeRef <= nleaves && nodeRef != 0)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }
+
+		double A = 0, B = 0;
+        int C = 0;
+		
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
+			A += it->second.second;
+			B += it->second.second*nodes[it->first].timestamp;
+			C += it->second.first;
+		}
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
+			if (it->first == 0)
+				continue;
+			A += it->second.second;
+			B -= it->second.second*nodes[it->first].timestamp;
+			C -= it->second.first;
+		}
+		double new_time = nodes[nodeRef].timestamp;
+		assert(A != 0);
+		if (A != 0)
+			new_time = (B+C)/A;
+		if (new_time < 0)
+			new_time = 0;
+
+		double abs_change = abs(nodes[nodeRef].timestamp - new_time);
+		double rel_change = 0;
+		if (nodes[nodeRef].timestamp != 0)
+			rel_change = abs(nodes[nodeRef].timestamp - new_time)/nodes[nodeRef].timestamp;
+		mean_abs_change += abs_change;
+		mean_rel_change += rel_change;
+		if ( abs_change > it_norm_abs )
+			it_norm_abs = abs_change;
+		if ( rel_change > it_norm_rel )
+			it_norm_rel = rel_change;
+        nodes[nodeRef].timestamp = new_time;
+    }
+
+    void UpdateTime1(NodeId nodeRef)
     {
         if (nodeRef == 0 && false)
         {
@@ -1396,8 +1446,8 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-//    srand ( time(0) );
-	srand(0);
+    srand ( time(NULL) );
+//	srand(0);
     if (argc != 6)
     {
         cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [dis_out] [n_edges] [output_prefix] < input > output" << endl;
@@ -1476,10 +1526,13 @@ int main(int argc, char ** argv)
     while (iter < max_iter)
     {
         iter ++;
-		if (iter % 1 == 0 )
+		if (iter % 1 == 0 ){
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
-        //arg.updateTimes(); // Linear traversal
-        arg.iterateTimes();  // Random traversal
+			arg.iterateTimes(true);
+		}
+		else
+			//arg.updateTimes(); // Linear traversal
+			arg.iterateTimes();  // Random traversal
     }
 	if (dis_out == 1){
 	    cerr << "Extracting times..." << endl;
