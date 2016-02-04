@@ -251,8 +251,14 @@ public:
             knuthShuffle[j] = tmp;
         }
 	// timeUpdateReset(); // FIXME Not required anymore!?
+		it_norm_abs = 0.0;
+		it_norm_rel = 0.0;
+		mean_abs_change = 0.0;
+		mean_rel_change = 0.0;
         for (unsigned i = 1*0; i < nodes.size(); ++i)
             UpdateTime(knuthShuffle[i]);
+		cerr << "Iteration max  norm: absolute = " << it_norm_abs << "\trelative = " << it_norm_rel << endl;
+		cerr << "Iteration mean norm: absolute = " << mean_abs_change/nodes.size() << "\trelative = " << mean_rel_change/nodes.size() << endl;
     }
 
     
@@ -275,16 +281,32 @@ public:
 	void initializeEdges(){
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				if (it->edgesCh.find(itt->id) == it->edgesCh.end() )
-					it->edgesCh[ itt->id ] = make_pair(0, mu*(itt->rRange - itt->lRange + 1) );
+				if (itt->rRange - itt->lRange + 1 == 0)
+					continue;
 				else
 					it->edgesCh[ itt->id ].second += mu*(itt->rRange - itt->lRange + 1);
 				if (itt->recomb)
 					it->edgesCh[ itt->id ].first ++;
 			}
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
+			{
+				if (itt->second.second == 0){
+					it->edgesCh.erase(itt);
+					assert(false);
+				}
+			}
 	//		extract mutations
-			for (vector<pair<NodeId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt)
-				it->edgesCh[ itt->first ].first++;
+			for (vector<pair<NodeId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
+				if (it->edgesCh.find(itt->first) != it->edgesCh.end())
+					it->edgesCh[ itt->first ].first++;
+			}
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
+			{
+				if (itt->second.second == 0){
+					it->edgesCh.erase(itt);
+					assert(false);
+				}
+			}
 	//		add	information to child	
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
 				nodes[ itt->id ].edgesP[ it - nodes.begin() ] = it->edgesCh[ itt->id ];
@@ -827,23 +849,33 @@ private:
 		}
     }
 	
-	double ComputeProbability(double x, NodeId nodeRef, bool fast = false)// fast = true: cactorial is dropped for maxima computing
+	double ComputeProbability(double x, NodeId nodeRef, bool fast = false)// fast = true: cactorial is dropped for maxima computing FIXME - fast=false
 	{
-		double prob = 1;
+		double prob = 0;
 		double lambda;
+//		assert(fast);
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
+			if (x == nodes[ it->first ].timestamp)
+				continue;
 			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
-			prob = prob * pow(lambda, it->second.first)*exp(-lambda);
+//			assert(lambda > 0);
+//			cerr << "\tid = " << it->first << "\tx = " << x << "\tt = " << nodes[ it->first ].timestamp << "\te = " << it->second.second << endl;
+//			prob = prob* pow(lambda, it->second.first)*exp(-lambda);
+			prob += it->second.first*log( lambda) - lambda;
 			if (!fast)
 				prob = prob/Factorial(it->second.first);
 		}
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
+			if (x == nodes[ it->first ].timestamp)
+				continue;
 			lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
-			prob = prob * pow(lambda, it->second.first)*exp(-lambda);
+//			cerr << "\tlambda = " << lambda << endl;
+//			prob = prob* pow(lambda, it->second.first)*exp(-lambda);
+			prob += it->second.first*log( lambda) - lambda;
 			if (!fast)
 				prob = prob/Factorial(it->second.first);
 		}
-		prob = pow(prob, 1/(nodes[nodeRef].edgesCh.size()+nodes[nodeRef].edgesP.size() ) );
+//		prob = pow(prob, 1/(nodes[nodeRef].edgesCh.size()+nodes[nodeRef].edgesP.size() ) );
 		return prob;
 	}
 	
@@ -991,7 +1023,7 @@ private:
 		}
 		double coef = pow(-1, degree);
 		if (side && coef*PolynomialDerivative(x, nodeRef, side ) >= 0){
-			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 ){ //TODO step with the distance proportional to timestamps delta
+			while ( coef*PolynomialDerivative(x, nodeRef, side ) >= 0 && Polynomial(x, nodeRef, side ) > epsilon){ //TODO step with the distance proportional to timestamps delta
 				x -= 1000.0;
 				time(&tc);
 				if (abs(difftime(tc, ts) ) > 2){
@@ -1005,7 +1037,7 @@ private:
 			}
 		}
 		else if (!side && PolynomialDerivative(x, nodeRef, side ) >= 0)
-			while ( PolynomialDerivative(x, nodeRef, side ) >= 0 ){
+			while ( PolynomialDerivative(x, nodeRef, side ) >= 0 && Polynomial(x, nodeRef, side ) > epsilon){
 				x += 1000.0;
 				time(&tc);
 				if (abs(difftime(tc, ts) ) > 2){
@@ -1184,6 +1216,7 @@ private:
         //maximize ComputeProbability()
         double max_x = nodes[nodeRef].timestamp;
         double max_p = ComputeProbability(max_x, nodeRef, true);
+//		cerr << max_p << endl;
         if (nonZero != 0)
             for (size_t i = 0; i < nodes[nodeRef].polynom.size() - 1; ++i)
             {
@@ -1199,6 +1232,7 @@ private:
                 }
                 x = root.root;
                 new_p = ComputeProbability(x, nodeRef, true);
+//				cerr << new_p << endl;
                 if (max_p < new_p && x >= 0)
                 {
                     max_p = new_p;
@@ -1211,6 +1245,7 @@ private:
                 continue;
             double x = nodes[nodeRef].polynom[i].t;
             double new_p = ComputeProbability(x, nodeRef, true);
+//			cerr << new_p << endl;
             if (max_p < new_p && x >= 0)
             {
                 max_p = new_p;
@@ -1218,34 +1253,41 @@ private:
             }
         }
 
-        if (nonZero == 0)
+        if (nonZero != 0)
         {
-            nodes[nodeRef].timestamp = max_x;
-            return;
-        }
-        
-        // FIRST
-/*        Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
-        if (root.success){
-            double x = root.root;
-            double new_p = ComputeProbability(x, nodeRef, true);
-            if (max_p < new_p && x >= 0)
-            {
-                max_p = new_p;
-                max_x = x;
-            }
-        }
-        // LAST 
-        root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
-        if (root.success){
-            double x = root.root;
-            double new_p = ComputeProbability(x, nodeRef, true);
-            if (max_p < new_p && x >= 0)
-            {
-                max_p = new_p;
-                max_x = x;
-            }
-        }*/
+	        // FIRST
+/*	        Root root = RootNewton(nodeRef, nodes[nodeRef].polynom[0].t, true);//true for -inf, false for +inf
+	        if (root.success){
+	            double x = root.root;
+	            double new_p = ComputeProbability(x, nodeRef, true);
+	            if (max_p < new_p && x >= 0)
+	            {
+	                max_p = new_p;
+	                max_x = x;
+	            }
+	        }*/
+	        // LAST 
+			Root root = RootNewton(nodeRef, nodes[nodeRef].polynom.back().t, false);//true for -inf, false for +inf
+	        if (root.success){
+	            double x = root.root;
+	            double new_p = ComputeProbability(x, nodeRef, true);
+	            if (max_p < new_p && x >= 0)
+	            {
+	                max_p = new_p;
+	                max_x = x;
+	            }
+	        }
+		}
+		double abs_change = abs(nodes[nodeRef].timestamp - max_x);
+		double rel_change = 0;
+		if (nodes[nodeRef].timestamp != 0)
+			rel_change = abs(nodes[nodeRef].timestamp - max_x)/nodes[nodeRef].timestamp;
+		mean_abs_change += abs_change;
+		mean_rel_change += rel_change;
+		if ( abs_change > it_norm_abs )
+			it_norm_abs = abs_change;
+		if ( rel_change > it_norm_rel )
+			it_norm_rel = rel_change;
         nodes[nodeRef].timestamp = max_x;
     }
     
@@ -1300,6 +1342,8 @@ private:
     Position rRangeMax; // Largest position value encountered
     bool ok_;
     double mu, rho; //mutation and recombination rates
+	double it_norm_abs, it_norm_rel;
+	double mean_abs_change, mean_rel_change;
 };
 
 int atoi_min(char const *value, int min)
@@ -1354,14 +1398,15 @@ int main(int argc, char ** argv)
 {
 //    srand ( time(0) );
 	srand(0);
-    if (argc != 7)
+    if (argc != 6)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [n_edges] [output_prefix] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [dis_out] [n_edges] [output_prefix] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         cerr << "     pop1          - Population to compare against" << endl;
         cerr << "     pop2          - another population/same population." << endl;
         cerr << "     max_iter      - How many iterations to make." << endl;
+		cerr << "     dis_out       - Disable(0)/enable(1) the output of population distances." << endl;
         cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
         cerr << "     output_prefix - Output file prefix." << endl;
         cerr << "     input         - standard input (pipe from `./main --enumerate`)" << endl;
@@ -1379,6 +1424,9 @@ int main(int argc, char ** argv)
     unsigned popl = atoi_min(argv[2], 1);
     unsigned popr = atoi_min(argv[3], 1);
     unsigned max_iter = atoi_min(argv[4], 0);
+	unsigned dis_out = atoi_min(argv[5], 0);
+	if (dis_out != 0 && dis_out != 1)
+		assert(false);
     cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
     
     // Read data from standard input
@@ -1433,27 +1481,28 @@ int main(int argc, char ** argv)
         //arg.updateTimes(); // Linear traversal
         arg.iterateTimes();  // Random traversal
     }
+	if (dis_out == 1){
+	    cerr << "Extracting times..." << endl;
+	    for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
+	    {
+	        if (it->second != popl)
+	            continue;
+	        map<unsigned,unsigned>::iterator itt = popmap.begin();
+	        while (itt->second != popr && itt != popmap.end())
+	            ++itt;
+	        while (itt != popmap.end())
+	        {
+	            assert(it->second == popl);  // Compare exactly these populations
+	            assert(itt->second == popr);
 
-    cerr << "Extracting times..." << endl;
-    for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
-    {
-        if (it->second != popl)
-            continue;
-        map<unsigned,unsigned>::iterator itt = popmap.begin();
-        while (itt->second != popr && itt != popmap.end())
-            ++itt;
-        while (itt != popmap.end())
-        {
-            assert(it->second == popl);  // Compare exactly these populations
-            assert(itt->second == popr);
-
-            if (it->first != itt->first  && (popl != popr || it->first < itt->first))
-                arg.outputTimes(it->first, itt->first);
+	            if (it->first != itt->first  && (popl != popr || it->first < itt->first))
+	                arg.outputTimes(it->first, itt->first);
             
-            do ++itt;
-            while (itt->second != popr && itt != popmap.end());
-        }
-    }
+	            do ++itt;
+	            while (itt->second != popr && itt != popmap.end());
+	        }
+    	}
+	}
     
     return 0;
 }
