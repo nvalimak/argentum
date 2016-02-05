@@ -96,6 +96,7 @@ public:
 		bool edgesKnown;
 		map<NodeId, pair<int, double> > edgesCh;
 		map<NodeId, pair<int, double> > edgesP;
+		int edgesChNum, edgesPNum;
 		vector<Poly> polynom;
 		
         unsigned childToCheck;
@@ -104,7 +105,7 @@ public:
 		double probability;
 		double weight;
         ARNode()
-            : child(), mutation(), edgesKnown(false), childToCheck(0), timestamp(-1.0), inStack(false), probability(1.0)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), probability(1.0)
         {   }
 
         // Return parent node at step i
@@ -280,10 +281,12 @@ public:
 			it->childToCheck = 0;
 		}
 	}
-
+	
 	void initializeEdges(){
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+//				if (!itt->include)
+//					continue;
 				if (itt->rRange - itt->lRange + 1 == 0)
 					continue;
 				else
@@ -291,6 +294,7 @@ public:
 				if (itt->recomb)
 					it->edgesCh[ itt->id ].first ++;
 			}
+			it->edgesChNum = it->edgesCh.size();
 			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
 			{
 				if (itt->second.second == 0){
@@ -300,7 +304,8 @@ public:
 			}
 	//		extract mutations
 			for (vector<pair<ChildId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
-                            assert (it->edgesCh.find(it->child[itt->first].id) != it->edgesCh.end());
+                            if (it->edgesCh.find(it->child[itt->first].id) == it->edgesCh.end())
+								continue;
                             it->edgesCh[ it->child[itt->first].id ].first++;
 			}
 			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
@@ -312,7 +317,9 @@ public:
 			}
 	//		add	information to child	
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				nodes[ itt->id ].edgesP[ it - nodes.begin() ] = it->edgesCh[ itt->id ];
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first += it->edgesCh[ itt->id ].first;
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second += it->edgesCh[ itt->id ].second;
+//				nodes[ itt->id ].edgesPNum++;
 			}
 		}
 	}
@@ -856,6 +863,7 @@ private:
 	{
 		double prob = 0;
 		double lambda;
+//		return 0;
 //		assert(fast);
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
 			if (x == nodes[ it->first ].timestamp)
@@ -865,8 +873,10 @@ private:
 //			cerr << "\tid = " << it->first << "\tx = " << x << "\tt = " << nodes[ it->first ].timestamp << "\te = " << it->second.second << endl;
 //			prob = prob* pow(lambda, it->second.first)*exp(-lambda);
 			prob += it->second.first*log( lambda) - lambda;
-			if (!fast)
-				prob = prob/Factorial(it->second.first);
+			if (!fast){
+				prob -= Factorial(it->second.first, true);
+//				prob = prob/Factorial(it->second.first);
+			}
 		}
 		for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
 			if (x == nodes[ it->first ].timestamp)
@@ -875,9 +885,13 @@ private:
 //			cerr << "\tlambda = " << lambda << endl;
 //			prob = prob* pow(lambda, it->second.first)*exp(-lambda);
 			prob += it->second.first*log( lambda) - lambda;
-			if (!fast)
-				prob = prob/Factorial(it->second.first);
+			if (!fast){
+				prob -= Factorial(it->second.first, true);
+//				prob = prob/Factorial(it->second.first);
+			}
 		}
+		if (isnan(prob))
+			assert(false);
 //		prob = pow(prob, 1/(nodes[nodeRef].edgesCh.size()+nodes[nodeRef].edgesP.size() ) );
 		return prob;
 	}
@@ -1175,8 +1189,14 @@ private:
 		return root;
 	}
 	
-	int Factorial(int k){
-		int f = 1, i;
+	int Factorial(int k, bool logarithmic = false){
+		double f = 1.0, i;
+		if (logarithmic){
+			f = 0.0;
+			for (i = 2; i < k + 1; i++)
+				f += log(i);
+			return f;
+		}
 		for (i = 2; i < k + 1; i++)
 			f = f * i;
 		return f;
@@ -1189,8 +1209,11 @@ private:
 			return 1;
 	}
 
-    void UpdateTime(NodeId nodeRef)
+    void UpdateTime1(NodeId nodeRef)
     {
+		assert(nodes[ nodeRef ].edgesCh.size() == nodes[ nodeRef ].edgesChNum);
+//		assert(nodes[ nodeRef ].edgesP.size() == nodes[ nodeRef ].edgesPNum);
+		
         if (nodeRef == 0 && false)
         {
             nodes[ nodeRef ].timestamp = -1;
@@ -1204,25 +1227,42 @@ private:
 
 		double A = 0, B = 0;
         int C = 0;
+		double min_child_time = -1.0;
+		
+		double probNorm = 0;
+		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
+			if (nodes[it->first].probability < probNorm)
+				nodes[it->first].probability = probNorm;
+		}
+		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
+			if (nodes[it->first].probability < probNorm)
+				nodes[it->first].probability = probNorm;
+		}
 		
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
-			A += it->second.second;
-			B += it->second.second*nodes[it->first].timestamp;
-			C += it->second.first;
+			A += it->second.second*exp(nodes[it->first].probability-probNorm);
+			B += it->second.second*nodes[it->first].timestamp*exp(nodes[it->first].probability-probNorm);
+			C += it->second.first*exp(nodes[it->first].probability-probNorm);
+			if (min_child_time == -1.0 || min_child_time > nodes[it->first].timestamp)
+				min_child_time = nodes[it->first].timestamp;
 		}
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
 			if (it->first == 0)
 				continue;
-			A += it->second.second;
-			B -= it->second.second*nodes[it->first].timestamp;
-			C -= it->second.first;
+			A -= it->second.second*exp(nodes[it->first].probability-probNorm);
+			B -= it->second.second*nodes[it->first].timestamp*exp(nodes[it->first].probability-probNorm);
+			C += it->second.first*exp(nodes[it->first].probability-probNorm);
 		}
 		double new_time = nodes[nodeRef].timestamp;
-		assert(A != 0);
+//		assert(A != 0);
 		if (A != 0)
 			new_time = (B+C)/A;
-		if (new_time < 0)
-			new_time = 0;
+//		if (new_time < min_child_time)
+//			new_time = min_child_time;
+		if (new_time < 0.9*nodes[nodeRef].timestamp)
+			new_time = 0.9*nodes[nodeRef].timestamp;
+		if (new_time > 1.1*nodes[nodeRef].timestamp)
+			new_time = 1.1*nodes[nodeRef].timestamp;
 
 		double abs_change = abs(nodes[nodeRef].timestamp - new_time);
 		double rel_change = 0;
@@ -1235,9 +1275,10 @@ private:
 		if ( rel_change > it_norm_rel )
 			it_norm_rel = rel_change;
         nodes[nodeRef].timestamp = new_time;
+		nodes[nodeRef].probability = ComputeProbability(new_time, nodeRef);
     }
 
-    void UpdateTime1(NodeId nodeRef)
+    void UpdateTime(NodeId nodeRef)
     {
         if (nodeRef == 0 && false)
         {
@@ -1513,6 +1554,7 @@ int main(int argc, char ** argv)
     }
 
     arg.initializeEdges();
+	arg.ComputeWeights();
     cerr << "Updating times..." << endl;
 
     // Output debug information
