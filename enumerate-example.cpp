@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <limits>
 using namespace std;
 
 // Note: disable this for large inputs
@@ -48,9 +49,9 @@ class ARGraph
 {
 public:
 	void PrintARG(){
-		for (int i = 0; i < nodes.size(); i++){
+		for (unsigned i = 0; i < nodes.size(); i++){
 			cerr << "id = " << i;
-			for (int j = 0; j < nodes[i].child.size(); j++){
+			for (unsigned j = 0; j < nodes[i].child.size(); j++){
 				cerr << "\t" << nodes[i].child[j].id;
 			}
 			cerr << endl;
@@ -96,7 +97,7 @@ public:
 		bool edgesKnown;
 		map<NodeId, pair<int, double> > edgesCh;
 		map<NodeId, pair<int, double> > edgesP;
-		int edgesChNum, edgesPNum;
+		unsigned edgesChNum, edgesPNum;
 		vector<Poly> polynom;
 		
         unsigned childToCheck;
@@ -149,6 +150,21 @@ public:
             }
             return 0;
         }
+        unsigned getID(const pair<event_t,unsigned> &ev)
+        {
+            switch (ev.first)
+            {
+            case mutation_event:
+                return child[mutation[ev.second].first].id;  
+            case insert_child_event:
+                return child[ev.second].id; 
+            case delete_child_event:
+                return child[ev.second].id;
+            default:
+                assert (0);
+            }
+            return 0;
+        }
 
         struct compareEvents : std::binary_function<pair<event_t,unsigned>,pair<event_t,unsigned>,bool>
         {
@@ -164,7 +180,7 @@ public:
         {
             unsigned pos1, pos2;
             pos1 = getPosition(e1);
-            pos2 = getPosition(e1);
+            pos2 = getPosition(e2);
             return pos1 < pos2;
         }
     };
@@ -286,7 +302,7 @@ public:
     
 	void timeRefine(unsigned iterationNumber){
 		initializeEdges();
-		for (int i = 0; i < iterationNumber; i++){
+		for (unsigned i = 0; i < iterationNumber; i++){
 			updateTimes();
 			if (i > 0 && i%100 == 0)
 				cerr << i << " iterations performed." << endl;
@@ -443,7 +459,7 @@ public:
         }
     }
 
-	int FindNextPoint(int n, NodeId nodeRef){
+	int FindNextPoint(unsigned n, NodeId nodeRef){
 		while(nodes[nodeRef].polynom[n].k == 0 && n < nodes[nodeRef].polynom.size())
 			n++;
 		return n;
