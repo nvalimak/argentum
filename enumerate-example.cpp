@@ -234,7 +234,7 @@ public:
         }
     }
 
-    void iterateTimes(bool output = false)
+    void iterateTimes(bool output = false, int method = 1)//1 for f1, 2 for f2, 3 for f3
     {
         // Initialize Knuth shuffle on first call to this method
         if (knuthShuffle.empty())
@@ -245,9 +245,9 @@ public:
         }
         // Knuth shuffle
         assert (knuthShuffle.size() == nodes.size());
-        for (unsigned i = 1*0; i < nodes.size(); ++i)
+        for (unsigned i = 1; i < nodes.size(); ++i)
         {
-            unsigned j = rand() % (nodes.size()-1*0) + 1*0; // Not to Skip root
+            unsigned j = rand() % (nodes.size()-1) + 1; // Not to Skip root
             unsigned tmp = knuthShuffle[i];
             knuthShuffle[i] = knuthShuffle[j]; // Swap values
             knuthShuffle[j] = tmp;
@@ -257,8 +257,26 @@ public:
 		it_norm_rel = 0.0;
 		mean_abs_change = 0.0;
 		mean_rel_change = 0.0;
-        for (unsigned i = 1*0; i < nodes.size(); ++i)
-            UpdateTime(knuthShuffle[i]);
+			
+        
+		switch(method){
+			case 1:
+				for (unsigned i = 1; i < nodes.size(); ++i)
+					UpdateTime(knuthShuffle[i]);
+				break;
+			case 2:
+				for (unsigned i = 1; i < nodes.size(); ++i)
+					UpdateTime2(knuthShuffle[i]);
+				break;
+			case 3:
+				for (unsigned i = 1; i < nodes.size(); ++i)
+					UpdateTime3(knuthShuffle[i]);
+				break;
+			default:
+				cerr << "Unknown update time method." << endl;
+				exit(0);
+				break;
+		}
 		if (output){
 			cerr << "Iteration max  norm: absolute = " << it_norm_abs << "\trelative = " << it_norm_rel << endl;
 			cerr << "Iteration mean norm: absolute = " << mean_abs_change/nodes.size() << "\trelative = " << mean_rel_change/nodes.size() << endl;
@@ -283,7 +301,7 @@ public:
 	}
 	
 	void initializeEdges(){
-		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
 //				if (!itt->include)
 //					continue;
@@ -770,7 +788,7 @@ private:
 
     void assignTime(NodeId nodeRef)
     {
-        if (nodeRef == 0 && false)
+        if (nodeRef == 0)
         {
             nodes[ nodeRef ].timestamp = -1;
             return;
@@ -1209,12 +1227,12 @@ private:
 			return 1;
 	}
 
-    void UpdateTime(NodeId nodeRef) //f2 - all-in-one
+    void UpdateTime2(NodeId nodeRef) //f2 - all-in-one
     {
 		assert(nodes[ nodeRef ].edgesCh.size() == nodes[ nodeRef ].edgesChNum);
 //		assert(nodes[ nodeRef ].edgesP.size() == nodes[ nodeRef ].edgesPNum);
 		
-        if (nodeRef == 0 && false)
+        if (nodeRef == 0)
         {
             nodes[ nodeRef ].timestamp = -1;
             return;
@@ -1283,7 +1301,7 @@ private:
 		assert(nodes[ nodeRef ].edgesCh.size() == nodes[ nodeRef ].edgesChNum);
 //		assert(nodes[ nodeRef ].edgesP.size() == nodes[ nodeRef ].edgesPNum);
 		
-        if (nodeRef == 0 && false)
+        if (nodeRef == 0)
         {
             nodes[ nodeRef ].timestamp = -1;
             return;
@@ -1372,9 +1390,9 @@ private:
 //		nodes[nodeRef].probability = ComputeProbability(new_time, nodeRef);
     }
 
-    void UpdateTime1(NodeId nodeRef)//f1 - divide and conquer
+    void UpdateTime(NodeId nodeRef)//f1 - divide and conquer
     {
-        if (nodeRef == 0 && false)
+        if (nodeRef == 0)
         {
             nodes[ nodeRef ].timestamp = -1;
             return;
@@ -1584,14 +1602,15 @@ int main(int argc, char ** argv)
 {
     srand ( time(NULL) );
 //	srand(0);
-    if (argc != 6)
+    if (argc != 7)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [dis_out] [n_edges] [output_prefix] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [method] [dis_out] [n_edges] [output_prefix] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         cerr << "     pop1          - Population to compare against" << endl;
         cerr << "     pop2          - another population/same population." << endl;
         cerr << "     max_iter      - How many iterations to make." << endl;
+		cerr << "     method        - Which time update method to use (1-3)." << endl;
 		cerr << "     dis_out       - Disable(0)/enable(1) the output of population distances." << endl;
         cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
         cerr << "     output_prefix - Output file prefix." << endl;
@@ -1610,7 +1629,8 @@ int main(int argc, char ** argv)
     unsigned popl = atoi_min(argv[2], 1);
     unsigned popr = atoi_min(argv[3], 1);
     unsigned max_iter = atoi_min(argv[4], 0);
-	unsigned dis_out = atoi_min(argv[5], 0);
+	unsigned method = atoi_min(argv[5], 1);
+	unsigned dis_out = atoi_min(argv[6], 0);
 	if (dis_out != 0 && dis_out != 1)
 		assert(false);
     cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
@@ -1665,11 +1685,11 @@ int main(int argc, char ** argv)
         iter ++;
 		if (iter % 1 == 0 ){
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
-			arg.iterateTimes(true);
+			arg.iterateTimes(true, method);
 		}
 		else
 			//arg.updateTimes(); // Linear traversal
-			arg.iterateTimes();  // Random traversal
+			arg.iterateTimes(false, method);  // Random traversal
     }
 	if (dis_out == 1){
 	    cerr << "Extracting times..." << endl;
