@@ -450,7 +450,7 @@ public:
         assert (x <= nleaves);
         assert (y <= nleaves);
 		ComputeWeights();
-        for (Position i = 0; i <= rRangeMax; i++)
+        for (Position i = 0; i <= rRangeMax; i+=5)
         {
 //            double ts = getLCATime(i, x, y);
 			int nodeRef = getLCATime(i, x, y);
@@ -1351,15 +1351,18 @@ private:
 			return;
 		}
 			
-		if (C1 == 0)
+		if (C1 == 0)//FIXME?
 			C1 ++;
-		if (C2 == 0)
+		if (C2 == 0)//FIXME?
 			C2 ++;
 		double new_time = nodes[nodeRef].timestamp;
 
-		double a = -1;
-		double b = B1/A1 + B2/A2 - (C1 + C2);
-		double c = (C2*B1/A1 + C1*B2/A2 - B1*B2/(A1*A2));
+		
+		double a = A1-A2;
+		if (B1/A1 > B2/A2)
+			a = -a;
+		double b = -a*(B1/A1 + B2/A2) - (C1 + C2);
+		double c = C2*B1/A1 + C1*B2/A2 - a*B1*B2/(A1*A2);
 		double D = b * b - 4*a*c;
 		if (D < 0.0){
 			cerr << "t = " << nodes[nodeRef].timestamp << endl;
