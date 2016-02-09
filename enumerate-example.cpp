@@ -103,10 +103,11 @@ public:
         unsigned childToCheck;
         double timestamp;
         bool inStack;
+		bool timeAssigned;
 		double probability;
 		double weight;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), probability(1.0)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0)
         {   }
 
         // Return parent node at step i
@@ -224,13 +225,16 @@ public:
             if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
             {
                 assignTime(nodeRef);
+				nodes[ nodeRef ].timeAssigned = true;
                 nodes[ nodeRef ].inStack = false;
                 nodeStack.pop_back();
             }
             else
             {
-                NodeId childRef = nodes[ nodeRef ].child[ nodes[nodeRef].childToCheck ].id;
-                nodes[nodeRef].childToCheck++;
+				NodeId childRef = nodes[ nodeRef ].child[ nodes[nodeRef].childToCheck ].id;
+				nodes[nodeRef].childToCheck++;
+				if (nodes[childRef].timeAssigned)
+					continue;
                 if ( nodes[childRef].inStack )
                 {
                     size_t i = nodeStack.size();
@@ -338,9 +342,9 @@ public:
 			}
 	//		extract mutations
 			for (vector<pair<ChildId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
-                            if (it->edgesCh.find(it->child[itt->first].id) == it->edgesCh.end())
-								continue;
-                            it->edgesCh[ it->child[itt->first].id ].first++;
+				if (it->edgesCh.find(it->child[itt->first].id) == it->edgesCh.end())
+					continue;
+				it->edgesCh[ it->child[itt->first].id ].first++;
 			}
 			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
 			{
@@ -351,8 +355,8 @@ public:
 			}
 	//		add	information to child	
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first += it->edgesCh[ itt->id ].first;
-				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second += it->edgesCh[ itt->id ].second;
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first = it->edgesCh[ itt->id ].first;
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second = it->edgesCh[ itt->id ].second;
 //				nodes[ itt->id ].edgesPNum++;
 			}
 		}
@@ -1328,8 +1332,8 @@ private:
             return;
         }
 
-		double A1 = 0, B1 = 0, A2 = 0, B2 = 0;
-        int C1 = 0, C2 = 0;
+		double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
+        double C1 = 0.0, C2 = 0.0;
 		double min_child_time = -1.0;
 		
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
@@ -1346,10 +1350,13 @@ private:
 			B2 += it->second.second*nodes[it->first].timestamp;
 			C2 += it->second.first;
 		}
-		if (A2 == 0){
+
+		if (A2 == 0.0){
 			nodes[nodeRef].timestamp = (B1+C1)/A1;
 			return;
 		}
+		
+		assert(A1 != A2);		
 			
 		if (C1 == 0)//FIXME?
 			C1 ++;
@@ -1362,9 +1369,10 @@ private:
 		if (B1/A1 > B2/A2)
 			a = -a;
 		double b = -a*(B1/A1 + B2/A2) - (C1 + C2);
-		double c = C2*B1/A1 + C1*B2/A2 - a*B1*B2/(A1*A2);
+		double c = C2*B1/A1 + C1*B2/A2 + a*B1*B2/(A1*A2);
 		double D = b * b - 4*a*c;
 		if (D < 0.0){
+			cerr << "node " << nodeRef << endl;
 			cerr << "t = " << nodes[nodeRef].timestamp << endl;
 			cerr << "A1 = " << A1 << "\tB1 = " << B1 << "\tC1 = " << C1 << endl;
 			cerr << "A2 = " << A2 << "\tB2 = " << B2 << "\tC2 = " << C2 << endl;
@@ -1384,12 +1392,14 @@ private:
 		else if (lEnd <= x2 && x2 <= rEnd)
 			new_time = x2;
 		else{
+			cerr << "node " << nodeRef << endl;
 			cerr << "t = " << nodes[nodeRef].timestamp << endl;
 			cerr << "A1 = " << A1 << "\tB1 = " << B1 << "\tC1 = " << C1 << endl;
 			cerr << "A2 = " << A2 << "\tB2 = " << B2 << "\tC2 = " << C2 << endl;
 			cerr << "B1/A1 = " << B1/A1 << endl;
 			cerr << "B2/A2 = " << B2/A2 << endl;
 			cerr << "a = " << a << "\tb = " << b << "\tc = " << c << endl;
+			cerr << "D = " << D << endl;
 			cerr << "x1 = " << x1 << endl;
 			cerr << "x2 = " << x2 << endl;
 			assert(false);
