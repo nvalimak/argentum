@@ -61,6 +61,7 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
 unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, TreeController &tc, Configuration const &config, string const &dotprefix, TreeController &predictor_tc, PointerTree &predictor_tree, TreeDistance &predictor_dist, bool newick)
 {
     unsigned total_intnodes = 0;
+    unsigned prev_pos = 0;
     unsigned prev_hsize = 0;
     unsigned prev_reused = 0;
     unsigned prev_stashed = 0;
@@ -78,7 +79,9 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
         tc.assignLabels(ir.col(step));
         predictor_tc.assignLabels(ir.col(step));
         if (newick)
-            predictor_tree.outputNewick("-", ir.position(step));
+            predictor_tree.outputNewick("-", ir.position(step) - prev_pos);
+        prev_pos = ir.position(step);
+        
         predictor_tc.rewind(ir.col(step), decreasingStep, 0);
         tc.process(ir.col(step), increasingStep, predictor_dist);
 
@@ -136,7 +139,7 @@ unsigned extract(InputReader &ir, direction_t direction, PointerTree &tree, Tree
             cerr << (int)ir.col(step)[i];
         cerr << endl;
         */
-        cur_base += ir.position(step);
+        cur_base = ir.position(step);
         while (cur_base > pred_base)
         {
             predictor_tree.next();
@@ -177,6 +180,7 @@ unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree
 {
     unsigned total_intnodes = 0;
     unsigned step = 0;
+    unsigned prev_pos = 0;
     if (direction == direction_backward)
         step = ir.size();
     do
@@ -187,7 +191,8 @@ unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
         unsigned decreasingStep = ir.size()-increasingStep-1;
         tc.assignLabels(ir.col(step));
-        tree.outputNewick("-", ir.position(step));
+        tree.outputNewick("-", ir.position(step) - prev_pos);
+        prev_pos = ir.position(step);        
         tc.rewind(ir.col(step), decreasingStep, 0);
 
         total_intnodes += tc.countInternalNodes();
@@ -316,7 +321,7 @@ void nopred_forward(Configuration &config, InputReader &inputr)
         unsigned intnodes = output_parent_child(inputr, direction_backward, forward_tree, forward_tc, config, te);
         cerr << "Avg. internal nodes: " << (double)intnodes/inputr.size() << endl;
         cerr << "Outputting parent-child ranges (--enumerate)..." << endl;
-        te.output(forward_tree.size());
+        te.output(forward_tree.size(), inputr);
     }
 }
 

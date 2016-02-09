@@ -1,6 +1,7 @@
 #ifndef _TreeEnumerator_h_
 #define _TreeEnumerator_h_
 #include "default.h"
+#include "InputReader.h"
 #include "Tree.h"
 #include <iostream>
 #include <cassert>
@@ -305,7 +306,7 @@ public:
     /**
      * Naive text format output (TODO: replace with binary output format)
      */
-    void output(unsigned nleaves)
+    void output(unsigned nleaves, InputReader const &inputr)
     {
         // Flush open ranges
         for (std::map<NodeId,std::map<NodeId,unsigned> >::iterator it = rightPos.begin(); it != rightPos.end(); ++it)
@@ -333,13 +334,13 @@ public:
 
             // Output ranges
             for (std::vector<struct ARGChild>::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
-                std::cout << "child " << itt->id << ' ' << itt->lRange << ' ' << itt->rRange << ' ' << itt->recomb  << '\n';
+                std::cout << "child " << itt->id << ' ' << itt->lRange << ' ' << itt->rRange << ' ' << inputr.position(itt->lRange) << ' ' << inputr.position(itt->rRange) << ' ' << itt->recomb  << '\n';
             // Output mutations
             for (std::vector<struct ARGChild>::iterator itt = it->second.begin(); itt != it->second.end(); ++itt)
             {
                 std::vector<unsigned> &muts = itt->mutations;
                 for (std::vector<unsigned>::iterator ittt = muts.begin(); ittt != muts.end(); ++ittt)
-                    std::cout << "mutation " << itt->id << ' ' << *ittt << '\n';
+                    std::cout << "mutation " << itt->id << ' ' << *ittt << ' ' << inputr.position(*ittt) << '\n';
             }
         }
         

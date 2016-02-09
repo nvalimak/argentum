@@ -9,6 +9,8 @@
 using namespace std;
 
 
+#define DEFAULT_GENOME_LENGTH 25000000
+
 char SimpleVCFInputReader::upcasedna[] = {0};
 
 
@@ -223,16 +225,19 @@ SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
         }
     }
     positions.reserve(1024);
+    if (totaln == 0)
+    {
+        cerr << "Warning: Using default genome length DEFAULT_GENOME_LENGTH = " << DEFAULT_GENOME_LENGTH  << "; change the default value at InputReader.cpp (or implement a command-line parameter for it)." << endl;
+        totaln = DEFAULT_GENOME_LENGTH;
+    }        
     assert (row.substr(0,9) == "positions");
     istringstream iss(row.substr(11));
     double d = 0;
-    unsigned prev_pos = 0;
     while ((iss >> d))
     {
         assert (d>0.0);
         unsigned pos = round(d*totaln);
-        positions.push_back(pos - prev_pos);
-        prev_pos = pos;
+        positions.push_back(pos);
     }
     while (std::getline(*fp, row).good())
     {

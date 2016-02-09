@@ -30,7 +30,7 @@ public:
     { return cols.back(); }
     std::size_t size() const
     { return cols.size(); }
-    virtual unsigned position(size_t i)
+    virtual unsigned position(size_t i) const
     { return 0; } // SCRM+VCF input only
     
     virtual ~InputReader()
@@ -73,7 +73,7 @@ class SimpleVCFInputReader : public InputReader
 {
 public:
     SimpleVCFInputReader(std::string, unsigned);
-    virtual unsigned position(size_t i)
+    virtual unsigned position(size_t i) const
     { assert(i<positions.size()); return positions[i]; }
 
     virtual ~SimpleVCFInputReader()
@@ -94,7 +94,7 @@ class SimpleSCRMInputReader : public InputReader
 {
 public:
     SimpleSCRMInputReader(std::string, unsigned);
-    virtual unsigned position(size_t i)
+    virtual unsigned position(size_t i) const
     { assert(i<positions.size()); return positions[i]; }
     virtual ~SimpleSCRMInputReader()
     { }

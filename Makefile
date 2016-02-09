@@ -1,5 +1,5 @@
 CC=g++
-CPPFLAGS=-std=c++11 -Wall -ansi -pedantic -g
+CPPFLAGS=-std=c++0x -Wall -ansi -pedantic -g
 DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
 OBJ = Configuration.o InputReader.o NewickTree.o Tree.o TreeController.o TreeControllerSimple.o TreeDistance.o
 
