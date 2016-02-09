@@ -332,7 +332,7 @@ int main(int argc, char ** argv)
         config.print_short_usage();
     if (config.verbose)
         cerr << "Reading input file " << config.inputfile << endl;
-    InputReader *inputr = InputReader::build(config.inputformat, config.inputfile, config.nrows);
+    InputReader *inputr = InputReader::build(config.inputformat, config.inputfile, config.nrows, config.genome_length);
     if (!inputr->good())
     {
         cerr << "error: could not read input file " << config.inputfile << endl;

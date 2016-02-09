@@ -45,6 +45,7 @@ void Configuration::print_usage()
          << " --distance <type>    Use distance type <leaves> or <depth> (default: none)" << endl
          << " --scaling <type>     Use distance scaling of <log> or <expm> (default: none)" << endl
          << " -n,--nrows <n>       Process n sites of input" << endl
+         << " -L,--length          Genome length (for SCRM input)" << endl
          << " --newick             Output Newick trees (to standard output)" << endl
          << " --enumerate          Output parent-child ranges (to standard output)" << endl
          << " -d,--dot <file>      Graphwiz DOT output filename" << endl
@@ -53,7 +54,7 @@ void Configuration::print_usage()
 
 Configuration::Configuration(int argc, char ** argv)
     : prog(argv[0]), inputfile(""), dotfile(""), inputformat(InputReader::input_unset),
-      treedistance(TreeDistance::distance_unset), distancescaling(TreeDistance::scaling_none), nrows(~0u),
+      treedistance(TreeDistance::distance_unset), distancescaling(TreeDistance::scaling_none), nrows(~0u), genome_length(25000000),
       newick(false), enumerate(false), no_prediction(false), scrm_prediction(false), verbose(false), debug(false), debug_interval(2000), good(true)
 {
     good = parse(argc, argv);
@@ -79,6 +80,7 @@ bool Configuration::parse(int argc, char ** argv)
             {"distance",  required_argument, 0, distance_opt},
             {"scaling",   required_argument, 0, scaling_opt},
             {"nrows",     required_argument, 0, 'n'},
+            {"length",    required_argument, 0, 'L'},
             {"dot",       required_argument, 0, 'd'},
             {"verbose",   no_argument,       0, 'v'},
             {"debug",     no_argument,       0, 'D'},
@@ -88,7 +90,7 @@ bool Configuration::parse(int argc, char ** argv)
         };
     int option_index = 0;
     int c;
-    while ((c = getopt_long(argc, argv, "i:VsSNEn:d:vDh",
+    while ((c = getopt_long(argc, argv, "i:VsSNEn:L:d:vDh",
                             long_options, &option_index)) != -1) 
     {
         switch(c) 
@@ -111,6 +113,8 @@ bool Configuration::parse(int argc, char ** argv)
             scrm_prediction = true; break;
         case 'n':
             nrows = atoi_min(optarg, 1, "-n,--nrows", argv[0]); break;
+        case 'L':
+            genome_length = atoi_min(optarg, 1000000, "-L,--length", argv[0]); break;
         case 'd':
             dotfile = string(optarg); break;
         case 'v':

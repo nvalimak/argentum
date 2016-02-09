@@ -8,13 +8,9 @@
 #include <cassert>
 using namespace std;
 
-
-#define DEFAULT_GENOME_LENGTH 25000000
-
 char SimpleVCFInputReader::upcasedna[] = {0};
 
-
-InputReader * InputReader::build(input_format_t input, string file, unsigned nrows)
+InputReader * InputReader::build(input_format_t input, string file, unsigned nrows, unsigned gl)
 {
     switch (input)
     {
@@ -22,7 +18,7 @@ InputReader * InputReader::build(input_format_t input, string file, unsigned nro
         return new SimpleVCFInputReader(file, nrows);
         break;
     case input_scrm:
-        return new SimpleSCRMInputReader(file, nrows);
+        return new SimpleSCRMInputReader(file, nrows, gl);
         break;
     case input_plaintext:
         return new PlainTextInputReader(file, nrows);
@@ -100,6 +96,7 @@ SimpleVCFInputReader::SimpleVCFInputReader(string file, unsigned nrows)
     InputColumn ic;
     while (nrows && next(ic))
         --nrows;
+    positions.push_back(positions.back()); // Pad with the largest value
 }
 
 bool SimpleVCFInputReader::next(InputColumn &ic)
@@ -200,7 +197,7 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
 /**
  * Simplistic SCRM input
  */
-SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
+SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows, unsigned genome_length)
     : InputReader(file), positions()
 {
     if (!good_)
@@ -225,11 +222,9 @@ SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
         }
     }
     positions.reserve(1024);
-    if (totaln == 0)
-    {
-        cerr << "Warning: Using default genome length DEFAULT_GENOME_LENGTH = " << DEFAULT_GENOME_LENGTH  << "; change the default value at InputReader.cpp (or implement a command-line parameter for it)." << endl;
-        totaln = DEFAULT_GENOME_LENGTH;
-    }        
+    if (totaln != genome_length && genome_length == 25000000)
+        cerr << "Warning: Using default genome length = " << genome_length  << "; use -L,--length command-line option to specify the genome length." << endl;
+    totaln = genome_length;
     assert (row.substr(0,9) == "positions");
     istringstream iss(row.substr(11));
     double d = 0;
@@ -239,6 +234,8 @@ SimpleSCRMInputReader::SimpleSCRMInputReader(string file, unsigned nrows)
         unsigned pos = round(d*totaln);
         positions.push_back(pos);
     }
+    positions.push_back(positions.back()); // Pad with the largest value
+
     while (std::getline(*fp, row).good())
     {
         rows.push_back(row);

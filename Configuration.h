@@ -24,6 +24,7 @@ public:
     TreeDistance::distance_scaling_t distancescaling;
     unsigned nrows;
     unsigned skip;
+    unsigned genome_length;
     bool newick;
     bool enumerate;
     bool no_prediction;

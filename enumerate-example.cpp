@@ -62,14 +62,24 @@ public:
     {
         NodeId id;      // Unique ID of the node; 0 == root
         Position lRange;  // Range corresponds to VCF row numbers
-        Position rRange; 
+        Position rRange;
+        Position lbp;    // Range over bp's
+        Position rbp; 
         bool include;
         bool recomb; // Was cut at position rRange due to recomb 
         ARGchild()
             : id(0), lRange(0), rRange(0), include(true), recomb(false)
         { }
     };
-	
+    struct Mutation
+    {
+        ChildId id;   // id points to the child array
+        Position pos; 
+        Position bp;  // Position as bp's
+        Mutation(ChildId id_, Position pos_, Position bp_)
+            : id(id_), pos(pos_), bp(bp_)
+        { }
+    };
 	struct Poly
 	{
 		double t;
@@ -89,7 +99,7 @@ public:
         enum event_t { mutation_event = 0, insert_child_event, delete_child_event }; 
         vector<struct ARGchild> child;
         map<Position,NodeId> parent;
-        vector<pair<ChildId,Position> > mutation; // id points to the child array; position is the VCF row number
+        vector<struct Mutation> mutation; 
 #ifdef OUTPUT_RANGE_DISTRIBUTION
         map<unsigned,unsigned> rangeDist;
 #endif
@@ -123,7 +133,7 @@ public:
         {
             vector<pair<event_t,unsigned> > events;
             for( size_t i = 0; i < mutation.size(); i++ )
-                if ( child[mutation[i].first].include )//TODO - prevents from compiling due to referring to "ARGraph.nodes" instead of "ARNode.child"
+                if ( child[mutation[i].id].include )//TODO - prevents from compiling due to referring to "ARGraph.nodes" instead of "ARNode.child"
                     events.push_back(std::make_pair(mutation_event, i));
 
             for( size_t i = 0; i < child.size(); i++ )
@@ -141,7 +151,7 @@ public:
             switch (ev.first)
             {
             case mutation_event:
-                return mutation[ev.second].second;  
+                return mutation[ev.second].pos;
             case insert_child_event:
                 return child[ev.second].lRange; 
             case delete_child_event:
@@ -156,7 +166,7 @@ public:
             switch (ev.first)
             {
             case mutation_event:
-                return child[mutation[ev.second].first].id;  
+                return child[mutation[ev.second].id].id;  
             case insert_child_event:
                 return child[ev.second].id; 
             case delete_child_event:
@@ -341,10 +351,10 @@ public:
 				}
 			}
 	//		extract mutations
-			for (vector<pair<ChildId,Position> >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
-				if (it->edgesCh.find(it->child[itt->first].id) == it->edgesCh.end())
+			for (vector<struct Mutation>::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
+				if (it->edgesCh.find(it->child[itt->id].id) == it->edgesCh.end())
 					continue;
-				it->edgesCh[ it->child[itt->first].id ].first++;
+				it->edgesCh[ it->child[itt->id].id ].first++;
 			}
 			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
 			{
@@ -723,6 +733,8 @@ private:
                     return inputError(nentries, "child-id"); // Root cannot appear as a child node
                 cin >> argchild.lRange;
                 cin >> argchild.rRange;
+                cin >> argchild.lbp;
+                cin >> argchild.rbp;
                 cin >> argchild.recomb;
                 // Keeps track of maximum position value
                 rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
@@ -743,13 +755,15 @@ private:
                     return inputError(nentries, "mutation-id"); // Root cannot appear as a child node
                 Position p = 0;
                 cin >> p;
+                Position pbp = 0;
+                cin >> pbp;
                 map<Position,pair<size_t,Position> >::iterator it = pos[cid].lower_bound(p);
                 assert (pos.count(cid) > 0);
                 if (it == pos[cid].end())
                     it = pos[cid].begin();
                 pair<size_t,Position> tmp = it->second;
                 if (tmp.second <= p && p <= it->first)
-                    arnode.mutation.push_back(std::make_pair(tmp.first, p));
+                    arnode.mutation.push_back(Mutation(tmp.first, p, pbp));
             }
             // Assert: there is no overlap in node id's
             assert (nodes[pid].child.empty());

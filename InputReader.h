@@ -17,7 +17,7 @@ public:
     enum input_format_t { input_unset, input_vcf, input_scrm, input_plaintext };
 
     // Constructor
-    static InputReader* build(input_format_t, std::string, unsigned);
+    static InputReader* build(input_format_t, std::string, unsigned, unsigned);
     
     // Misc helper functions
     virtual bool good() const
@@ -93,7 +93,7 @@ private:
 class SimpleSCRMInputReader : public InputReader
 {
 public:
-    SimpleSCRMInputReader(std::string, unsigned);
+    SimpleSCRMInputReader(std::string, unsigned, unsigned);
     virtual unsigned position(size_t i) const
     { assert(i<positions.size()); return positions[i]; }
     virtual ~SimpleSCRMInputReader()
