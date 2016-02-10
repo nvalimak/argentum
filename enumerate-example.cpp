@@ -120,12 +120,12 @@ public:
             : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0)
         {   }
 
-        // Return parent node at step i
-        NodeId getParent(Position i)
+        // Return parent node at step i and next rRange 
+        pair<NodeId,Position> getParent(Position i)
         {
-            map<Position,NodeId>::iterator z = parent.lower_bound(i);            
+            map<Position,NodeId>::iterator z = parent.lower_bound(i);
             assert (z != parent.end());
-            return z->second;
+            return make_pair(z->second, z->first);
         }
         
         //Return value: first of each pair is event type: mutation - 0, inserte child - 1, delete child - 2; second of each pair is a pointer to event: if mutation - index in ARNode.mutation, otherwise index in ARNode.child
@@ -216,6 +216,7 @@ public:
         // here
         assert (nleaves > 0);
 #ifdef VALIDATE_STRUCTURE
+        cerr << "warning: VALIDATE_STRUCTURE was defined in enumerate_example.cpp; validating data structure now, which can take large amount of time on large inputs." << endl;
         for (Position i = 0; i <= rRangeMax; i++)
             if (!traverseCol(i))
                 return false;
@@ -463,21 +464,27 @@ public:
         assert (y > 0);
         assert (x <= nleaves);
         assert (y <= nleaves);
-		ComputeWeights();
-        for (Position i = 0; i <= rRangeMax; i+=5)
-        {
-//            double ts = getLCATime(i, x, y);
-			int nodeRef = getLCATime(i, x, y);
-            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << nodes[nodeRef].timestamp << '\t' << nodes[nodeRef].weight << '\t' << nodes[nodeRef].probability  <<'\n';
-//            cout << "TIME\t" << x << '\t' << y << '\t' << i << '\t' << ts <<'\n';
-        }
-    }
+        ComputeWeights();
 
-	int FindNextPoint(unsigned n, NodeId nodeRef){
-		while(nodes[nodeRef].polynom[n].k == 0 && n < nodes[nodeRef].polynom.size())
-			n++;
-		return n;
-	}
+        NodeId prev_lca = ~0u;
+        Position prev_l = ~0u; 
+        Position prev_r = ~0u; 
+        Position i = 0;
+        while (i <= rRangeMax)
+        {
+            pair<NodeId,Position> lca = getLCATime(i, x, y);
+            // Flush value if the new LCA NodeId is different than the previous LCA
+            if (prev_lca != ~0u && prev_lca != lca.first) 
+                cout << x << '\t' << y << '\t' << prev_l << '\t' << prev_r << '\t' << mapToBp[prev_l] << '\t' << mapToBp[prev_r] << '\t' << prev_lca << '\t' << nodes[prev_lca].timestamp << '\t' << nodes[prev_lca].weight << '\t' << nodes[prev_lca].probability << '\n';
+            if (prev_lca != lca.first)
+                prev_l = i;  // Previous LCA was the same as current LCA; skip output and share the left boundary
+            prev_lca = lca.first;
+            prev_r = lca.second;
+            i = lca.second + 1;
+        }
+        // Flush the last value
+        cout << x << '\t' << y << '\t' << prev_l << '\t' << prev_r << '\t' << mapToBp[prev_l] << '\t' << mapToBp[prev_r] << '\t' << prev_lca << '\t' << nodes[prev_lca].timestamp << '\t' << nodes[prev_lca].weight << '\t' << nodes[prev_lca].probability << '\n';
+    }
 
     void outputDebug_(NodeId nodeRef, const char *outputPrefix)
     {
@@ -696,6 +703,7 @@ private:
         if (largestid == 0)
             return inputError(~0u, "largestid");
         nodes.resize(largestid+1);
+        mapToBp.reserve(1024);
         
         unsigned nentries = 0;
         cin >> nentries;
@@ -738,6 +746,14 @@ private:
                 cin >> argchild.recomb;
                 // Keeps track of maximum position value
                 rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
+
+                if (mapToBp.size() < rRangeMax)
+                    mapToBp.resize(rRangeMax+1); // Fixme; make it amortized constant time or better
+                assert (mapToBp[argchild.lRange] == 0 || mapToBp[argchild.lRange] == argchild.lbp);
+                assert (mapToBp[argchild.rRange] == 0 || mapToBp[argchild.rRange] == argchild.rbp);
+                mapToBp[argchild.lRange] = argchild.lbp;
+                mapToBp[argchild.rRange] = argchild.rbp;
+                                
                 pos[argchild.id][argchild.rRange] = make_pair(arnode.child.size(), argchild.lRange);
                 arnode.child.push_back(argchild);
 #ifdef OUTPUT_RANGE_DISTRIBUTION
@@ -799,8 +815,9 @@ private:
         ARNode &arnode = nodes[id];
         if (id > 0)
         {
-            // Validate active parent ptr            
-            assert(active_parent == arnode.getParent(i));
+            // Validate active parent ptr
+            pair<NodeId,Position> tmp = arnode.getParent(i);
+            assert(active_parent == tmp.first);
         }
         
         // Handle leaf nodes
@@ -1538,30 +1555,36 @@ private:
         nodes[nodeRef].timestamp = max_x;
     }
     
-    double getLCATime(Position i, NodeId x, NodeId y)
+    pair<NodeId,Position> getLCATime(Position i, NodeId x, NodeId y)
     {
         // Collect all nodes from x to root at position i
         assert (x > 0);
         assert (y > 0);
-        set<NodeId> xParents;
+        map<NodeId,Position> xParents;
+        Position min_rRange = ~0u;        
         NodeId j = x;
         while (j != 0)
         {
-            xParents.insert(j);
-            j = nodes[j].getParent(i); // Move upwards in the tree
+            pair<NodeId,Position> pinfo = nodes[j].getParent(i); // Returns pointer and rRange for the parent at pos i
+            min_rRange = min(min_rRange, pinfo.second);
+            xParents[pinfo.first] = min_rRange;
+            j = pinfo.first; // Move upwards in the tree
         }
-
+        
         // Similarly, traverse from y to root at position i, and check if LCA is found
         j = y;
+        min_rRange = ~0u;        
         while (j != 0)
         {
-            if (xParents.count(j))
-				return j;
-//                return nodes[j].timestamp;
-            j = nodes[j].getParent(i); // Move upwards in the tree
+            pair<NodeId,Position> pinfo = nodes[j].getParent(i); // Returns pointer and rRange for the parent at pos i
+            min_rRange = min(min_rRange, pinfo.second);
+            if (xParents.count(pinfo.first))
+                return make_pair(pinfo.first, min(min_rRange, xParents[pinfo.first]));
+            j = pinfo.first; // Move upwards in the tree
         }
-		return 0;
-//        return nodes[0].timestamp;
+
+        assert (0); // Should not happen (root is always included in xParents)
+        return make_pair(0,0);
     }
 
 
@@ -1582,9 +1605,9 @@ private:
         return ts1 < ts2;
     }
     
-    
     std::vector<ARNode> nodes;
     std::vector<unsigned> knuthShuffle;
+    std::vector<Position> mapToBp; // Map
     unsigned nleaves; // Number of leaves
     Position rRangeMax; // Largest position value encountered
     bool ok_;
@@ -1643,7 +1666,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
 
 int main(int argc, char ** argv)
 {
-    srand ( time(NULL) );
+    srand ( 85871701 );
 //	srand(0);
     if (argc != 7)
     {
@@ -1692,7 +1715,7 @@ int main(int argc, char ** argv)
     // Validity check
     if (!arg.validate())
     {
-        cout << "ARGraph class validation failed" << endl;
+        cerr << "ARGraph class validation failed" << endl;
         return 1;
     }
     
@@ -1721,6 +1744,7 @@ int main(int argc, char ** argv)
     arg.outputDebug(nEdges, outputPrefix);
     return 0;*/
 
+    
     // Iterate time updates max_iter times
     unsigned iter = 0;
     while (iter < max_iter)
@@ -1734,8 +1758,10 @@ int main(int argc, char ** argv)
 			//arg.updateTimes(); // Linear traversal
 			arg.iterateTimes(false, method);  // Random traversal
     }
-	if (dis_out == 1){
+
+    if (dis_out == 1){
 	    cerr << "Extracting times..." << endl;
+            cout << "x\ty\tlRange\trRange\tlbp\trbp\tnode\ttimestamp\tweight\tprobability\n";
 	    for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
 	    {
 	        if (it->second != popl)
