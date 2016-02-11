@@ -1928,7 +1928,7 @@ int atoi_min(char const *value, int min)
     return i;
 }
 
-map<unsigned,unsigned> init_pop_map(const char *fn)
+map<unsigned,unsigned> init_pop_map(const char *fn, unsigned popl, unsigned popr)
 {
     // Init population map
     ifstream ifs(fn);
@@ -1948,6 +1948,8 @@ map<unsigned,unsigned> init_pop_map(const char *fn)
         ifs >> p;
         assert (p > 0);
         assert (lid > 0);
+        if (p != popl && p != popr)
+            continue; // Discard other than popl and popr
         popm[lid] = p;
         popcount[p]+=1;
     }
@@ -1978,15 +1980,15 @@ int main(int argc, char ** argv)
         return 1;
     }
 
-    map<unsigned,unsigned> popmap = init_pop_map(argv[1]);
+    unsigned popl = atoi_min(argv[2], 1);
+    unsigned popr = atoi_min(argv[3], 1);
+    map<unsigned,unsigned> popmap = init_pop_map(argv[1], popl, popr);
     if (popmap.empty())
     {
         cerr << "error: unable to read pop map input" << endl;
         return 1;
     }
 
-    unsigned popl = atoi_min(argv[2], 1);
-    unsigned popr = atoi_min(argv[3], 1);
     unsigned max_iter = atoi_min(argv[4], 0);
     unsigned method = atoi_min(argv[5], 1);
     unsigned dis_out = atoi_min(argv[6], 0);
