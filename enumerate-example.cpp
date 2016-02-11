@@ -116,8 +116,11 @@ public:
 		bool timeAssigned;
 		double probability;
 		double weight;
+        int popl_count;
+        int popr_count;
+        unsigned long total_npairs;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -283,7 +286,7 @@ public:
             knuthShuffle[i] = knuthShuffle[j]; // Swap values
             knuthShuffle[j] = tmp;
         }
-	// timeUpdateReset(); // FIXME Not required anymore!?
+
 		it_norm_abs = 0.0;
 		it_norm_rel = 0.0;
 		mean_abs_change = 0.0;
@@ -458,6 +461,119 @@ public:
 		}
 	}
 
+
+    Position updatePopCounters(NodeId leaf, Position i, int direction, bool popl)
+    {
+        Position min_rRange = ~0u;
+        NodeId j = leaf;        
+        while (j != 0)
+        {            
+            pair<NodeId,Position> pinfo = nodes[j].getParent(i); // Returns pointer and rRange for the parent at pos i
+            min_rRange = min(min_rRange, pinfo.second);
+            if (popl)
+                nodes[pinfo.first].popl_count += direction;
+            else
+                nodes[pinfo.first].popr_count += direction;
+
+            j = pinfo.first; // Move upwards in the tree
+        }
+        assert(min_rRange != ~0u);
+        return min_rRange;
+    }
+
+    // Returns for leaf node their next update position (next after position 0)
+    map<Position,vector<NodeId> > initPopInfo(unsigned popl, unsigned popr, map<unsigned,unsigned> const &popmap)
+    {
+        map<Position,vector<NodeId> > updateNext;
+        for (unsigned i = 1; i <= nleaves; ++i)
+        {
+            if (popmap.count(i) == 0)
+                continue; // Skip leaves that are not in the given population map
+            
+            // Find the parent's rRange value            
+            Position rRange = updatePopCounters(i, 0, +1, popl == popmap.at(i));
+            updateNext[rRange].push_back(i);
+        }
+        return updateNext;
+    }
+        
+    // Collect population popl vs popr information for the leaf nodes in the given popmap
+    void outputPopInfo(unsigned popl, unsigned popr, map<unsigned,unsigned> const &popmap)
+    {
+        assert (popl > 0);
+        assert (popr > 0);
+
+        // Reset counts
+        for (std::vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+        {
+            it->popl_count = 0;
+            it->popr_count = 0;
+            it->total_npairs = 0;
+        }
+
+        // Initialize counts and collect next update information (nextUpdate tells, for each leaf, the next update position)
+        map<Position,vector<NodeId> > nextUpdate = initPopInfo(popl, popr, popmap);
+        // Iterate over all positions
+        Position i = 0;
+        while (i <= rRangeMax)
+        {
+            if (i % 1000 == 0)
+                cerr << "at step i = " << i << endl;
+
+            // Assert: Sum of counts at root must be == number of leaves (in the population map)
+            if (nodes[0].popl_count + nodes[0].popr_count != (int)popmap.size())
+            {
+                cerr << "At step i = " << i << endl;
+                cerr << "popl = " << nodes[0].popl_count << ", popr = " << nodes[0].popr_count << ", popmapsize = " << (int)popmap.size() << endl;
+            }
+            assert (nodes[0].popl_count + nodes[0].popr_count == (int)popmap.size());
+            assert (nextUpdate.size() > 0);
+            Position lRange = i;
+            Position rRange = nextUpdate.begin()->first;
+
+            /**
+             * Process the range [lRange, rRange] and corresponding popl_count & popr_count values here
+             *
+             * Increments the total_npairs value of each node by (rRange - lRange + 1) * (number of pairs).
+             */
+            for (unsigned j = 0; j < nodes.size(); ++j)
+                if (nodes[j].popl_count > 0 && nodes[j].popr_count > 0)
+                {
+                    unsigned long npairs = 0;
+                    for (vector<struct ARGchild>::iterator it = nodes[j].child.begin(); it != nodes[j].child.end(); ++it)
+                        if (it->lRange <= lRange && rRange <= it->rRange)
+                            for (vector<struct ARGchild>::iterator jt = it + 1; jt != nodes[j].child.end(); ++jt)
+                                if (jt->lRange <= lRange && rRange <= jt->rRange)
+                                    npairs += (nodes[it->id].popl_count * nodes[jt->id].popr_count) + (nodes[it->id].popr_count * nodes[jt->id].popl_count);
+
+                    // (number of base-pairs) * (number of pairs)
+                    nodes[j].total_npairs += (unsigned long)(mapToBp[rRange] - mapToBp[lRange] + 1) * npairs;
+                }
+            
+            // Update popl_count and popr_count values 
+            for (vector<NodeId>::iterator it = nextUpdate[rRange].begin(); it != nextUpdate[rRange].end(); ++it)
+            {
+                if (popmap.count(*it) == 0)
+                    cerr << "error at i = " << i << ", it = " << *it << " not in popmap" << endl;
+                Position rr = updatePopCounters(*it, rRange, -1, popl == popmap.at(*it));
+                assert (rr == rRange);
+                if (rRange + 1 <= rRangeMax)
+                {
+                    rr = updatePopCounters(*it, rRange + 1, +1, popl == popmap.at(*it));
+                    assert (rr > rRange);
+                    nextUpdate[rr].push_back(*it);
+                }
+            }
+            nextUpdate.erase(rRange); // Processing complete up to the position rRange.
+            i = rRange + 1;
+        }
+
+        cout << "nodeid\ttimestamp\ttotal_npairs\n";
+        for (unsigned j = 0; j < nodes.size(); ++j)
+            if (nodes[j].total_npairs > 0)
+                cout << j << '\t' << nodes[j].timestamp << '\t' << nodes[j].total_npairs << '\n';
+    }
+    
     void outputTimes(NodeId x, NodeId y)
     {
         assert (x > 0);
@@ -1695,11 +1811,17 @@ int main(int argc, char ** argv)
     unsigned popl = atoi_min(argv[2], 1);
     unsigned popr = atoi_min(argv[3], 1);
     unsigned max_iter = atoi_min(argv[4], 0);
-	unsigned method = atoi_min(argv[5], 1);
-	unsigned dis_out = atoi_min(argv[6], 0);
-	if (dis_out != 0 && dis_out != 1)
-		assert(false);
-    cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
+    unsigned method = atoi_min(argv[5], 1);
+    unsigned dis_out = atoi_min(argv[6], 0);
+    if (dis_out > 2)
+    {
+        cerr << "usage error: [dis_out] must be either 0, 1 or 2" << endl;
+        return 1;
+    }
+    if (dis_out == 1)
+        cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
+    if (dis_out == 2)
+        cerr << "comparing population " << popl << " vs " << popr << endl;
     
     // Read data from standard input
     ARGraph arg;
@@ -1734,17 +1856,9 @@ int main(int argc, char ** argv)
     }
 
     arg.initializeEdges();
-	arg.ComputeWeights();
+    arg.ComputeWeights();
     cerr << "Updating times..." << endl;
 
-    // Output debug information
-    // Debug function is disabled for now...
-/*    unsigned nEdges = atoi_min(argv[5], 0);
-    const char * outputPrefix = argv[6];
-    arg.outputDebug(nEdges, outputPrefix);
-    return 0;*/
-
-    
     // Iterate time updates max_iter times
     unsigned iter = 0;
     while (iter < max_iter)
@@ -1759,29 +1873,34 @@ int main(int argc, char ** argv)
 			arg.iterateTimes(false, method);  // Random traversal
     }
 
-    if (dis_out == 1){
-	    cerr << "Extracting times..." << endl;
-            cout << "x\ty\tlRange\trRange\tlbp\trbp\tnode\ttimestamp\tweight\tprobability\n";
-	    for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
-	    {
-	        if (it->second != popl)
-	            continue;
-	        map<unsigned,unsigned>::iterator itt = popmap.begin();
-	        while (itt->second != popr && itt != popmap.end())
-	            ++itt;
-	        while (itt != popmap.end())
-	        {
-	            assert(it->second == popl);  // Compare exactly these populations
-	            assert(itt->second == popr);
+    if (dis_out == 1)
+    {
+        cerr << "Extracting leaf-pair times..." << endl;
+        cout << "x\ty\tlRange\trRange\tlbp\trbp\tnode\ttimestamp\tweight\tprobability\n";
+        for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
+        {
+            if (it->second != popl)
+                continue;
+            map<unsigned,unsigned>::iterator itt = popmap.begin();
+            while (itt->second != popr && itt != popmap.end())
+                ++itt;
+            while (itt != popmap.end())
+            {
+                assert(it->second == popl);  // Compare exactly these populations
+                assert(itt->second == popr);
 
-	            if (it->first != itt->first  && (popl != popr || it->first < itt->first))
-	                arg.outputTimes(it->first, itt->first);
+                if (it->first != itt->first  && (popl != popr || it->first < itt->first))
+                    arg.outputTimes(it->first, itt->first);
             
-	            do ++itt;
-	            while (itt->second != popr && itt != popmap.end());
-	        }
+                do ++itt;
+                while (itt->second != popr && itt != popmap.end());
+            }
     	}
-	}
-    
+    }
+    if (dis_out == 2)
+    {
+        cerr << "Extracting population vs population times..." << endl;
+        arg.outputPopInfo(popl, popr, popmap);
+    }
     return 0;
 }
