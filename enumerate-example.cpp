@@ -156,9 +156,9 @@ public:
             case mutation_event:
                 return mutation[ev.second].pos;
             case insert_child_event:
-                return child[ev.second].lRange; 
+                return child[ev.second].lbp; 
             case delete_child_event:
-                return child[ev.second].rRange + 1;
+                return child[ev.second].rbp + 1;
             default:
                 assert (0);
             }
@@ -202,7 +202,7 @@ public:
 
     
     ARGraph()
-        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001*300), rho(0.00000001*300)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
     {
         ok_ = construct();
     }
@@ -347,7 +347,49 @@ public:
 		}
 	}
 	
-	void initializeEdges(){
+	void initializeEdges(){//based on lbp and rbp
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
+			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+//				if (!itt->include)
+//					continue;
+				if (itt->rbp - itt->lbp + 1 == 0)
+					continue;
+				else
+					it->edgesCh[ itt->id ].second += mu*(itt->rbp - itt->lbp + 1);
+				if (itt->recomb)
+					it->edgesCh[ itt->id ].first ++;
+			}
+			it->edgesChNum = it->edgesCh.size();
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
+			{
+				if (itt->second.second == 0){
+					it->edgesCh.erase(itt);
+					assert(false);
+				}
+			}
+	//		extract mutations
+			for (vector<struct Mutation>::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
+				if (it->edgesCh.find(it->child[itt->id].id) == it->edgesCh.end())
+					continue;
+				it->edgesCh[ it->child[itt->id].id ].first++;
+			}
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
+			{
+				if (itt->second.second == 0){
+					it->edgesCh.erase(itt);
+					assert(false);
+				}
+			}
+	//		add	information to child	
+			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first = it->edgesCh[ itt->id ].first;
+				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second = it->edgesCh[ itt->id ].second;
+//				nodes[ itt->id ].edgesPNum++;
+			}
+		}
+	}
+	
+	void initializeEdgesRange(){//based on lRange and rRange
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
 //				if (!itt->include)
