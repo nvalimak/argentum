@@ -303,8 +303,21 @@ public:
 					UpdateTime2(knuthShuffle[i]);
 				break;
 			case 3:
-				for (unsigned i = 1; i < nodes.size(); ++i)
-					UpdateTime3(knuthShuffle[i]);
+				for (unsigned i = 1; i < nodes.size(); ++i){
+					NodeId nodeRef = knuthShuffle[i];
+					double old_time = nodes[nodeRef].timestamp;
+					UpdateTime3(nodeRef);
+					double abs_change = abs(nodes[nodeRef].timestamp - old_time);
+					double rel_change = 0;
+					if (nodes[nodeRef].timestamp != 0)
+						rel_change = abs(nodes[nodeRef].timestamp - old_time)/old_time;
+					mean_abs_change += abs_change;
+					mean_rel_change += rel_change;
+					if ( abs_change > it_norm_abs )
+						it_norm_abs = abs_change;
+					if ( rel_change > it_norm_rel )
+						it_norm_rel = rel_change;
+				}
 				break;
 			default:
 				cerr << "Unknown update time method." << endl;
@@ -373,6 +386,54 @@ public:
 				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second = it->edgesCh[ itt->id ].second;
 //				nodes[ itt->id ].edgesPNum++;
 			}
+		}
+	}
+	
+	void reinitializeEdges(){
+		vector<double> probDist;
+		double prob, lambda;
+		unsigned k;
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){	
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt){
+				lambda = itt->second.second*abs(it->timestamp - nodes[itt->first].timestamp);
+				k = itt->second.first;
+				prob = k*log(lambda)-lambda-Factorial(k, true);
+				probDist.push_back(prob);
+			}
+		}
+		sort(probDist.begin(), probDist.end());
+		cerr << probDist[0] << "\t" << probDist[probDist.size()-1] << endl;
+		double mean = 0;
+		for (vector<double>::iterator it = probDist.begin(); it != probDist.end(); ++it)
+			mean += *it;
+		mean = mean/probDist.size();
+		double sd = 0;
+		for (vector<double>::iterator it = probDist.begin(); it != probDist.end(); ++it)
+			sd += (*it - mean )*(*it - mean);
+		sd = sd/(probDist.size() - 1);
+		sd = sqrt(sd);
+		
+		double th = mean - 1.6*sd ;
+		cerr << "Deleting edges with th = " << th << endl;
+		unsigned numEdgeDelete = 0;
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){	
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ){
+				lambda = itt->second.second*abs(it->timestamp - nodes[itt->first].timestamp);
+				k = itt->second.first;
+				prob = k*log(lambda)-lambda-Factorial(k, true);
+				if (prob < th){
+					numEdgeDelete++;
+					it->edgesCh.erase(itt++);
+					nodes[itt->first].edgesP.erase(it-nodes.begin() );
+				}
+				else
+					itt++;
+			}
+		}
+		cerr << numEdgeDelete << " edges deleted out of " << probDist.size() << endl;
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
+			if (it->edgesCh.size() == 0 && it - nodes.begin() > nleaves)
+				it->timestamp = -1;
 		}
 	}
 
@@ -1374,7 +1435,7 @@ private:
 		return root;
 	}
 	
-	int Factorial(int k, bool logarithmic = false){
+	int Factorial(unsigned k, bool logarithmic = false){
 		double f = 1.0, i;
 		if (logarithmic){
 			f = 0.0;
@@ -1460,14 +1521,10 @@ private:
 		if ( rel_change > it_norm_rel )
 			it_norm_rel = rel_change;
         nodes[nodeRef].timestamp = new_time;
-		nodes[nodeRef].probability = ComputeProbability(new_time, nodeRef);
     }
 	
     void UpdateTime3(NodeId nodeRef) //f3 - "children vs parents"
-    {
-		assert(nodes[ nodeRef ].edgesCh.size() == nodes[ nodeRef ].edgesChNum);
-//		assert(nodes[ nodeRef ].edgesP.size() == nodes[ nodeRef ].edgesPNum);
-		
+    {		
         if (nodeRef == 0)
         {
             nodes[ nodeRef ].timestamp = -1;
@@ -1481,15 +1538,13 @@ private:
 
 		double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
         double C1 = 0.0, C2 = 0.0;
-		double min_child_time = -1.0;
 		
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
 			A1 += it->second.second;
 			B1 += it->second.second*nodes[it->first].timestamp;
 			C1 += it->second.first;
-			if (min_child_time == -1.0 || min_child_time > nodes[it->first].timestamp)
-				min_child_time = nodes[it->first].timestamp;
 		}
+		
         for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
 			if (it->first == 0)
 				continue;
@@ -1502,9 +1557,101 @@ private:
 			nodes[nodeRef].timestamp = (B1+C1)/A1;
 			return;
 		}
+		if (C1 == 0)//FIXME?
+			C1 += 0.0001;
+		if (C2 == 0)//FIXME?
+			C2 += 0.0001;
+		double new_time = nodes[nodeRef].timestamp;
+
 		
-		assert(A1 != A2);		
-			
+		double a = A1-A2;
+		if (B1/A1 > B2/A2)
+			a = -a;
+		double b = -a*(B1/A1 + B2/A2) - (C1 + C2);
+		double c = C2*B1/A1 + C1*B2/A2 + a*B1*B2/(A1*A2);
+		double D = b * b - 4*a*c;
+		if (D < 0.0){
+			cerr << "node " << nodeRef << endl;
+			cerr << "t = " << nodes[nodeRef].timestamp << endl;
+			cerr << "A1 = " << A1 << "\tB1 = " << B1 << "\tC1 = " << C1 << endl;
+			cerr << "A2 = " << A2 << "\tB2 = " << B2 << "\tC2 = " << C2 << endl;
+			cerr << "B1/A1 = " << B1/A1 << endl;
+			cerr << "B2/A2 = " << B2/A2 << endl;
+			cerr << "a = " << a << "\tb = " << b << "\tc = " << c << endl;
+			cerr << "D = " << D << endl;
+			assert(false);
+		}
+		double x1 = (-b - sqrt(D))/(2*a);
+		double x2 = (-b + sqrt(D))/(2*a);
+		double lEnd = min(B1/A1, B2/A2);
+		double rEnd = max(B1/A1, B2/A2);
+		if (lEnd <= x1 && x1 <= rEnd)
+			new_time = x1;
+		else if (lEnd <= x2 && x2 <= rEnd)
+			new_time = x2;
+		else{
+			cerr << "node " << nodeRef << endl;
+			cerr << "t = " << nodes[nodeRef].timestamp << endl;
+			cerr << "A1 = " << A1 << "\tB1 = " << B1 << "\tC1 = " << C1 << endl;
+			cerr << "A2 = " << A2 << "\tB2 = " << B2 << "\tC2 = " << C2 << endl;
+			cerr << "B1/A1 = " << B1/A1 << endl;
+			cerr << "B2/A2 = " << B2/A2 << endl;
+			cerr << "a = " << a << "\tb = " << b << "\tc = " << c << endl;
+			cerr << "D = " << D << endl;
+			cerr << "x1 = " << x1 << endl;
+			cerr << "x2 = " << x2 << endl;
+			assert(false);
+			new_time = (C2*B1 + C1*B2)/(C1*A2+C2*A1);
+		}
+        nodes[nodeRef].timestamp = new_time;
+    }
+	
+    void UpdateTime4(NodeId nodeRef) //f3 - "children vs parents" + support of reinit
+    {
+        if (nodeRef == 0)
+        {
+            nodes[ nodeRef ].timestamp = -1;
+            return;
+        }
+        if (nodeRef <= nleaves && nodeRef != 0)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }
+		
+
+		double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
+        double C1 = 0.0, C2 = 0.0;
+		
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ){
+			if (nodes[it->first].edgesCh.size() == 0 && it->first > nleaves){
+				nodes[ nodeRef ].edgesCh.erase(it++);
+				continue;
+			}
+			A1 += it->second.second;
+			B1 += it->second.second*nodes[it->first].timestamp;
+			C1 += it->second.first;
+			it++;
+		}
+		
+		if (nodes[ nodeRef ].edgesCh.size() == 0){
+			nodes[ nodeRef ].timestamp = -1;
+			return;
+		}
+		
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
+			if (it->first == 0)
+				continue;
+			A2 += it->second.second;
+			B2 += it->second.second*nodes[it->first].timestamp;
+			C2 += it->second.first;
+		}
+
+		if (A2 == 0.0){
+			nodes[nodeRef].timestamp = (B1+C1)/A1;
+			return;
+		}
+
 		if (C1 == 0)//FIXME?
 			C1 ++;
 		if (C2 == 0)//FIXME?
@@ -1529,7 +1676,6 @@ private:
 			cerr << "D = " << D << endl;
 			assert(false);
 		}
-//		assert(D >= 0);
 		double x1 = (-b - sqrt(D))/(2*a);
 		double x2 = (-b + sqrt(D))/(2*a);
 		double lEnd = min(B1/A1, B2/A2);
@@ -1538,19 +1684,9 @@ private:
 			new_time = x1;
 		else if (lEnd <= x2 && x2 <= rEnd)
 			new_time = x2;
-		else{
-			cerr << "node " << nodeRef << endl;
-			cerr << "t = " << nodes[nodeRef].timestamp << endl;
-			cerr << "A1 = " << A1 << "\tB1 = " << B1 << "\tC1 = " << C1 << endl;
-			cerr << "A2 = " << A2 << "\tB2 = " << B2 << "\tC2 = " << C2 << endl;
-			cerr << "B1/A1 = " << B1/A1 << endl;
-			cerr << "B2/A2 = " << B2/A2 << endl;
-			cerr << "a = " << a << "\tb = " << b << "\tc = " << c << endl;
-			cerr << "D = " << D << endl;
-			cerr << "x1 = " << x1 << endl;
-			cerr << "x2 = " << x2 << endl;
-			assert(false);
-		}
+		else
+			new_time = (C2*B1 + C1*B2)/(C1*A2+C2*A1);
+
 
 		double abs_change = abs(nodes[nodeRef].timestamp - new_time);
 		double rel_change = 0;
@@ -1563,7 +1699,6 @@ private:
 		if ( rel_change > it_norm_rel )
 			it_norm_rel = rel_change;
         nodes[nodeRef].timestamp = new_time;
-//		nodes[nodeRef].probability = ComputeProbability(new_time, nodeRef);
     }
 
     void UpdateTime(NodeId nodeRef)//f1 - divide and conquer
@@ -1864,7 +1999,7 @@ int main(int argc, char ** argv)
     while (iter < max_iter)
     {
         iter ++;
-		if (iter % 1 == 0 ){
+		if (iter % 10 == 0 ){
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
 			arg.iterateTimes(true, method);
 		}
@@ -1872,6 +2007,20 @@ int main(int argc, char ** argv)
 			//arg.updateTimes(); // Linear traversal
 			arg.iterateTimes(false, method);  // Random traversal
     }
+	
+/*	arg.reinitializeEdges();
+	iter = 0;
+    while (iter < max_iter)
+    {
+        iter ++;
+		if (iter % 10 == 0 ){
+			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
+			arg.iterateTimes(true, method);
+		}
+		else
+			//arg.updateTimes(); // Linear traversal
+			arg.iterateTimes(false, method);  // Random traversal
+    }*/
 
     if (dis_out == 1)
     {
