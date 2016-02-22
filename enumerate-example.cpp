@@ -2121,7 +2121,7 @@ int main(int argc, char ** argv)
 {
     srand ( 85871701 );
 //	srand(0);
-    if (argc != 9)
+    if (argc != 10)
     {
         cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [initMethod] [updMethod] [dis_out] [counter] [n_edges] [output_prefix] < input > output" << endl;
         cerr << "  where" <<endl;
@@ -2131,6 +2131,7 @@ int main(int argc, char ** argv)
         cerr << "     max_iter      - How many iterations to make." << endl;
 		cerr << "     initMethod    - Which time assign method to use (1-2)." << endl;
 		cerr << "     updMethod     - Which time update method to use (1-5)." << endl;
+		cerr << "     excl cycles   - Exclude cycles for time update (false = 0, true = 1)." << endl;
 		cerr << "     dis_out       - Disable(0)/enable(1) the output of population distances." << endl;
 		cerr << "     counter       - Step for output information while iteration process.." << endl;
         cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
@@ -2152,8 +2153,12 @@ int main(int argc, char ** argv)
     unsigned max_iter = atoi_min(argv[4], 0);
     unsigned initMethod = atoi_min(argv[5], 1);
 	unsigned updMethod = atoi_min(argv[6], 1);
-    unsigned dis_out = atoi_min(argv[7], 0);
-	unsigned counter = atoi_min(argv[8], 1);
+	unsigned ec = atoi_min(argv[7], 0);
+	bool excludeCycles = false;
+	if (ec == 1)
+		excludeCycles = true;
+    unsigned dis_out = atoi_min(argv[8], 0);
+	unsigned counter = atoi_min(argv[9], 1);
     if (dis_out > 2)
     {
         cerr << "usage error: [dis_out] must be either 0, 1 or 2" << endl;
@@ -2195,7 +2200,7 @@ int main(int argc, char ** argv)
         pair<unsigned,unsigned> tmp = arg.numberOfExcludedNodes();
         cerr << "Number of edges = " << tmp.first << ", number of excluded edges = " << tmp.second << endl;
     }
-    arg.initializeEdges(true);
+    arg.initializeEdges(excludeCycles);
 	arg.CountConflictEdges();
 //	arg.ComputeWeights();
     cerr << "Updating times..." << endl;
