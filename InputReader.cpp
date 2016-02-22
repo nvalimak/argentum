@@ -129,7 +129,7 @@ bool SimpleVCFInputReader::next(InputColumn &ic)
         for (size_t i = 0; i<= AApos+10; ++i)
             row[i] = SimpleVCFInputReader::upcasedna[(unsigned)row[i]];
         size_t len = 1;
-        while (row[AApos+3+len] != '|' && row[AApos+3+len] != ';')
+        while (row[AApos+3+len] != '|' && row[AApos+3+len] != ';' && row[AApos+3+len] != '\t' && row[AApos+3+len] != ' ')
             ++len;
         AA = row.substr(AApos+3,len);
         
