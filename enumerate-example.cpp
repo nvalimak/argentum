@@ -229,7 +229,7 @@ public:
         return true;
     }
 
-    void assignTimes()
+    void assignTimes(int method)
     {
         std::vector<NodeId> nodeStack;
         nodeStack.push_back(0); //root node
@@ -238,7 +238,18 @@ public:
             NodeId nodeRef = nodeStack.back();
             if( nodes[ nodeRef ].childToCheck == nodes[ nodeRef ].child.size() )
             {
-                assignTime(nodeRef);
+				switch(method){
+					case 1:
+						assignTime(nodeRef);
+						break;
+					case 2:
+						assignTime2(nodeRef);
+						break;
+					default:
+						cerr << "Unknown assign time method." << endl;
+						exit(0);
+						break;
+				}
 				nodes[ nodeRef ].timeAssigned = true;
                 nodes[ nodeRef ].inStack = false;
                 nodeStack.pop_back();
@@ -319,6 +330,31 @@ public:
 						it_norm_rel = rel_change;
 				}
 				break;
+			case 4:
+				for (unsigned i = 1; i < nodes.size(); ++i)
+					UpdateTime4(knuthShuffle[i]);
+				break;
+			case 5:
+				for (unsigned i = 1; i < nodes.size(); ++i){
+					NodeId nodeRef = knuthShuffle[i];
+					double old_time = nodes[nodeRef].timestamp;
+					UpdateTime5(nodeRef);
+					if ( isnan(nodes[nodeRef].timestamp) ){
+						cerr << nodeRef << endl;
+						assert(false);
+					}
+					double abs_change = abs(nodes[nodeRef].timestamp - old_time);
+					double rel_change = 0;
+					if (nodes[nodeRef].timestamp != 0)
+						rel_change = abs(nodes[nodeRef].timestamp - old_time)/old_time;
+					mean_abs_change += abs_change;
+					mean_rel_change += rel_change;
+					if ( abs_change > it_norm_abs )
+						it_norm_abs = abs_change;
+					if ( rel_change > it_norm_rel )
+						it_norm_rel = rel_change;
+				}
+				break;
 			default:
 				cerr << "Unknown update time method." << endl;
 				exit(0);
@@ -347,11 +383,15 @@ public:
 		}
 	}
 	
-	void initializeEdges(){//based on lbp and rbp
+	void initializeEdges(bool exclude = false){//based on lbp and rbp
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-//				if (!itt->include)
-//					continue;
+				if (exclude && !itt->include)
+					continue;
+				if (it->timestamp <= nodes[itt->id].timestamp){
+					cerr << "EDGE CONFLICT!" << endl;
+					assert(false);
+				}
 				if (itt->rbp - itt->lbp + 1 == 0)
 					continue;
 				else
@@ -373,14 +413,12 @@ public:
 					continue;
 				it->edgesCh[ it->child[itt->id].id ].first++;
 			}
-			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
-			{
-				if (itt->second.second == 0){
-					it->edgesCh.erase(itt);
-					assert(false);
-				}
+	//		add	information to child
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt){
+				nodes[ itt->first ].edgesP[ it - nodes.begin() ].first = itt->second.first;
+				nodes[ itt->first ].edgesP[ it - nodes.begin() ].second = itt->second.second;
 			}
-	//		add	information to child	
+			return;
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
 				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first = it->edgesCh[ itt->id ].first;
 				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second = it->edgesCh[ itt->id ].second;
@@ -389,11 +427,20 @@ public:
 		}
 	}
 	
-	void initializeEdgesRange(){//based on lRange and rRange
+	void CountConflictEdges(){
+		unsigned counter = 0;
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it)
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
+				if (it->timestamp < nodes[ itt->first ].timestamp)
+					counter++;
+		cerr << "Number of conflicts is " << counter << endl;
+	}
+	
+	void initializeEdgesRange(bool exclude = false){//based on lRange and rRange
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-//				if (!itt->include)
-//					continue;
+				if (exclude && !itt->include)
+					continue;
 				if (itt->rRange - itt->lRange + 1 == 0)
 					continue;
 				else
@@ -1056,6 +1103,31 @@ private:
 #endif
 
 
+    void assignTime2(NodeId nodeRef)
+    {
+        if (nodeRef == 0)
+        {
+            nodes[ nodeRef ].timestamp = -1;
+            return;
+        }
+        if (nodeRef <= nleaves && nodeRef != 0)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }  
+        nodes[nodeRef].timestamp = 0;
+		
+		double ts = -2.0;
+		
+		for (int i = 0; i < nodes[nodeRef].child.size(); i++){
+			if (!nodes[nodeRef].child[i].include)
+				continue;
+			if (ts < nodes[ nodes[nodeRef].child[i].id ].timestamp)
+				ts = nodes[ nodes[nodeRef].child[i].id ].timestamp;
+		}	
+        nodes[ nodeRef ].timestamp = ts+1.0;
+    }
+
     void assignTime(NodeId nodeRef)
     {
         if (nodeRef == 0)
@@ -1178,8 +1250,25 @@ private:
 //				prob = prob/Factorial(it->second.first);
 			}
 		}
-		if (isnan(prob))
+		if (isnan(prob)){
+/*			prob = 0;
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesCh.begin(); it != nodes[nodeRef].edgesCh.end(); ++it){
+				if (x == nodes[ it->first ].timestamp)
+					continue;
+				lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
+				cerr << "\tlambda = " << lambda << endl;
+				cerr << "\tid = " << it->first << "\tx = " << x << "\tt = " << nodes[ it->first ].timestamp << "\te = " << it->second.second << endl;
+			}
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[nodeRef].edgesP.begin(); it != nodes[nodeRef].edgesP.end(); ++it){
+				if (x == nodes[ it->first ].timestamp)
+					continue;
+				lambda = abs(x - nodes[ it->first ].timestamp )*it->second.second;
+				cerr << "\tlambda = " << lambda << endl;
+				cerr << "\tid = " << it->first << "\tx = " << x << "\tt = " << nodes[ it->first ].timestamp << "\te = " << it->second.second << endl;
+				prob += it->second.first*log( lambda) - lambda;
+			}*/
 			assert(false);
+		}
 //		prob = pow(prob, 1/(nodes[nodeRef].edgesCh.size()+nodes[nodeRef].edgesP.size() ) );
 		return prob;
 	}
@@ -1847,6 +1936,75 @@ private:
 			it_norm_rel = rel_change;
         nodes[nodeRef].timestamp = max_x;
     }
+	
+    void UpdateTime5(NodeId nodeRef)//f1 - divide and conquer on a single interval
+    {
+        if (nodeRef == 0)
+        {
+            nodes[ nodeRef ].timestamp = -1;
+            return;
+        }
+        if (nodeRef <= nleaves && nodeRef != 0)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }
+
+        vector<pair<NodeId,bool> > range;
+		double le = -1.0, re = -1.0;
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
+            range.push_back(make_pair(it->first, false));
+			if (le < nodes[ it->first ].timestamp)
+				le = nodes[ it->first ].timestamp;
+		}
+        for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
+            range.push_back(make_pair(it->first, true));
+			if (re > nodes[ it->first ].timestamp || re == -1.0)
+				re = nodes[ it->first ].timestamp;
+		}
+        std::sort(range.begin(), range.end(), compareEvents(this));
+        GetPolynom(nodeRef, range);
+
+        unsigned nonZero = 0;
+        for (size_t i = 0; i < nodes[nodeRef].polynom.size(); ++i)
+            if (nodes[nodeRef].polynom[i].k != 0)
+                ++nonZero;
+		
+		if (nonZero == 0){
+			if (le == -1.0 && re == -1.0)
+				nodes[ nodeRef ].timestamp = -1.0;
+			else if (le == -1.0)
+				nodes[ nodeRef ].timestamp = re/2.0;
+			else if (re == -1.0)
+				nodes[ nodeRef ].timestamp = le + 1.0;
+			else
+				nodes[ nodeRef ].timestamp = (le + re)/2.0;
+			return;
+		}
+		
+		if (le == -1.0){
+			Root root = RootNewton(nodeRef, re, true);
+			if (!root.success)
+				nodes[ nodeRef ].timestamp = re/2.0;
+			else
+				nodes[ nodeRef ].timestamp = root.root;
+		}
+		else if (re == -1.0){
+			Root root = RootNewton(nodeRef, le, false);
+			if (!root.success)
+				nodes[ nodeRef ].timestamp = le + 1.0;
+			else
+				nodes[ nodeRef ].timestamp = root.root;
+		}
+		else{
+            Root root;
+            root = RootBisection(le, re, nodeRef);
+			if (!root.success)
+				nodes[ nodeRef ].timestamp = (le + re)/2.0;
+			else
+				nodes[nodeRef].timestamp = root.root;
+		}
+    }
     
     pair<NodeId,Position> getLCATime(Position i, NodeId x, NodeId y)
     {
@@ -1963,16 +2121,18 @@ int main(int argc, char ** argv)
 {
     srand ( 85871701 );
 //	srand(0);
-    if (argc != 7)
+    if (argc != 9)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [method] [dis_out] [n_edges] [output_prefix] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [initMethod] [updMethod] [dis_out] [counter] [n_edges] [output_prefix] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         cerr << "     pop1          - Population to compare against" << endl;
         cerr << "     pop2          - another population/same population." << endl;
         cerr << "     max_iter      - How many iterations to make." << endl;
-		cerr << "     method        - Which time update method to use (1-3)." << endl;
+		cerr << "     initMethod    - Which time assign method to use (1-2)." << endl;
+		cerr << "     updMethod     - Which time update method to use (1-5)." << endl;
 		cerr << "     dis_out       - Disable(0)/enable(1) the output of population distances." << endl;
+		cerr << "     counter       - Step for output information while iteration process.." << endl;
         cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
         cerr << "     output_prefix - Output file prefix." << endl;
         cerr << "     input         - standard input (pipe from `./main --enumerate`)" << endl;
@@ -1990,8 +2150,10 @@ int main(int argc, char ** argv)
     }
 
     unsigned max_iter = atoi_min(argv[4], 0);
-    unsigned method = atoi_min(argv[5], 1);
-    unsigned dis_out = atoi_min(argv[6], 0);
+    unsigned initMethod = atoi_min(argv[5], 1);
+	unsigned updMethod = atoi_min(argv[6], 1);
+    unsigned dis_out = atoi_min(argv[7], 0);
+	unsigned counter = atoi_min(argv[8], 1);
     if (dis_out > 2)
     {
         cerr << "usage error: [dis_out] must be either 0, 1 or 2" << endl;
@@ -2027,15 +2189,15 @@ int main(int argc, char ** argv)
 #endif
 	
     cerr << "Assigning times..." << endl;
-    arg.assignTimes();
+    arg.assignTimes(initMethod);
 
     {
         pair<unsigned,unsigned> tmp = arg.numberOfExcludedNodes();
         cerr << "Number of edges = " << tmp.first << ", number of excluded edges = " << tmp.second << endl;
     }
-
-    arg.initializeEdges();
-    arg.ComputeWeights();
+    arg.initializeEdges(true);
+	arg.CountConflictEdges();
+//	arg.ComputeWeights();
     cerr << "Updating times..." << endl;
 
     // Iterate time updates max_iter times
@@ -2043,13 +2205,14 @@ int main(int argc, char ** argv)
     while (iter < max_iter)
     {
         iter ++;
-		if (iter % 10 == 0 ){
+		if (iter % counter == 0 ){
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
-			arg.iterateTimes(true, method);
+			arg.iterateTimes(true, updMethod);
+			arg.CountConflictEdges();
 		}
 		else
 			//arg.updateTimes(); // Linear traversal
-			arg.iterateTimes(false, method);  // Random traversal
+			arg.iterateTimes(false, updMethod);  // Random traversal
     }
 	
 /*	arg.reinitializeEdges();
@@ -2057,7 +2220,7 @@ int main(int argc, char ** argv)
     while (iter < max_iter)
     {
         iter ++;
-		if (iter % 10 == 0 ){
+		if (iter % counter == 0 ){
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
 			arg.iterateTimes(true, method);
 		}
