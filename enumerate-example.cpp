@@ -154,11 +154,11 @@ public:
             switch (ev.first)
             {
             case mutation_event:
-                return mutation[ev.second].pos;
+                return rangeMode?mutation[ev.second].bp:mutation[ev.second].pos;
             case insert_child_event:
-                return child[ev.second].lbp; 
+                return rangeMode?child[ev.second].lbp:child[ev.second].lRange; 
             case delete_child_event:
-                return child[ev.second].rbp + 1;
+                return ( rangeMode?child[ev.second].rbp:child[ev.second].rRange ) + 1;
             default:
                 assert (0);
             }
@@ -202,10 +202,20 @@ public:
 
     
     ARGraph()
-        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001), rangeMode(true)
     {
         ok_ = construct();
     }
+
+	SetRangeMode(bool mode){
+		rangeMode = mode;
+		cerr << "Ranges are measured in ";
+		if (mode)
+			cerr << "BP (basepairs).";
+		else
+			cerr << "SNP (positions).";
+		cerr << endl;
+	}
 
     bool ok() const
     { return ok_; }
@@ -383,19 +393,21 @@ public:
 		}
 	}
 	
-	void initializeEdges(bool exclude = false){//based on lbp and rbp
+	void initializeEdges(bool exclude = false){
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+				unsigned leftR = rangeMode?itt->lbp:itt->lRange;
+				unsigned rightR = rangeMode?itt->rbp:itt->rRange;
 				if (exclude && !itt->include)
 					continue;
 				if (it->timestamp <= nodes[itt->id].timestamp){
 					cerr << "EDGE CONFLICT!" << endl;
 					assert(false);
 				}
-				if (itt->rbp - itt->lbp + 1 == 0)
+				if (rightR - leftR + 1 == 0)
 					continue;
 				else
-					it->edgesCh[ itt->id ].second += mu*(itt->rbp - itt->lbp + 1);
+					it->edgesCh[ itt->id ].second += mu*(rightR - leftR + 1);
 				if (itt->recomb)
 					it->edgesCh[ itt->id ].first ++;
 			}
@@ -1539,8 +1551,8 @@ private:
 		while (abs( Fx ) > epsilon) {
 			time(&tc);
 			if (abs(difftime(tc, ts) ) > 2){
-				cerr << "RootNewton: node " << nodeRef << " takes too much time." << endl;
-				cerr << "RootNewton: x = " << x << ", Fa = " << Fa << ", Fb = " << Fb << endl;
+				cerr << "RootBisection: node " << nodeRef << " takes too much time." << endl;
+				cerr << "RootBisection: x = " << x << ", Fa = " << Fa << ", Fb = " << Fb << endl;
 				for ( vector<Poly>::iterator it = nodes[nodeRef].polynom.begin(); it != nodes[nodeRef].polynom.end(); ++it){
 					cerr << "\tk = " << it->k << "\te = " << it->e << "\tt = " << it->t << endl;
 				}
@@ -2065,6 +2077,7 @@ private:
     double mu, rho; //mutation and recombination rates
 	double it_norm_abs, it_norm_rel;
 	double mean_abs_change, mean_rel_change;
+	bool rangeMode; //false = SNP, true = BP
 };
 
 int atoi_min(char const *value, int min)
@@ -2121,9 +2134,9 @@ int main(int argc, char ** argv)
 {
     srand ( 85871701 );
 //	srand(0);
-    if (argc != 10)
+    if (argc != 11)
     {
-        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [initMethod] [updMethod] [dis_out] [counter] [n_edges] [output_prefix] < input > output" << endl;
+        cerr << "usage: " << argv[0] << " [pairs.txt] [pop1] [pop2] [max_iter] [initMethod] [updMethod] [rangeMode] [exCycles] [dis_out] [counter] [n_edges] [output_prefix] < input > output" << endl;
         cerr << "  where" <<endl;
         cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
         cerr << "     pop1          - Population to compare against" << endl;
@@ -2131,7 +2144,8 @@ int main(int argc, char ** argv)
         cerr << "     max_iter      - How many iterations to make." << endl;
 		cerr << "     initMethod    - Which time assign method to use (1-2)." << endl;
 		cerr << "     updMethod     - Which time update method to use (1-5)." << endl;
-		cerr << "     excl cycles   - Exclude cycles for time update (false = 0, true = 1)." << endl;
+		cerr << "     rangeMode     - Measuring ranges in SNP(0) or BP(1)." << endl;
+		cerr << "     exCycles      - Exclude cycles for time update (false = 0, true = 1)." << endl;
 		cerr << "     dis_out       - Disable(0)/enable(1) the output of population distances." << endl;
 		cerr << "     counter       - Step for output information while iteration process.." << endl;
         cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
@@ -2153,12 +2167,16 @@ int main(int argc, char ** argv)
     unsigned max_iter = atoi_min(argv[4], 0);
     unsigned initMethod = atoi_min(argv[5], 1);
 	unsigned updMethod = atoi_min(argv[6], 1);
-	unsigned ec = atoi_min(argv[7], 0);
+	unsigned rm = atoi_min(argv[7], 0);
+	bool rangeMode = false;
+	if (rm == 1)
+		rangeMode = true;
+	unsigned ec = atoi_min(argv[8], 0);
 	bool excludeCycles = false;
 	if (ec == 1)
 		excludeCycles = true;
-    unsigned dis_out = atoi_min(argv[8], 0);
-	unsigned counter = atoi_min(argv[9], 1);
+    unsigned dis_out = atoi_min(argv[9], 0);
+	unsigned counter = atoi_min(argv[10], 1);
     if (dis_out > 2)
     {
         cerr << "usage error: [dis_out] must be either 0, 1 or 2" << endl;
@@ -2192,7 +2210,7 @@ int main(int argc, char ** argv)
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     arg.outputRangeDistributions();
 #endif
-	
+	arg.SetRangeMode(rangeMode);
     cerr << "Assigning times..." << endl;
     arg.assignTimes(initMethod);
 
