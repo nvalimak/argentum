@@ -202,12 +202,12 @@ public:
 
     
     ARGraph()
-        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001), rangeMode(true)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
     {
         ok_ = construct();
     }
 
-	SetRangeMode(bool mode){
+	void SetRangeMode(bool mode){
 		rangeMode = mode;
 		cerr << "Ranges are measured in ";
 		if (mode)
@@ -2077,8 +2077,10 @@ private:
     double mu, rho; //mutation and recombination rates
 	double it_norm_abs, it_norm_rel;
 	double mean_abs_change, mean_rel_change;
-	bool rangeMode; //false = SNP, true = BP
+public:
+	static bool rangeMode; //false = SNP, true = BP
 };
+bool ARGraph::rangeMode = true;
 
 int atoi_min(char const *value, int min)
 {
