@@ -394,8 +394,18 @@ public:
 	}
 	
 	void initializeEdges(bool exclude = false){
+		unsigned counter_e = 0;
+//		cerr << "skipped edges = " << counter << endl;
+//		counter++;
+		cerr << "ARG size = " << nodes.size() << endl;
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
+			if (it - nodes.begin() > nleaves && it->child.size() == 0){
+				cerr << "no child node " << it - nodes.begin() << endl;
+				assert(false);
+			}
+				
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+				counter_e++;
 				unsigned leftR = rangeMode?itt->lbp:itt->lRange;
 				unsigned rightR = rangeMode?itt->rbp:itt->rRange;
 				if (exclude && !itt->include)
@@ -430,6 +440,7 @@ public:
 				nodes[ itt->first ].edgesP[ it - nodes.begin() ].first = itt->second.first;
 				nodes[ itt->first ].edgesP[ it - nodes.begin() ].second = itt->second.second;
 			}
+			cerr << "Number of initialized edges = " << counter_e << endl;
 			return;
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
 				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first = it->edgesCh[ itt->id ].first;
@@ -440,12 +451,14 @@ public:
 	}
 	
 	void CountConflictEdges(){
-		unsigned counter = 0;
+		unsigned counter = 0, nedges = 0;
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it)
-			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt)
+			for (std::map<NodeId, std::pair<int, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt){
+				nedges++;
 				if (it->timestamp < nodes[ itt->first ].timestamp)
 					counter++;
-		cerr << "Number of conflicts is " << counter << endl;
+			}
+		cerr << "Number of conflicts is " << counter << " of " << nedges << endl;
 	}
 	
 	void initializeEdgesRange(bool exclude = false){//based on lRange and rRange
@@ -1698,6 +1711,10 @@ private:
 
 		if (A2 == 0.0){
 			nodes[nodeRef].timestamp = (B1+C1)/A1;
+			if (isnan(nodes[nodeRef].timestamp)){
+				cerr << "CHIRIK!" << endl;
+				assert(false);
+			}
 			return;
 		}
 		if (C1 == 0)//FIXME?
@@ -1745,6 +1762,10 @@ private:
 			cerr << "x2 = " << x2 << endl;
 			assert(false);
 			new_time = (C2*B1 + C1*B2)/(C1*A2+C2*A1);
+		}
+		if (isnan(new_time)){
+			cerr << "COUCOU!" << endl;
+			assert(false);
 		}
         nodes[nodeRef].timestamp = new_time;
     }
@@ -2147,7 +2168,7 @@ int main(int argc, char ** argv)
 		cerr << "     initMethod    - Which time assign method to use (1-2)." << endl;
 		cerr << "     updMethod     - Which time update method to use (1-5)." << endl;
 		cerr << "     rangeMode     - Measuring ranges in SNP(0) or BP(1)." << endl;
-		cerr << "     exCycles      - Exclude cycles for time update (false = 0, true = 1)." << endl;
+		cerr << "     exCycles      - Exclude cycles for time update (include = 0, exclude = 1)." << endl;
 		cerr << "     dis_out       - Disable(0)/enable(1) the output of population distances." << endl;
 		cerr << "     counter       - Step for output information while iteration process.." << endl;
         cerr << "     n_edges       - Output nodes with exactly <n_edges> edges." << endl;
