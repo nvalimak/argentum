@@ -394,26 +394,12 @@ public:
 	}
 	
 	void initializeEdges(bool exclude = false){
-		unsigned counter_e = 0;
-//		cerr << "skipped edges = " << counter << endl;
-//		counter++;
-		cerr << "ARG size = " << nodes.size() << endl;
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
-			if (it - nodes.begin() > nleaves && it->child.size() == 0){
-				cerr << "no child node " << it - nodes.begin() << endl;
-				assert(false);
-			}
-				
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				counter_e++;
 				unsigned leftR = rangeMode?itt->lbp:itt->lRange;
 				unsigned rightR = rangeMode?itt->rbp:itt->rRange;
 				if (exclude && !itt->include)
 					continue;
-				if (it->timestamp <= nodes[itt->id].timestamp){
-					cerr << "EDGE CONFLICT!" << endl;
-					assert(false);
-				}
 				if (rightR - leftR + 1 == 0)
 					continue;
 				else
@@ -440,13 +426,12 @@ public:
 				nodes[ itt->first ].edgesP[ it - nodes.begin() ].first = itt->second.first;
 				nodes[ itt->first ].edgesP[ it - nodes.begin() ].second = itt->second.second;
 			}
-			cerr << "Number of initialized edges = " << counter_e << endl;
-			return;
-			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first = it->edgesCh[ itt->id ].first;
-				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second = it->edgesCh[ itt->id ].second;
+//			return;
+//			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+//				nodes[ itt->id ].edgesP[ it - nodes.begin() ].first = it->edgesCh[ itt->id ].first;
+//				nodes[ itt->id ].edgesP[ it - nodes.begin() ].second = it->edgesCh[ itt->id ].second;
 //				nodes[ itt->id ].edgesPNum++;
-			}
+//			}
 		}
 	}
 	
@@ -1711,10 +1696,7 @@ private:
 
 		if (A2 == 0.0){
 			nodes[nodeRef].timestamp = (B1+C1)/A1;
-			if (isnan(nodes[nodeRef].timestamp)){
-				cerr << "CHIRIK!" << endl;
-				assert(false);
-			}
+			assert(!isnan(nodes[nodeRef].timestamp));
 			return;
 		}
 		if (C1 == 0)//FIXME?
@@ -1763,10 +1745,7 @@ private:
 			assert(false);
 			new_time = (C2*B1 + C1*B2)/(C1*A2+C2*A1);
 		}
-		if (isnan(new_time)){
-			cerr << "COUCOU!" << endl;
-			assert(false);
-		}
+		assert( !isnan(new_time) );
         nodes[nodeRef].timestamp = new_time;
     }
 	
