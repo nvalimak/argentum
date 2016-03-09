@@ -627,7 +627,7 @@ public:
 	}
 
 
-    Position updatePopCounters(NodeId leaf, Position i, int direction, bool popl)
+    Position updatePopCounters(NodeId leaf, Position i, int direction, bool popl, bool popr)
     {
         Position min_rRange = ~0u;
         NodeId j = leaf;        
@@ -637,7 +637,7 @@ public:
             min_rRange = min(min_rRange, pinfo.second);
             if (popl)
                 nodes[pinfo.first].popl_count += direction;
-            else
+            if (popr)
                 nodes[pinfo.first].popr_count += direction;
 
             j = pinfo.first; // Move upwards in the tree
@@ -654,9 +654,11 @@ public:
         {
             if (popmap.count(i) == 0)
                 continue; // Skip leaves that are not in the given population map
+            if (popl != popmap.at(i) && popr != popmap.at(i))
+                continue; // Skip leaves that are not in popl and popr
             
-            // Find the parent's rRange value            
-            Position rRange = updatePopCounters(i, 0, +1, popl == popmap.at(i));
+            // Find the parent's rRange value
+            Position rRange = updatePopCounters(i, 0, +1, popl == popmap.at(i), popr == popmap.at(i));
             updateNext[rRange].push_back(i);
         }
         return updateNext;
@@ -686,12 +688,12 @@ public:
                 cerr << "at step i = " << i << endl;
 
             // Assert: Sum of counts at root must be == number of leaves (in the population map)
-            if (nodes[0].popl_count + nodes[0].popr_count != (int)popmap.size())
+            if (nodes[0].popl_count + nodes[0].popr_count != (int)popmap.size() && nodes[0].popl_count + nodes[0].popr_count != (int)popmap.size()*2)
             {
                 cerr << "At step i = " << i << endl;
                 cerr << "popl = " << nodes[0].popl_count << ", popr = " << nodes[0].popr_count << ", popmapsize = " << (int)popmap.size() << endl;
             }
-            assert (nodes[0].popl_count + nodes[0].popr_count == (int)popmap.size());
+            assert (nodes[0].popl_count + nodes[0].popr_count == (int)popmap.size() || (popl == popr && nodes[0].popl_count + nodes[0].popr_count == (int)popmap.size()*2));
             assert (nextUpdate.size() > 0);
             Position lRange = i;
             Position rRange = nextUpdate.begin()->first;
@@ -720,11 +722,11 @@ public:
             {
                 if (popmap.count(*it) == 0)
                     cerr << "error at i = " << i << ", it = " << *it << " not in popmap" << endl;
-                Position rr = updatePopCounters(*it, rRange, -1, popl == popmap.at(*it));
+                Position rr = updatePopCounters(*it, rRange, -1, popl == popmap.at(*it), popr == popmap.at(*it));
                 assert (rr == rRange);
                 if (rRange + 1 <= rRangeMax)
                 {
-                    rr = updatePopCounters(*it, rRange + 1, +1, popl == popmap.at(*it));
+                    rr = updatePopCounters(*it, rRange + 1, +1, popl == popmap.at(*it), popr == popmap.at(*it));
                     assert (rr > rRange);
                     nextUpdate[rr].push_back(*it);
                 }
