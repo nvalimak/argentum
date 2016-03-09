@@ -202,7 +202,7 @@ public:
 
     
     ARGraph()
-        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001), newton_success(0), newton_fail(0), bisection_success(0), bisection_fail(0)
     {
         ok_ = construct();
     }
@@ -444,6 +444,11 @@ public:
 					counter++;
 			}
 		cerr << "Number of conflicts is " << counter << " of " << nedges << endl;
+	}
+	
+	void ReportIterMethods(){
+		cerr << "Newton success = " << newton_success << ", newton fail " << newton_fail << endl;
+		cerr << "Bisection success = " << bisection_success << ", bisection fail " << bisection_fail << endl;
 	}
 	
 	void initializeEdgesRange(bool exclude = false){//based on lRange and rRange
@@ -1986,9 +1991,9 @@ private:
 			if (le == -1.0 && re == -1.0)
 				nodes[ nodeRef ].timestamp = -1.0;
 			else if (le == -1.0)
-				nodes[ nodeRef ].timestamp = re/2.0;
+				nodes[ nodeRef ].timestamp = re;
 			else if (re == -1.0)
-				nodes[ nodeRef ].timestamp = le + 1.0;
+				nodes[ nodeRef ].timestamp = le;
 			else
 				nodes[ nodeRef ].timestamp = (le + re)/2.0;
 			return;
@@ -1996,25 +2001,49 @@ private:
 		
 		if (le == -1.0){
 			Root root = RootNewton(nodeRef, re, true);
-			if (!root.success)
-				nodes[ nodeRef ].timestamp = re/2.0;
-			else
+			if (!root.success){
+				nodes[ nodeRef ].timestamp = re;
+				newton_fail++;
+			}
+			else{
 				nodes[ nodeRef ].timestamp = root.root;
+				newton_success++;
+			}
 		}
 		else if (re == -1.0){
 			Root root = RootNewton(nodeRef, le, false);
-			if (!root.success)
-				nodes[ nodeRef ].timestamp = le + 1.0;
-			else
+			if (!root.success){
+				nodes[ nodeRef ].timestamp = le;
+				newton_fail++;
+			}
+			else{
 				nodes[ nodeRef ].timestamp = root.root;
+				newton_success++;
+			}
 		}
 		else{
             Root root;
             root = RootBisection(le, re, nodeRef);
-			if (!root.success)
-				nodes[ nodeRef ].timestamp = (le + re)/2.0;
-			else
+			if (!root.success){
+				double old_p = ComputeProbability(nodes[ nodeRef ].timestamp, nodeRef, true);
+				double new_time = (le + 3*re)/4.0;
+				double new_p = ComputeProbability(new_time, nodeRef, true);
+				if (old_p < new_p){
+					nodes[ nodeRef ].timestamp = new_time;
+					old_p = new_p;
+				}
+				new_time = (3*le + re)/4.0;
+				new_p = ComputeProbability(new_time, nodeRef, true);
+				if (old_p < new_p){
+					nodes[ nodeRef ].timestamp = new_time;
+					old_p = new_p;
+				}
+				bisection_fail++;
+			}
+			else{
 				nodes[nodeRef].timestamp = root.root;
+				bisection_success++;
+			}
 		}
     }
     
@@ -2077,6 +2106,7 @@ private:
     double mu, rho; //mutation and recombination rates
 	double it_norm_abs, it_norm_rel;
 	double mean_abs_change, mean_rel_change;
+	unsigned newton_success, newton_fail, bisection_success, bisection_fail;
 public:
 	static bool rangeMode; //false = SNP, true = BP
 };
@@ -2239,7 +2269,7 @@ int main(int argc, char ** argv)
 			//arg.updateTimes(); // Linear traversal
 			arg.iterateTimes(false, updMethod);  // Random traversal
     }
-	
+	arg.ReportIterMethods();
 /*	arg.reinitializeEdges();
 	iter = 0;
     while (iter < max_iter)
