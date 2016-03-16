@@ -106,10 +106,10 @@ int main(int argc, char ** argv)
                 assert(it->second == popl);  // Compare exactly these populations
                 assert(itt->second == popr);
                 
-                if (it->first != itt->first && (popl != popr || it->first < itt->first))
+                if (it->first != itt->first && (popl != popr || it->first < itt->first)){
                     // Output format:         leaf X               leaf Y                column       bp position    timestamp of pair X,Y at position n
                     cout << "TIME" << '\t' << it->first << '\t' << itt->first << '\t' << n << '\t' << base << '\t' << predt.getLCATime(it->first, itt->first) << '\n';
-
+				}
                 do ++itt;
                 while (itt->second != popr && itt != popmap.end());
             }
@@ -121,6 +121,8 @@ int main(int argc, char ** argv)
             predt.next();
         } while (predt.good() && predt.validForBases() == 0); // Skip if valid only for 0 bases
         n++;
+		if (n%1000 == 0)
+			cerr << n << " lines processed" << endl;
     }
     cerr << n << " sites, " << base << " predt_bases" << endl;
     return 0;

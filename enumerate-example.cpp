@@ -1714,6 +1714,12 @@ private:
 
 		
 		double a = A1-A2;
+		if (a == 0){
+			A1 = 2*A1;
+			B1 = 2*B1;
+			C1 = 2*C1;
+			a = A1 - A2;
+		}
 		if (B1/A1 > B2/A2)
 			a = -a;
 		double b = -a*(B1/A1 + B2/A2) - (C1 + C2);
