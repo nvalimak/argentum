@@ -316,7 +316,7 @@ public:
 				cout << "Component " << NumComponents << endl;
 			NumComponents++;
 			sliceCurId = sliceMaxId;
-			VisitComponent( it - nodes.begin() );
+			VisitComponent( it - nodes.begin(), output );
 			cerr << "Component contains " << sliceMaxId - sliceCurId << " nodes." << endl;
 		}
 		cerr << "Number of components found: " << NumComponents << endl;
