@@ -109,7 +109,7 @@ public:
 		map<NodeId, pair<int, double> > edgesP;
 		unsigned edgesChNum, edgesPNum;
 		vector<Poly> polynom;
-		
+
         unsigned childToCheck;
         double timestamp;
         bool inStack;
@@ -119,8 +119,13 @@ public:
         int popl_count;
         int popr_count;
         unsigned long total_npairs;
+		//TODO set node range at the construction lNodeRange = min rangeMode?child.lbp:child.lRange over all child nodes
+		unsigned lNodeRange, rNodeRange;
+		unsigned sliceDegree;
+		bool inSlice;
+		unsigned idInSlice;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inSlice(false)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -202,7 +207,7 @@ public:
 
     
     ARGraph()
-        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), ok_(true), mu(0.00000001), rho(0.00000001), newton_success(0), newton_fail(0), bisection_success(0), bisection_fail(0)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), rbpMax(0), ok_(true), mu(0.00000001), rho(0.00000001), newton_success(0), newton_fail(0), bisection_success(0), bisection_fail(0), sliceMaxId(0)
     {
         ok_ = construct();
     }
@@ -238,6 +243,85 @@ public:
 #endif
         return true;
     }
+
+	void SetSlice(Position lSlice, Position rSlice){
+		lSliceRange = lSlice;
+		rSliceRange = rSlice;
+	}
+
+	void setNodeRanges(){
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			it->lNodeRange = rangeMode?rbpMax:rRangeMax + 2;
+			it->rNodeRange = 0;
+			if (it->child.size() == 0){
+				it->lNodeRange = 0;
+				it->rNodeRange = rangeMode?rbpMax:rRangeMax + 1;
+			}
+			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
+				if ( it->lNodeRange > rangeMode?itt->lbp:itt->lRange ){
+					it->lNodeRange = rangeMode?itt->lbp:itt->lRange;
+				}
+				if ( it->rNodeRange < rangeMode?itt->rbp:itt->rRange ){
+					it->rNodeRange = rangeMode?itt->rbp:itt->rRange;
+				}
+			}
+		}
+	}
+
+	bool isInSlice(NodeId nodeRef){
+		unsigned leftR = nodes[nodeRef].lNodeRange;
+		unsigned rightR = nodes[nodeRef].rNodeRange;
+		if (rightR < lSliceRange)
+			return false;
+		if (rSliceRange < leftR)
+			return false;
+		return true;
+	}
+	
+	void SetNodeSliceID(NodeId nodeRef){
+		nodes[nodeRef].idInSlice = sliceMaxId;
+		nodes[nodeRef].inSlice = true;
+		sliceMaxId++;
+	}
+
+	void VisitComponent(NodeId nodeRef, bool output = false){
+		if (!nodes[nodeRef].inSlice)
+			SetNodeSliceID(nodeRef);
+
+		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
+			if ( !isInSlice(it->first) )
+				continue;
+			if (output)
+				cout << nodes[nodeRef].idInSlice << "\t" << nodes[it->first].idInSlice << "\t1\n";
+			if ( !nodes[it->first].inSlice )
+				VisitComponent(it->first, output);
+		}
+	
+		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
+			if ( !isInSlice(it->first) )
+				continue;
+			if ( !nodes[it->first].inSlice )
+				VisitComponent(it->first, output);
+		}
+	}
+
+	void CheckConnectedness(bool output = false){
+		unsigned NumComponents = 0;
+		unsigned sliceCurId;
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			if ( !isInSlice( it - nodes.begin() ) || it->inSlice )
+				continue;
+		
+			if (output)
+				cout << "Component " << NumComponents << endl;
+			NumComponents++;
+			sliceCurId = sliceMaxId;
+			VisitComponent( it - nodes.begin() );
+			cerr << "Component contains " << sliceMaxId - sliceCurId << " nodes." << endl;
+		}
+		cerr << "Number of components found: " << NumComponents << endl;
+		cerr << "Total number of nodes in the slice " << sliceMaxId << endl;
+	}
 
     void assignTimes(int method)
     {
@@ -968,7 +1052,7 @@ private:
             cerr << "enumerate-example error: input failed at step " << msg << " after " << nentries << " input entries remain." << endl;
         return false;
     }
-    
+	
     // Returns false if there are problems reading the input
     bool construct()
     {
@@ -1029,6 +1113,7 @@ private:
                 cin >> argchild.recomb;
                 // Keeps track of maximum position value
                 rRangeMax = rRangeMax > argchild.rRange ? rRangeMax : argchild.rRange;
+				rbpMax = rbpMax > argchild.rbp ? rbpMax : argchild.rbp;
 
                 if (mapToBp.size() < rRangeMax)
                     mapToBp.resize(rRangeMax+1); // Fixme; make it amortized constant time or better
@@ -1206,7 +1291,7 @@ private:
                 
             case ARNode::delete_child_event:
                 rRange = nodes[nodeRef].getPosition( events[i] );
-				if (rRange == rRangeMax + 1){
+				if (rRange == rangeMode?rbpMax:rRangeMax + 1){
 					stop = true;
 				}
                 La += (rRange - lRange) * activeNodes.size();
@@ -2110,11 +2195,15 @@ private:
     std::vector<Position> mapToBp; // Map
     unsigned nleaves; // Number of leaves
     Position rRangeMax; // Largest position value encountered
+	Position rbpMax;
     bool ok_;
     double mu, rho; //mutation and recombination rates
 	double it_norm_abs, it_norm_rel;
 	double mean_abs_change, mean_rel_change;
 	unsigned newton_success, newton_fail, bisection_success, bisection_fail;
+//	unsigned nedges;
+	Position lSliceRange, rSliceRange;
+	unsigned sliceMaxId;
 public:
 	static bool rangeMode; //false = SNP, true = BP
 };
@@ -2217,7 +2306,7 @@ int main(int argc, char ** argv)
 		excludeCycles = true;
     unsigned dis_out = atoi_min(argv[9], 0);
 	unsigned counter = atoi_min(argv[10], 1);
-    if (dis_out > 2)
+    if (dis_out > 3)
     {
         cerr << "usage error: [dis_out] must be either 0, 1 or 2" << endl;
         return 1;
@@ -2226,6 +2315,8 @@ int main(int argc, char ** argv)
         cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
     if (dis_out == 2)
         cerr << "comparing population " << popl << " vs " << popr << endl;
+    if (dis_out == 3)
+        cerr << "Searching for graph clustering within a slice." << endl;
     
     // Read data from standard input
     ARGraph arg;
@@ -2321,5 +2412,12 @@ int main(int argc, char ** argv)
         cerr << "Extracting population vs population times..." << endl;
         arg.outputPopInfo(popl, popr, popmap);
     }
+	if (dis_out == 3){
+		Position sliceL = 50000;
+		Position sliceR = 200000;
+		arg.SetSlice(sliceL, sliceR);
+		arg.setNodeRanges();
+		arg.CheckConnectedness(true);
+	}
     return 0;
 }
