@@ -2330,11 +2330,11 @@ int main(int argc, char ** argv)
     arg.assignParentPtrs();
     
     // Validity check
-    if (!arg.validate())
-    {
+	/*    if (!arg.validate())
+   {
         cerr << "ARGraph class validation failed" << endl;
         return 1;
-    }
+    }*/
     
     cerr << "ARGraph class constructed OK" << endl;
 
