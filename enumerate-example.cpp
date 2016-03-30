@@ -247,6 +247,7 @@ public:
 	void SetSlice(Position lSlice, Position rSlice){
 		lSliceRange = lSlice;
 		rSliceRange = rSlice;
+		setNodeRanges();
 	}
 
 	void setNodeRanges(){
@@ -321,6 +322,14 @@ public:
 		}
 		cerr << "Number of components found: " << NumComponents << endl;
 		cerr << "Total number of nodes in the slice " << sliceMaxId << endl;
+	}
+	
+	void OutputSlice(){
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			if ( !it->inSlice )
+				continue;
+			cout << it - nodes.begin() << "\t" << it->idInSlice << "\t" << it->timestamp << endl;
+		}
 	}
 
     void assignTimes(int method)
@@ -2416,8 +2425,8 @@ int main(int argc, char ** argv)
 		Position sliceL = 50000;
 		Position sliceR = 200000;
 		arg.SetSlice(sliceL, sliceR);
-		arg.setNodeRanges();
 		arg.CheckConnectedness(true);
+		arg.OutputSlice();
 	}
     return 0;
 }
