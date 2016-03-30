@@ -325,6 +325,7 @@ public:
 	}
 	
 	void OutputSlice(){
+		cout << "Slice nodes" << endl;
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
 			if ( !it->inSlice )
 				continue;
