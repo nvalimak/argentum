@@ -296,7 +296,11 @@ public:
 		}
 	}
 	
-	void VisitComponent(NodeId nodeRef, bool output = false){
+	unsigned VisitComponent(NodeId nodeRef, bool output = false){
+		static unsigned nodesInComponents = 0;
+		unsigned nodesInOtherComponents = nodesInComponents;
+		nodesInComponents++;
+		
 		nodes[nodeRef].inComponent = true;
 		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
 			if ( !isInSlice(it->first) )
@@ -313,6 +317,7 @@ public:
 			if ( !nodes[it->first].inComponent )
 				VisitComponent(it->first, output);
 		}
+		return nodesInComponents - nodesInOtherComponents;
 	}
 
 	void CheckConnectedness(bool output = false){
@@ -325,8 +330,8 @@ public:
 				cout << "Component " << NumComponents << endl;
 			NumComponents++;
 			sliceCurId = SliceNodes.size();
-			VisitComponent( *it, output );
-			cerr << "Component contains " << SliceNodes.size() - sliceCurId << " nodes." << endl;
+			unsigned componentSize = VisitComponent( *it, output );
+			cerr << "Component contains " << componentSize << " nodes." << endl;
 		}
 		cerr << "Number of components found: " << NumComponents << endl;
 		cerr << "Total number of nodes in the slice " << SliceNodes.size() << endl;
