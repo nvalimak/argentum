@@ -122,10 +122,10 @@ public:
 		//TODO set node range at the construction lNodeRange = min rangeMode?child.lbp:child.lRange over all child nodes
 		unsigned lNodeRange, rNodeRange;
 		unsigned sliceDegree;
-		bool inSlice;
+		bool inComponent;
 		unsigned idInSlice;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inSlice(false)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -207,7 +207,7 @@ public:
 
     
     ARGraph()
-        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), rbpMax(0), ok_(true), mu(0.00000001), rho(0.00000001), newton_success(0), newton_fail(0), bisection_success(0), bisection_fail(0), sliceMaxId(0)
+        : nodes(), knuthShuffle(), nleaves(0), rRangeMax(0), rbpMax(0), ok_(true), mu(0.00000001), rho(0.00000001), newton_success(0), newton_fail(0), bisection_success(0), bisection_fail(0)
     {
         ok_ = construct();
     }
@@ -244,10 +244,37 @@ public:
         return true;
     }
 
-	void SetSlice(Position lSlice, Position rSlice){
+	void SetSlice(Position lSlice, Position rSlice, double mint = -1.0, double maxt = -1.0){
 		lSliceRange = lSlice;
 		rSliceRange = rSlice;
+		min_time = mint;
+		max_time = maxt;
+		if (max_time != -1.0 && min_time >= max_time){
+			cerr << "Error in ARGraph::SetSlice(): max_time < min_time" << endl;
+			exit(0);
+		}
 		setNodeRanges();
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			NodeId nodeRef = it - nodes.begin();
+			if ( isInSlice( nodeRef ) ){
+				nodes[nodeRef].idInSlice = SliceNodes.size();
+				SliceNodes.push_back(nodeRef);
+			}
+		}
+	}
+	
+	bool isInSlice(NodeId nodeRef){
+		unsigned leftR = nodes[nodeRef].lNodeRange;
+		unsigned rightR = nodes[nodeRef].rNodeRange;
+		if (rightR < lSliceRange)
+			return false;
+		if (rSliceRange < leftR)
+			return false;
+		if (nodes[nodeRef].timestamp <= min_time)
+			return false;
+		if (max_time != -1.0 && max_time < nodes[nodeRef].timestamp)
+			return false;
+		return true;
 	}
 
 	void setNodeRanges(){
@@ -268,40 +295,22 @@ public:
 			}
 		}
 	}
-
-	bool isInSlice(NodeId nodeRef){
-		unsigned leftR = nodes[nodeRef].lNodeRange;
-		unsigned rightR = nodes[nodeRef].rNodeRange;
-		if (rightR < lSliceRange)
-			return false;
-		if (rSliceRange < leftR)
-			return false;
-		return true;
-	}
 	
-	void SetNodeSliceID(NodeId nodeRef){
-		nodes[nodeRef].idInSlice = sliceMaxId;
-		nodes[nodeRef].inSlice = true;
-		sliceMaxId++;
-	}
-
 	void VisitComponent(NodeId nodeRef, bool output = false){
-		if (!nodes[nodeRef].inSlice)
-			SetNodeSliceID(nodeRef);
-
+		nodes[nodeRef].inComponent = true;
 		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
 			if ( !isInSlice(it->first) )
 				continue;
 			if (output)
 				cout << nodes[nodeRef].idInSlice << "\t" << nodes[it->first].idInSlice << "\t1\n";
-			if ( !nodes[it->first].inSlice )
+			if ( !nodes[it->first].inComponent )
 				VisitComponent(it->first, output);
 		}
 	
 		for (map<NodeId, pair<int, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
 			if ( !isInSlice(it->first) )
 				continue;
-			if ( !nodes[it->first].inSlice )
+			if ( !nodes[it->first].inComponent )
 				VisitComponent(it->first, output);
 		}
 	}
@@ -309,28 +318,24 @@ public:
 	void CheckConnectedness(bool output = false){
 		unsigned NumComponents = 0;
 		unsigned sliceCurId;
-		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
-			if ( !isInSlice( it - nodes.begin() ) || it->inSlice )
+		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it){
+			if ( nodes[*it].inComponent )
 				continue;
-		
 			if (output)
 				cout << "Component " << NumComponents << endl;
 			NumComponents++;
-			sliceCurId = sliceMaxId;
-			VisitComponent( it - nodes.begin(), output );
-			cerr << "Component contains " << sliceMaxId - sliceCurId << " nodes." << endl;
+			sliceCurId = SliceNodes.size();
+			VisitComponent( *it, output );
+			cerr << "Component contains " << SliceNodes.size() - sliceCurId << " nodes." << endl;
 		}
 		cerr << "Number of components found: " << NumComponents << endl;
-		cerr << "Total number of nodes in the slice " << sliceMaxId << endl;
+		cerr << "Total number of nodes in the slice " << SliceNodes.size() << endl;
 	}
 	
 	void OutputSlice(){
 		cout << "Slice nodes" << endl;
-		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
-			if ( !it->inSlice )
-				continue;
-			cout << it - nodes.begin() << "\t" << it->idInSlice << "\t" << it->timestamp << endl;
-		}
+		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it)
+			cout << *it << "\t" << nodes[*it].idInSlice << "\t" << nodes[*it].timestamp << endl;
 	}
 
     void assignTimes(int method)
@@ -2213,7 +2218,8 @@ private:
 	unsigned newton_success, newton_fail, bisection_success, bisection_fail;
 //	unsigned nedges;
 	Position lSliceRange, rSliceRange;
-	unsigned sliceMaxId;
+	double min_time, max_time;
+	std::vector<NodeId> SliceNodes;
 public:
 	static bool rangeMode; //false = SNP, true = BP
 };
@@ -2424,8 +2430,8 @@ int main(int argc, char ** argv)
     }
 	if (dis_out == 3){
 		Position sliceL = 50000;
-		Position sliceR = 200000;
-		arg.SetSlice(sliceL, sliceR);
+		Position sliceR = 1000000;
+		arg.SetSlice(sliceL, sliceR, 0);
 		arg.CheckConnectedness(true);
 		arg.OutputSlice();
 	}
