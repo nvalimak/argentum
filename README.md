@@ -37,7 +37,7 @@ Graph slice
 ---
 Set `[dis_out]` parameter of `./enumerate-example` equal to 3.
 There is no control of slice parameters from the command line (TODO).
-The output consists of connected components in the wpairs (native input format for Fast Community http://www.cs.unm.edu/~aaron/research/fastmodularity.htm) followed by output of node description (IDs in ARG and timestamps).
+The output consists of connected components in the wpairs format `[node 1]\t[node 2]\t[edge weight]\n` (native input format for Fast Community http://www.cs.unm.edu/~aaron/research/fastmodularity.htm) followed by output of node description in the format `[ID in ARG]\t[ID in slice]\t[timestamp]\n`.
 
 TODO
 ----
