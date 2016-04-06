@@ -340,7 +340,7 @@ public:
 	void OutputSlice(){
 		cout << "Slice nodes" << endl;
 		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it)
-			cout << *it << "\t" << nodes[*it].idInSlice << "\t" << nodes[*it].timestamp << endl;
+			cout << *it << "\t" << nodes[*it].idInSlice << "\t" << nodes[*it].timestamp << "\t" << nodes[*it].lNodeRange << "\t" << nodes[*it].rNodeRange << endl;
 	}
 
     void assignTimes(int method)
