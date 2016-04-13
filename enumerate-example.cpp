@@ -422,6 +422,7 @@ public:
 		cout << "Number of nodes in clusters: " << inClustNodes << endl;
 		for (unsigned i = 1; i <= nleaves; i++)
 			PaintHaplotype(i, chunks);
+		cout << "Total number of chunks: " << chunks.size() << endl;
 		unsigned fin[4], gbr[4], sar[4];
 		for (int j = 0; j < 4; j++){
 			fin[j] = 0; gbr[j] = 0; sar[j] = 0;
