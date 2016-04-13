@@ -414,6 +414,12 @@ public:
 	void PaintHaps(){
 		vector< PaintChunk > chunks;
 		cerr << "Painting haplotypes..." << endl;
+		unsigned inClustNodes = 0;
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			if (it->clustId != 0)
+				inClustNodes++;
+		}
+		cout << "Number of nodes in clusters: " << inClustNodes << endl;
 		for (unsigned i = 1; i <= nleaves; i++)
 			PaintHaplotype(i, chunks);
 		unsigned fin[4], gbr[4], sar[4];
@@ -1337,7 +1343,7 @@ private:
 		
 		double ts = -2.0;
 		
-		for (int i = 0; i < nodes[nodeRef].child.size(); i++){
+		for (unsigned i = 0; i < nodes[nodeRef].child.size(); i++){
 			if (!nodes[nodeRef].child[i].include)
 				continue;
 			if (ts < nodes[ nodes[nodeRef].child[i].id ].timestamp)
