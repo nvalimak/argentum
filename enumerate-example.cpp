@@ -124,8 +124,9 @@ public:
 		unsigned sliceDegree;
 		bool inComponent;
 		unsigned idInSlice;
+		unsigned clustId;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -341,6 +342,99 @@ public:
 		cout << "Slice nodes" << endl;
 		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it)
 			cout << *it << "\t" << nodes[*it].idInSlice << "\t" << nodes[*it].timestamp << "\t" << nodes[*it].lNodeRange << "\t" << nodes[*it].rNodeRange << endl;
+	}
+	
+	void ReadClust(){
+		int nentries;
+		NodeId nId;
+		unsigned clust;
+		cin >> nentries;
+        while (nentries--)
+        {
+            // Read parent header
+            cin >> nId;
+			cin >> clust;
+			nodes[nId].clustId = clust;
+			nentries--;
+		}	
+	}
+	
+	class PaintChunk{
+	public:
+			NodeId hap;
+			Position lRange, rRange;
+			NodeId nodeRef;
+			
+			PaintChunk(NodeId h){
+				hap = h;
+			}
+			
+			void Set(unsigned lr, unsigned rr, NodeId nid){
+				lRange = lr;
+				rRange = rr;
+				nodeRef = nid;
+			}
+	};
+	
+	void PaintHaplotype(NodeId hap, vector< PaintChunk > &chunks){
+		vector< PaintChunk > chunksStack;
+		PaintChunk chu(hap), curChu(hap);
+		curChu.Set(lSliceRange, rSliceRange, hap);
+		chunksStack.push_back(curChu);
+		while( chunksStack.size() ){
+			curChu = chunksStack.back();
+			chunksStack.pop_back();
+			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[curChu.nodeRef].edgesP.begin(); it != nodes[curChu.nodeRef].edgesP.end(); ++it){
+				Position lr = rSliceRange+1, rr = rSliceRange+1;
+				for (vector< ARGchild >::iterator itt = nodes[it->first].child.begin(); itt != nodes[it->first].child.end(); ++itt){
+					if(itt->id == curChu.nodeRef){
+						lr = itt->lbp;
+						rr = itt->rbp;
+						break;
+					}
+				}
+				if (rr < curChu.lRange || lr > curChu.rRange)
+					continue;
+				else{
+					lr = lr>curChu.lRange?lr:curChu.lRange;
+					rr = rr<curChu.rRange?rr:curChu.rRange;
+				}
+				curChu.Set(lr, rr, it->first);
+				if (nodes[it->first].clustId == 0){
+					chunksStack.push_back(curChu);
+				}
+				else{
+					chunks.push_back(curChu);
+				}
+			}
+		}
+	}
+	
+	void PaintHaps(){
+		vector< PaintChunk > chunks;
+		for (unsigned i = 1; i <= nleaves; i++)
+			PaintHaplotype(i, chunks);
+		unsigned fin[4], gbr[4], sar[4];
+		for (int j = 0; j < 4; j++){
+			fin[j] = 0; gbr[j] = 0; sar[j] = 0;
+		}
+		for (vector< PaintChunk >::iterator it = chunks.begin(); it != chunks.end(); ++it){
+			if (it->hap <= 2000)
+				fin[ nodes[it->nodeRef].clustId ] += (it->rRange - it->lRange);
+			if (2001 <= it->hap && it->hap <= 4000)
+				gbr[ nodes[it->nodeRef].clustId ] += (it->rRange - it->lRange);
+			if (4001 <= it->hap)
+				sar[ nodes[it->nodeRef].clustId ] += (it->rRange - it->lRange);
+		}
+		for (int i = 0; i < 4; i++)
+			cout << fin[i] << "\t";
+		cout << endl;
+		for (int i = 0; i < 4; i++)
+			cout << gbr[i] << "\t";
+		cout << endl;
+		for (int i = 0; i < 4; i++)
+			cout << sar[i] << "\t";
+		cout << endl;
 	}
 
     void assignTimes(int method)
@@ -2327,9 +2421,9 @@ int main(int argc, char ** argv)
 		excludeCycles = true;
     unsigned dis_out = atoi_min(argv[9], 0);
 	unsigned counter = atoi_min(argv[10], 1);
-    if (dis_out > 3)
+    if (dis_out > 4)
     {
-        cerr << "usage error: [dis_out] must be either 0, 1 or 2" << endl;
+        cerr << "usage error: [dis_out] must be in the range 0-4." << endl;
         return 1;
     }
     if (dis_out == 1)
@@ -2338,6 +2432,8 @@ int main(int argc, char ** argv)
         cerr << "comparing population " << popl << " vs " << popr << endl;
     if (dis_out == 3)
         cerr << "Searching for graph clustering within a slice." << endl;
+    if (dis_out == 4)
+        cerr << "Painting..." << endl;
     
     // Read data from standard input
     ARGraph arg;
@@ -2372,6 +2468,10 @@ int main(int argc, char ** argv)
     }
     arg.initializeEdges(excludeCycles);
 	arg.CountConflictEdges();
+	if (dis_out == 4){
+		arg.PaintHaps();
+		return 1;
+	}
 //	arg.ComputeWeights();
     cerr << "Updating times..." << endl;
 
