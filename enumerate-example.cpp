@@ -349,6 +349,7 @@ public:
 		NodeId nId;
 		unsigned clust;
 		cin >> nentries;
+		cerr << "Reading " << nentries << " cluster entries." << endl;
         while (nentries--)
         {
             // Read parent header
@@ -412,6 +413,7 @@ public:
 	
 	void PaintHaps(){
 		vector< PaintChunk > chunks;
+		cerr << "Painting haplotypes..." << endl;
 		for (unsigned i = 1; i <= nleaves; i++)
 			PaintHaplotype(i, chunks);
 		unsigned fin[4], gbr[4], sar[4];
@@ -2469,6 +2471,7 @@ int main(int argc, char ** argv)
     arg.initializeEdges(excludeCycles);
 	arg.CountConflictEdges();
 	if (dis_out == 4){
+		arg.ReadClust();
 		arg.PaintHaps();
 		return 1;
 	}
