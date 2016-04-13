@@ -2434,9 +2434,9 @@ int main(int argc, char ** argv)
         arg.outputPopInfo(popl, popr, popmap);
     }
 	if (dis_out == 3){
-		Position sliceL = 50000;
-		Position sliceR = 1000000;
-		arg.SetSlice(sliceL, sliceR, 0);
+		Position sliceL = 0;
+		Position sliceR = 3000000;
+		arg.SetSlice(sliceL, sliceR, 29, 150);
 		arg.CheckConnectedness(true);
 		arg.OutputSlice();
 	}

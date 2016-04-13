@@ -1,6 +1,6 @@
 CC=g++
-CPPFLAGS=-std=c++0x -Wall -ansi -pedantic -g
-DISBALEDOPTIMIZATIONFLAGS = -O2 -DNDEBUG
+CPPFLAGS=-std=c++0x -Wall -ansi -pedantic -g -O2
+DISBALEDOPTIMIZATIONFLAGS = -DNDEBUG
 OBJ = Configuration.o InputReader.o NewickTree.o Tree.o TreeController.o TreeControllerSimple.o TreeDistance.o
 
 all: main main-simple enumerate-example newickcomp newick2dot newick2timestamp newick2clustersize newick2imbalance-density newick2qdist rand-matrix scrm2bin 
