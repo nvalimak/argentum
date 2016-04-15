@@ -321,9 +321,11 @@ public:
 		return nodesInComponents - nodesInOtherComponents;
 	}
 
-	void CheckConnectedness(bool output = false){
+	NodeId CheckConnectedness(bool output = false){
 		unsigned NumComponents = 0;
 		unsigned sliceCurId;
+		unsigned maxSize = 0;
+		NodeId nodeSeed;
 		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it){
 			if ( nodes[*it].inComponent )
 				continue;
@@ -332,10 +334,20 @@ public:
 			NumComponents++;
 			sliceCurId = SliceNodes.size();
 			unsigned componentSize = VisitComponent( *it, output );
+			if (maxSize < componentSize){
+				maxSize = componentSize;
+				nodeSeed = *it;
+			}
 			cerr << "Component contains " << componentSize << " nodes." << endl;
 		}
 		cerr << "Number of components found: " << NumComponents << endl;
 		cerr << "Total number of nodes in the slice " << SliceNodes.size() << endl;
+		return nodeSeed;
+	}
+	
+	void ResetComponents(){
+		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it)
+			nodes[*it].inComponent = false;
 	}
 	
 	void OutputSlice(){
@@ -356,7 +368,6 @@ public:
             cin >> nId;
 			cin >> clust;
 			nodes[nId].clustId = clust;
-			nentries--;
 		}	
 	}
 	
@@ -379,12 +390,17 @@ public:
 	
 	void PaintHaplotype(NodeId hap, vector< PaintChunk > &chunks){
 		vector< PaintChunk > chunksStack;
-		PaintChunk chu(hap), curChu(hap);
+		PaintChunk chu(hap), curChu(hap), chuTmp(hap);
 		curChu.Set(lSliceRange, rSliceRange, hap);
 		chunksStack.push_back(curChu);
+//		int flag = 5, flag1 = 5;
 		while( chunksStack.size() ){
+//			cerr << "check 0" << endl;
 			curChu = chunksStack.back();
 			chunksStack.pop_back();
+//			if (flag > 0){
+//				cerr << hap << " haplotype processed with range " << curChu.lRange << " " << curChu.rRange << endl;
+//			}
 			for (std::map<NodeId, std::pair<int, double> >::iterator it = nodes[curChu.nodeRef].edgesP.begin(); it != nodes[curChu.nodeRef].edgesP.end(); ++it){
 				Position lr = rSliceRange+1, rr = rSliceRange+1;
 				for (vector< ARGchild >::iterator itt = nodes[it->first].child.begin(); itt != nodes[it->first].child.end(); ++itt){
@@ -400,15 +416,19 @@ public:
 					lr = lr>curChu.lRange?lr:curChu.lRange;
 					rr = rr<curChu.rRange?rr:curChu.rRange;
 				}
-				curChu.Set(lr, rr, it->first);
+//				cerr << "check 2" << endl;
+				chuTmp.Set(lr, rr, it->first);
 				if (nodes[it->first].clustId == 0){
-					chunksStack.push_back(curChu);
+					chunksStack.push_back(chuTmp);
 				}
 				else{
-					chunks.push_back(curChu);
+					chunks.push_back(chuTmp);
 				}
+//				cerr << "check 3" << endl;
 			}
+//			cout << "Number of chunks in stack\t" << chunksStack.size() << "\tnumber of chunks\t" << chunks.size() << endl;
 		}
+//		cout << "Number of chunks is " << chunks.size() << endl;
 	}
 	
 	void PaintHaps(){
@@ -423,7 +443,7 @@ public:
 		for (unsigned i = 1; i <= nleaves; i++)
 			PaintHaplotype(i, chunks);
 		cout << "Total number of chunks: " << chunks.size() << endl;
-		unsigned fin[4], gbr[4], sar[4];
+		double fin[4], gbr[4], sar[4];
 		for (int j = 0; j < 4; j++){
 			fin[j] = 0; gbr[j] = 0; sar[j] = 0;
 		}
@@ -435,14 +455,20 @@ public:
 			if (4001 <= it->hap)
 				sar[ nodes[it->nodeRef].clustId ] += (it->rRange - it->lRange);
 		}
+		double sum = fin[0] + fin[1] + fin[2] + fin[3];
+		sum = sum==0?1:sum;
 		for (int i = 0; i < 4; i++)
-			cout << fin[i] << "\t";
+			cout << fin[i]/sum << "\t";
 		cout << endl;
+		sum = gbr[0] + gbr[1] + gbr[2] + gbr[3];
+		sum = sum==0?1:sum;
 		for (int i = 0; i < 4; i++)
-			cout << gbr[i] << "\t";
+			cout << gbr[i]/sum << "\t";
 		cout << endl;
+		sum = sar[0] + sar[1] + sar[2] + sar[3];
+		sum = sum==0?1:sum;
 		for (int i = 0; i < 4; i++)
-			cout << sar[i] << "\t";
+			cout << sar[i]/sum << "\t";
 		cout << endl;
 	}
 
@@ -2468,8 +2494,9 @@ int main(int argc, char ** argv)
     arg.outputRangeDistributions();
 #endif
 	arg.SetRangeMode(rangeMode);
-    cerr << "Assigning times..." << endl;
-    arg.assignTimes(initMethod);
+//	cerr << "UNCOMMENT TIME ASSIGNMENT + CONFLICT EDGES!!!" << endl;
+	cerr << "Assigning times..." << endl;
+	arg.assignTimes(initMethod);
 
     {
         pair<unsigned,unsigned> tmp = arg.numberOfExcludedNodes();
@@ -2477,6 +2504,9 @@ int main(int argc, char ** argv)
     }
     arg.initializeEdges(excludeCycles);
 	arg.CountConflictEdges();
+	Position sliceL = 40000000;
+	Position sliceR = 50000000;
+	arg.SetSlice(sliceL, sliceR, 29, 100);
 	if (dis_out == 4){
 		arg.ReadClust();
 		arg.PaintHaps();
@@ -2544,10 +2574,9 @@ int main(int argc, char ** argv)
         arg.outputPopInfo(popl, popr, popmap);
     }
 	if (dis_out == 3){
-		Position sliceL = 0;
-		Position sliceR = 3000000;
-		arg.SetSlice(sliceL, sliceR, 29, 150);
-		arg.CheckConnectedness(true);
+		NodeId nodeSeed = arg.CheckConnectedness();
+		arg.ResetComponents();
+		arg.VisitComponent( nodeSeed, true );
 		arg.OutputSlice();
 	}
     return 0;
