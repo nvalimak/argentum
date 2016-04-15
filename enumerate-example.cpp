@@ -2574,6 +2574,7 @@ int main(int argc, char ** argv)
         arg.outputPopInfo(popl, popr, popmap);
     }
 	if (dis_out == 3){
+		cerr << "Getting slice..." << endl;
 		NodeId nodeSeed = arg.CheckConnectedness();
 		arg.ResetComponents();
 		arg.VisitComponent( nodeSeed, true );
