@@ -325,7 +325,7 @@ public:
 		unsigned NumComponents = 0;
 		unsigned sliceCurId;
 		unsigned maxSize = 0;
-		NodeId nodeSeed;
+		NodeId nodeSeed = 0;
 		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it){
 			if ( nodes[*it].inComponent )
 				continue;
@@ -2573,7 +2573,7 @@ int main(int argc, char ** argv)
 		NodeId nodeSeed = arg.CheckConnectedness();
 		arg.ResetComponents();
 		int compSize = arg.VisitComponent( nodeSeed, true );
-		cerr << "Printing component with " << compSize << " nodes." << endl;
+		cerr << "Printing component with " << compSize << " nodes seeded at node " << nodeSeed << "." << endl;
 		arg.OutputSlice();
 	}
 	if (dis_out == 4){
