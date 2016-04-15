@@ -2572,7 +2572,8 @@ int main(int argc, char ** argv)
 		cerr << "Getting slice..." << endl;
 		NodeId nodeSeed = arg.CheckConnectedness();
 		arg.ResetComponents();
-		arg.VisitComponent( nodeSeed, true );
+		int compSize = arg.VisitComponent( nodeSeed, true );
+		cerr << "Printing component with " << compSize << " nodes." << endl;
 		arg.OutputSlice();
 	}
 	if (dis_out == 4){
