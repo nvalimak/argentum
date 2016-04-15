@@ -2504,14 +2504,6 @@ int main(int argc, char ** argv)
     }
     arg.initializeEdges(excludeCycles);
 	arg.CountConflictEdges();
-	Position sliceL = 40000000;
-	Position sliceR = 50000000;
-	arg.SetSlice(sliceL, sliceR, 29, 100);
-	if (dis_out == 4){
-		arg.ReadClust();
-		arg.PaintHaps();
-		return 1;
-	}
 //	arg.ComputeWeights();
     cerr << "Updating times..." << endl;
 
@@ -2573,12 +2565,20 @@ int main(int argc, char ** argv)
         cerr << "Extracting population vs population times..." << endl;
         arg.outputPopInfo(popl, popr, popmap);
     }
+	Position sliceL = 40000000;
+	Position sliceR = 50000000;
+	arg.SetSlice(sliceL, sliceR, 29, 100);
 	if (dis_out == 3){
 		cerr << "Getting slice..." << endl;
 		NodeId nodeSeed = arg.CheckConnectedness();
 		arg.ResetComponents();
 		arg.VisitComponent( nodeSeed, true );
 		arg.OutputSlice();
+	}
+	if (dis_out == 4){
+		arg.ReadClust();
+		arg.PaintHaps();
+		return 1;
 	}
     return 0;
 }
