@@ -125,8 +125,9 @@ public:
 		bool inComponent;
 		unsigned idInSlice;
 		unsigned clustId;
+		bool reached, reset;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), probability(1.0), weight(0), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0), reached(false), reset(true)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -470,6 +471,90 @@ public:
 		for (int i = 0; i < 4; i++)
 			cout << sar[i]/sum << "\t";
 		cout << endl;
+	}
+	
+	void NodeImpactDistribution(unsigned npop, double t_min, double t_max, double sampleRate = 0.01){
+		vector<bool> leaves;
+		vector<unsigned> pops;
+		if (nleaves % npop != 0){
+			cerr << "nleaves is not devisible by npop" << endl;
+			exit(0);
+		}
+		for (unsigned i = 0; i < nleaves; i++)
+			leaves.push_back(false);
+		for (unsigned i = 0; i < npop; i++)
+			pops.push_back(0);
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			if (it->timestamp < t_min || it->timestamp > t_max)
+				continue;
+			if (it->lNodeRange > rSliceRange || it->rNodeRange < lSliceRange)
+				continue;
+			if (rand() % 1 > sampleRate)
+				continue;
+			FindReachableLeaves( it - nodes.begin(), leaves );
+			unsigned sum = ComputePopImpact( leaves, npop, pops );
+			for (unsigned i = 0; i < npop; i++){
+				cout << double(pops[i])/double(sum);
+				if (i != npop - 1)
+					cout << "\t";
+			}
+			cout << endl;
+			ResetFlagsReachableLeaves( it - nodes.begin(), leaves );
+			for (unsigned i = 0; i < npop; i++)
+				pops[i] = 0;
+		}
+	}
+	
+	unsigned ComputePopImpact( vector<bool> &leaves, unsigned npop, vector<unsigned> &pops ){
+		unsigned sum = 0;
+		for (unsigned i = 0; i < nleaves; i++){
+			if (!leaves[i])
+				continue;
+			unsigned j = i/npop;
+			pops[j]++;
+			sum++;
+		}
+		return sum;
+	}
+	
+	void FindReachableLeaves( NodeId nodeRef, vector<bool> &leaves){
+		vector<NodeId> stack;
+		stack.push_back(nodeRef);
+		while( stack.size() ){
+			NodeId curNode = stack.back();
+			stack.pop_back();
+			for (vector< ARGchild >::iterator itt = nodes[curNode].child.begin(); itt != nodes[curNode].child.end(); ++itt){
+				if (nodes[itt->id].reached)
+					continue;
+				if (itt->id <= nleaves && itt->id != 0){
+					leaves[itt->id - 1] = true;
+					continue;
+				}
+				stack.push_back(curNode);
+				nodes[curNode].reached = true;
+				nodes[curNode].reset = false;
+			}
+		}
+	}
+	
+	void ResetFlagsReachableLeaves( NodeId nodeRef, vector<bool> &leaves ){
+		vector<NodeId> stack;
+		stack.push_back(nodeRef);
+		while( stack.size() ){
+			NodeId curNode = stack.back();
+			stack.pop_back();
+			for (vector< ARGchild >::iterator itt = nodes[curNode].child.begin(); itt != nodes[curNode].child.end(); ++itt){
+				if (nodes[itt->id].reset)
+					continue;
+				if (itt->id <= nleaves && itt->id != 0){
+					leaves[itt->id - 1] = false;
+					continue;
+				}
+				stack.push_back(curNode);
+				nodes[curNode].reached = false;
+				nodes[curNode].reset = true;
+			}
+		}
 	}
 
     void assignTimes(int method)
@@ -2580,6 +2665,9 @@ int main(int argc, char ** argv)
 		arg.ReadClust();
 		arg.PaintHaps();
 		return 1;
+	}
+	if (dis_out == 5){
+		arg.NodeImpactDistribution(3, 29, 30);
 	}
     return 0;
 }
