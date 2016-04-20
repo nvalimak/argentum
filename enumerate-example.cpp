@@ -498,7 +498,7 @@ public:
 			selectedNodes++;
 			FindReachableLeaves( it - nodes.begin(), leaves );
 			unsigned sum = ComputePopImpact( leaves, npop, pops );
-			cout << sum <<
+			cout << sum ;
 			for (unsigned i = 0; i < npop; i++){
 				cout << "\t" << double(pops[i])/double(sum);
 			}
