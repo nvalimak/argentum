@@ -2541,9 +2541,9 @@ int main(int argc, char ** argv)
 		excludeCycles = true;
     unsigned dis_out = atoi_min(argv[9], 0);
 	unsigned counter = atoi_min(argv[10], 1);
-    if (dis_out > 4)
+    if (dis_out > 5)
     {
-        cerr << "usage error: [dis_out] must be in the range 0-4." << endl;
+        cerr << "usage error: [dis_out] must be in the range 0-5." << endl;
         return 1;
     }
     if (dis_out == 1)
@@ -2554,6 +2554,8 @@ int main(int argc, char ** argv)
         cerr << "Searching for graph clustering within a slice." << endl;
     if (dis_out == 4)
         cerr << "Painting..." << endl;
+    if (dis_out == 5)
+        cerr << "Computing node impact..." << endl;
     
     // Read data from standard input
     ARGraph arg;
