@@ -526,6 +526,8 @@ public:
 	void FindReachableLeaves( NodeId nodeRef, vector<bool> &leaves){
 		vector<NodeId> stack;
 		stack.push_back(nodeRef);
+		nodes[nodeRef].reached = true;
+		nodes[nodeRef].reset = false;
 		while( stack.size() ){
 			NodeId curNode = stack.back();
 			stack.pop_back();
@@ -536,9 +538,9 @@ public:
 					leaves[itt->id - 1] = true;
 					continue;
 				}
-				stack.push_back(curNode);
-				nodes[curNode].reached = true;
-				nodes[curNode].reset = false;
+				stack.push_back(itt->id);
+				nodes[itt->id].reached = true;
+				nodes[itt->id].reset = false;
 			}
 		}
 	}
@@ -546,6 +548,8 @@ public:
 	void ResetFlagsReachableLeaves( NodeId nodeRef, vector<bool> &leaves ){
 		vector<NodeId> stack;
 		stack.push_back(nodeRef);
+		nodes[nodeRef].reached = false;
+		nodes[nodeRef].reset = true;
 		while( stack.size() ){
 			NodeId curNode = stack.back();
 			stack.pop_back();
@@ -556,9 +560,9 @@ public:
 					leaves[itt->id - 1] = false;
 					continue;
 				}
-				stack.push_back(curNode);
-				nodes[curNode].reached = false;
-				nodes[curNode].reset = true;
+				stack.push_back(itt->id);
+				nodes[itt->id].reached = false;
+				nodes[itt->id].reset = true;
 			}
 		}
 	}
