@@ -498,13 +498,13 @@ public:
 			selectedNodes++;
 			FindReachableLeaves( it - nodes.begin(), leaves );
 			unsigned sum = ComputePopImpact( leaves, npop, pops );
+			cout << sum <<
 			for (unsigned i = 0; i < npop; i++){
-				cout << double(pops[i])/double(sum);
-				if (i != npop - 1)
-					cout << "\t";
+				cout << "\t" << double(pops[i])/double(sum);
 			}
 			cout << endl;
 			ResetFlagsReachableLeaves( it - nodes.begin(), leaves );
+			DebugReset(leaves);
 			for (unsigned i = 0; i < npop; i++)
 				pops[i] = 0;
 		}
@@ -512,6 +512,25 @@ public:
 	}
 	
 //	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./enumerate-example data/pop_map.txt 1 1 200 1 3 1 0 5 1000 > tmp.txt
+	
+	void DebugReset(vector<bool> &leaves){
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			if ( it->reached ){
+				cerr << "reached not reset" << endl ;
+				exit(0);
+			}
+			if ( !it->reset ){
+				cerr << "reset not reset" << endl ;
+				exit(0);
+			}	
+		}
+		for (unsigned i = 0; i < nleaves; i++){
+			if ( leaves[i] ){
+				cerr << "leaf not reset" << endl ;
+				exit(0);
+			}
+		}
+	}
 	
 	unsigned ComputePopImpact( vector<bool> &leaves, unsigned npop, vector<unsigned> &pops ){
 		unsigned sum = 0;
