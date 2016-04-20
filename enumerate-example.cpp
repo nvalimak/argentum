@@ -478,6 +478,7 @@ public:
 		vector<unsigned> pops;
 		unsigned selectedNodes = 0;
 		unsigned eligibleNodes = 0;
+		cerr << "NodeImpactDistribution() called" << endl;
 		if (nleaves % npop != 0){
 			cerr << "nleaves is not devisible by npop" << endl;
 			exit(0);
@@ -2674,6 +2675,7 @@ int main(int argc, char ** argv)
 		return 1;
 	}
 	if (dis_out == 5){
+		cerr << "Sampling nodes for impact distribution..." << endl;
 		arg.NodeImpactDistribution(3, 29, 30);
 	}
     return 0;
