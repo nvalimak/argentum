@@ -473,7 +473,7 @@ public:
 		cout << endl;
 	}
 	
-	void NodeImpactDistribution(unsigned npop, double t_min, double t_max, double sampleRate = 0.01){
+	void NodeImpactDistribution(unsigned npop, double t_min, double t_max, bool allLeaves = true, double sampleRate = 0.01){
 		vector<bool> leaves;
 		vector<unsigned> pops;
 		unsigned selectedNodes = 0;
@@ -485,9 +485,10 @@ public:
 		}
 		for (unsigned i = 0; i < nleaves; i++)
 			leaves.push_back(false);
+		DebugReset(leaves);
 		for (unsigned i = 0; i < npop; i++)
 			pops.push_back(0);
-		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
+		for (vector< ARNode >::iterator it = nodes.begin() + nleaves + 1; it != nodes.end(); ++it){
 			if (it->timestamp < t_min || it->timestamp > t_max)
 				continue;
 			if (it->lNodeRange > rSliceRange || it->rNodeRange < lSliceRange)
@@ -496,7 +497,7 @@ public:
 			if (rand() % 1 > sampleRate)
 				continue;
 			selectedNodes++;
-			FindReachableLeaves( it - nodes.begin(), leaves );
+			FindReachableLeaves( it - nodes.begin(), leaves, allLeaves );
 			unsigned sum = ComputePopImpact( leaves, npop, pops );
 			cout << sum ;
 			for (unsigned i = 0; i < npop; i++){
@@ -513,7 +514,7 @@ public:
 	
 //	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./enumerate-example data/pop_map.txt 1 1 200 1 3 1 0 5 1000 > tmp.txt
 	
-	void DebugReset(vector<bool> &leaves){
+	void DebugReset(vector<bool>& leaves){
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
 			if ( it->reached ){
 				cerr << "reached not reset" << endl ;
@@ -526,13 +527,14 @@ public:
 		}
 		for (unsigned i = 0; i < nleaves; i++){
 			if ( leaves[i] ){
+				cerr << i << " id, " << leaves[i] << endl;
 				cerr << "leaf not reset" << endl ;
 				exit(0);
 			}
 		}
 	}
 	
-	unsigned ComputePopImpact( vector<bool> &leaves, unsigned npop, vector<unsigned> &pops ){
+	unsigned ComputePopImpact( vector<bool>& leaves, unsigned npop, vector<unsigned>& pops ){
 		unsigned sum = 0;
 		for (unsigned i = 0; i < nleaves; i++){
 			if (!leaves[i])
@@ -550,44 +552,64 @@ public:
 		return sum;
 	}
 	
-	void FindReachableLeaves( NodeId nodeRef, vector<bool> &leaves){
+	void FindReachableLeaves( NodeId nodeRef, vector<bool>& leaves, bool allLeaves){
 		vector<NodeId> stack;
 		stack.push_back(nodeRef);
+//		cout << "FindReachableLeaves(): called for node " << nodeRef << endl;
+//		cout << "push(" << nodeRef << ")" << endl;
 		nodes[nodeRef].reached = true;
 		nodes[nodeRef].reset = false;
+		unsigned lr = nodes[nodeRef].lNodeRange;
+		unsigned rr = nodes[nodeRef].rNodeRange;
 		while( stack.size() ){
 			NodeId curNode = stack.back();
 			stack.pop_back();
+//			cout << "pop(" << curNode << ")" << endl;
 			for (vector< ARGchild >::iterator itt = nodes[curNode].child.begin(); itt != nodes[curNode].child.end(); ++itt){
-				if (nodes[itt->id].reached)
-					continue;
 				if (itt->id <= nleaves && itt->id != 0){
 					leaves[itt->id - 1] = true;
+//					cout << "leaf(" << itt->id << ")" << endl;
+					continue;
+				}
+				if (!allLeaves){
+					if ( nodes[itt->id].lNodeRange > rr || nodes[itt->id].rNodeRange < lr)
+						continue;
+				}
+				if (nodes[itt->id].reached){
+//					cout << "ignore(" << itt->id << ")" << endl;
 					continue;
 				}
 				stack.push_back(itt->id);
+//				cout << "push(" << itt->id << ")" << endl;
 				nodes[itt->id].reached = true;
 				nodes[itt->id].reset = false;
 			}
 		}
 	}
 	
-	void ResetFlagsReachableLeaves( NodeId nodeRef, vector<bool> &leaves ){
+	void ResetFlagsReachableLeaves( NodeId nodeRef, vector<bool>& leaves ){
 		vector<NodeId> stack;
 		stack.push_back(nodeRef);
+//		cout << "ResetFlagsReachableLeaves(): called for node " << nodeRef << endl;
+//		cout << "push(" << nodeRef << ")" << endl;
 		nodes[nodeRef].reached = false;
 		nodes[nodeRef].reset = true;
 		while( stack.size() ){
 			NodeId curNode = stack.back();
 			stack.pop_back();
+//			cout << "pop(" << curNode << ")" << endl;
 			for (vector< ARGchild >::iterator itt = nodes[curNode].child.begin(); itt != nodes[curNode].child.end(); ++itt){
-				if (nodes[itt->id].reset)
-					continue;
 				if (itt->id <= nleaves && itt->id != 0){
 					leaves[itt->id - 1] = false;
+//					cout << "leaf(" << itt->id << ")" << endl;
+					continue;
+				}
+				if (nodes[itt->id].reset){
+//					cout << "ignore(" << itt->id << ")" << endl;
 					continue;
 				}
 				stack.push_back(itt->id);
+//				cout << "push(" << itt->id << ")" << endl;
 				nodes[itt->id].reached = false;
 				nodes[itt->id].reset = true;
 			}
@@ -2689,8 +2711,8 @@ int main(int argc, char ** argv)
         cerr << "Extracting population vs population times..." << endl;
         arg.outputPopInfo(popl, popr, popmap);
     }
-	Position sliceL = 40000000;
-	Position sliceR = 50000000;
+	Position sliceL = 35000000;
+	Position sliceR = 55000000;
 	arg.SetSlice(sliceL, sliceR, 29, 100);
 	if (dis_out == 3){
 		cerr << "Getting slice..." << endl;
@@ -2707,7 +2729,7 @@ int main(int argc, char ** argv)
 	}
 	if (dis_out == 5){
 		cerr << "Sampling nodes for impact distribution..." << endl;
-		arg.NodeImpactDistribution(3, 29, 30);
+		arg.NodeImpactDistribution(3, 0, 20, false);
 	}
     return 0;
 }
