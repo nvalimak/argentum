@@ -487,7 +487,7 @@ public:
 			leaves.push_back(false);
 		for (unsigned i = 0; i < npop; i++)
 			pops.push_back(0);
-		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
 			if (it->timestamp < t_min || it->timestamp > t_max)
 				continue;
 			if (it->lNodeRange > rSliceRange || it->rNodeRange < lSliceRange)
@@ -511,12 +511,20 @@ public:
 		cerr << selectedNodes << " nodes sampled for node impact distribution out of " << eligibleNodes << endl;
 	}
 	
+//	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./enumerate-example data/pop_map.txt 1 1 200 1 3 1 0 5 1000 > tmp.txt
+	
 	unsigned ComputePopImpact( vector<bool> &leaves, unsigned npop, vector<unsigned> &pops ){
 		unsigned sum = 0;
 		for (unsigned i = 0; i < nleaves; i++){
 			if (!leaves[i])
 				continue;
-			unsigned j = i/npop;
+			unsigned popSize = nleaves/npop;
+			unsigned j = i/popSize;
+			if (j >= npop ){
+				cerr << "ComputePopImpact() segmentation fault." << endl;
+				cerr << "leaf id-1 = " << i << "\tpopulation id " << j << endl;
+				exit(0);
+			}
 			pops[j]++;
 			sum++;
 		}
