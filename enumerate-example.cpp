@@ -476,6 +476,8 @@ public:
 	void NodeImpactDistribution(unsigned npop, double t_min, double t_max, double sampleRate = 0.01){
 		vector<bool> leaves;
 		vector<unsigned> pops;
+		unsigned selectedNodes = 0;
+		unsigned eligibleNodes = 0;
 		if (nleaves % npop != 0){
 			cerr << "nleaves is not devisible by npop" << endl;
 			exit(0);
@@ -489,8 +491,10 @@ public:
 				continue;
 			if (it->lNodeRange > rSliceRange || it->rNodeRange < lSliceRange)
 				continue;
+			eligibleNodes++;
 			if (rand() % 1 > sampleRate)
 				continue;
+			selectedNodes++;
 			FindReachableLeaves( it - nodes.begin(), leaves );
 			unsigned sum = ComputePopImpact( leaves, npop, pops );
 			for (unsigned i = 0; i < npop; i++){
@@ -503,6 +507,7 @@ public:
 			for (unsigned i = 0; i < npop; i++)
 				pops[i] = 0;
 		}
+		cerr << selectedNodes << " nodes sampled for node impact distribution out of " << eligibleNodes << endl;
 	}
 	
 	unsigned ComputePopImpact( vector<bool> &leaves, unsigned npop, vector<unsigned> &pops ){
