@@ -238,7 +238,7 @@ public:
 #endif
         return true;
     }
-
+	/*
 	void SetSlice(Position lSlice, Position rSlice, double mint = -1.0, double maxt = -1.0){
 		lSliceRange = lSlice;
 		rSliceRange = rSlice;
@@ -587,7 +587,7 @@ public:
 				nodes[itt->id].reset = true;
 			}
 		}
-	}
+	}*/
 
     void assignTimes(int method)
     {
@@ -670,13 +670,13 @@ public:
 			NodeId nodeRef = knuthShuffle[i];
 			double old_time = nodes[nodeRef].timestamp;
 			UpdateTime(nodeRef);
-			double abs_change = abs(nodes[nodeRef].timestamp - old_time);
+			double abs_change = nodes[nodeRef].timestamp - old_time;
 			double rel_change = 0;
 			if (nodes[nodeRef].timestamp != 0)
 				rel_change = abs(nodes[nodeRef].timestamp - old_time)/old_time;
-			mean_abs_change += abs_change;
+			mean_abs_change += abs(abs_change);
 			mean_rel_change += rel_change;
-			if ( abs_change > it_norm_abs ){
+			if ( abs(abs_change) > abs(it_norm_abs) ){
 				it_norm_abs = abs_change;
 				it_norm_abs_node = i;
 			}
@@ -1608,9 +1608,9 @@ private:
 	double mean_abs_change, mean_rel_change;
 	double PDrate;
 //	unsigned nedges;
-	Position lSliceRange, rSliceRange;
-	double min_time, max_time;
-	std::vector<NodeId> SliceNodes;
+//	Position lSliceRange, rSliceRange;
+//	double min_time, max_time;
+//	std::vector<NodeId> SliceNodes;
 public:
 	static bool rangeMode; //false = SNP, true = BP
 };
@@ -1668,8 +1668,8 @@ map<unsigned,unsigned> init_pop_map(const char *fn, unsigned popl, unsigned popr
 
 int main(int argc, char ** argv)
 {
-	Position sliceL, sliceR;
-	unsigned min_time, max_time;
+//	Position sliceL, sliceR;
+//	unsigned min_time, max_time;
 	unsigned popl = 1, popr = 1;
 	map<unsigned,unsigned> popmap;
     srand ( 85871701 );
@@ -1748,7 +1748,7 @@ int main(int argc, char ** argv)
     
     cerr << "ARGraph class constructed OK" << endl;
 
-	if (output_mode == 3 || output_mode == 4 || output_mode == 5){
+/*	if (output_mode == 3 || output_mode == 4 || output_mode == 5){
 		if (argc != 11){
 	        cerr << "usage error: [output_mode] = 3, 4, 5 need slice parameters. [slice_left] [slice_right] [min_time] [max_time]" << endl;
 	        return 1;
@@ -1762,7 +1762,7 @@ int main(int argc, char ** argv)
 	        return 1;
 		}
 		arg.SetSlice(sliceL, sliceR, min_time, max_time);
-	}
+	}*/
 
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     arg.outputRangeDistributions();
@@ -1825,20 +1825,20 @@ int main(int argc, char ** argv)
     }
 	if (output_mode == 3){
 		cerr << "Getting slice..." << endl;
-		NodeId nodeSeed = arg.CheckConnectedness();
-		arg.ResetComponents();
-		int compSize = arg.VisitComponent( nodeSeed, true );
-		cerr << "Printing component with " << compSize << " nodes seeded at node " << nodeSeed << "." << endl;
-		arg.OutputSlice();
+//		NodeId nodeSeed = arg.CheckConnectedness();
+//		arg.ResetComponents();
+//		int compSize = arg.VisitComponent( nodeSeed, true );
+//		cerr << "Printing component with " << compSize << " nodes seeded at node " << nodeSeed << "." << endl;
+//		arg.OutputSlice();
 	}
 	if (output_mode == 4){
-		arg.ReadClust();
-		arg.PaintHaps();
+//		arg.ReadClust();
+//		arg.PaintHaps();
 		return 1;
 	}
 	if (output_mode == 5){
 		cerr << "Sampling nodes for impact distribution..." << endl;
-		arg.NodeImpactDistribution("node_impact/output/hrc_chr20_impact_time0_2_pos35_55_pos.txt", 3, 0, 2, false);
+//		arg.NodeImpactDistribution("node_impact/output/hrc_chr20_impact_time0_2_pos35_55_pos.txt", 3, 0, 2, false);
 	}
     return 0;
 }
