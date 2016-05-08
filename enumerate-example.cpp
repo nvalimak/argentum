@@ -119,8 +119,9 @@ public:
 		unsigned idInSlice;
 		unsigned clustId;
 		bool reached, reset;
+		double weight;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0), reached(false), reset(true)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0), reached(false), reset(true), weight(1.0)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -245,7 +246,7 @@ public:
 		min_time = mint;
 		max_time = maxt;
 		if (max_time != -1.0 && min_time >= max_time){
-			cerr << "Error in ARGraph::SetSlice(): max_time < min_time" << endl;
+			cerr << "Error in ARGraph::SetSlice(): max_time (" << max_time << ") < min_time (" << min_time << ")" << endl;
 			exit(0);
 		}
 		setNodeRanges();
@@ -317,7 +318,6 @@ public:
 
 	NodeId CheckConnectedness(bool output = false){
 		unsigned NumComponents = 0;
-		unsigned sliceCurId;
 		unsigned maxSize = 0;
 		NodeId nodeSeed = 0;
 		for (std::vector< NodeId >::iterator it = SliceNodes.begin(); it != SliceNodes.end(); ++it){
@@ -326,7 +326,6 @@ public:
 			if (output)
 				cout << "Component " << NumComponents << endl;
 			NumComponents++;
-			sliceCurId = SliceNodes.size();
 			unsigned componentSize = VisitComponent( *it, output );
 			if (maxSize < componentSize){
 				maxSize = componentSize;
@@ -350,10 +349,11 @@ public:
 			cout << *it << "\t" << nodes[*it].idInSlice << "\t" << nodes[*it].timestamp << "\t" << nodes[*it].lNodeRange << "\t" << nodes[*it].rNodeRange << endl;
 	}
 	
-	void ReadClust(){
+	unsigned ReadClust(){
 		int nentries;
 		NodeId nId;
 		unsigned clust;
+		unsigned clustNum = 0;
 		cin >> nentries;
 		cerr << "Reading " << nentries << " cluster entries." << endl;
         while (nentries--)
@@ -362,7 +362,10 @@ public:
             cin >> nId;
 			cin >> clust;
 			nodes[nId].clustId = clust;
-		}	
+			if (clustNum < clust)
+				clustNum = clust;
+		}
+		return clustNum;
 	}
 	
 	class PaintChunk{
@@ -416,7 +419,7 @@ public:
 		}
 	}
 	
-	void PaintHaps(){
+	void PaintHaps(unsigned clustNum){
 		vector< PaintChunk > chunks;
 		cerr << "Painting haplotypes..." << endl;
 		unsigned inClustNodes = 0;
@@ -428,10 +431,18 @@ public:
 		for (unsigned i = 1; i <= nleaves; i++)
 			PaintHaplotype(i, chunks);
 		cout << "Total number of chunks: " << chunks.size() << endl;
-		double fin[4], gbr[4], sar[4];
-		for (int j = 0; j < 4; j++){
-			fin[j] = 0; gbr[j] = 0; sar[j] = 0;
+		vector<double> fin, gbr, sar;
+		vector<unsigned> clustSize;
+//		double fin[4], gbr[4], sar[4];
+		for (unsigned i = 0; i < clustNum + 1; i++){
+			fin.push_back(0);
+			gbr.push_back(0);
+			sar.push_back(0);
+			clustSize.push_back(0);
 		}
+/*		for (int j = 0; j < 4; j++){
+			fin[j] = 0; gbr[j] = 0; sar[j] = 0;
+		}*/
 		for (vector< PaintChunk >::iterator it = chunks.begin(); it != chunks.end(); ++it){
 			if (it->hap <= 2000)
 				fin[ nodes[it->nodeRef].clustId ] += (it->rRange - it->lRange);
@@ -440,20 +451,34 @@ public:
 			if (4001 <= it->hap)
 				sar[ nodes[it->nodeRef].clustId ] += (it->rRange - it->lRange);
 		}
-		double sum = fin[0] + fin[1] + fin[2] + fin[3];
-		sum = sum==0?1:sum;
-		for (int i = 0; i < 4; i++)
-			cout << fin[i]/sum << "\t";
+		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			clustSize[it->clustId]++;
+		}
+		
+		for (int i = 0; i < clustNum + 1; i++)
+			cout << clustSize[i] << "\t";
 		cout << endl;
-		sum = gbr[0] + gbr[1] + gbr[2] + gbr[3];
+		
+		double sum = 0;
+		for (unsigned i = 0; i < clustNum + 1; i++)
+			sum += fin[i];
 		sum = sum==0?1:sum;
-		for (int i = 0; i < 4; i++)
-			cout << gbr[i]/sum << "\t";
+		for (int i = 0; i < clustNum + 1; i++)
+			cout << fin[i]/(fin[i]+gbr[i]+sar[i]) << "\t";
 		cout << endl;
-		sum = sar[0] + sar[1] + sar[2] + sar[3];
+		sum = 0;
+		for (unsigned i = 0; i < clustNum + 1; i++)
+			sum += gbr[i];
 		sum = sum==0?1:sum;
-		for (int i = 0; i < 4; i++)
-			cout << sar[i]/sum << "\t";
+		for (int i = 0; i < clustNum + 1; i++)
+			cout << gbr[i]/(fin[i]+gbr[i]+sar[i]) << "\t";
+		cout << endl;
+		sum = 0;
+		for (unsigned i = 0; i < clustNum + 1; i++)
+			sum += sar[i];
+		sum = sum==0?1:sum;
+		for (int i = 0; i < clustNum + 1; i++)
+			cout << sar[i]/(fin[i]+gbr[i]+sar[i]) << "\t";
 		cout << endl;
 	}
 	
@@ -469,13 +494,14 @@ public:
 			cerr << "nleaves is not devisible by npop" << endl;
 			exit(0);
 		}
+		ComputeWeights();
 		for (unsigned i = 0; i < nleaves; i++)
 			leaves.push_back(false);
 		DebugReset(leaves);
 		for (unsigned i = 0; i < npop; i++)
 			pops.push_back(0);
 		for (vector< ARNode >::iterator it = nodes.begin() + nleaves + 1; it != nodes.end(); ++it){
-			if (it->timestamp < t_min || it->timestamp > t_max)
+			if (it->timestamp < t_min || (t_max != -1 && it->timestamp > t_max) )
 				continue;
 			if (it->lNodeRange > rSliceRange || it->rNodeRange < lSliceRange)
 				continue;
@@ -483,12 +509,15 @@ public:
 			if (rand() % 1 > sampleRate)
 				continue;
 			selectedNodes++;
+			if (selectedNodes % 10000 == 0)
+				cerr << selectedNodes << " nodes processed for impact." << endl;
 			FindReachableLeaves( it - nodes.begin(), leaves, allLeaves );
 			unsigned sum = ComputePopImpact( leaves, npop, pops );
-			fh << sum ;
+			fh << it - nodes.begin() << "\t" << sum ;
 			for (unsigned i = 0; i < npop; i++){
 				fh << "\t" << double(pops[i])/double(sum);
 			}
+			fh << "\t" << it->weight << "\t" << it->timestamp;
 			fh << "\n";
 			ResetFlagsReachableLeaves( it - nodes.begin(), leaves );
 			DebugReset(leaves);
@@ -499,7 +528,7 @@ public:
 		cerr << selectedNodes << " nodes sampled for node impact distribution out of " << eligibleNodes << "within time period " << t_min << " to " << t_max << "." << endl;
 	}
 	
-//	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./enumerate-example data/pop_map.txt 1 1 200 1 3 1 0 5 1000 > tmp.txt
+//	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./enumerate-example 0 1 200 1 100 2 ... > tmp.txt
 	
 	void DebugReset(vector<bool>& leaves){
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
@@ -711,7 +740,7 @@ public:
 	}
 	
 	void initializeEdges(bool exclude = false){
-		double recombWeight, penalty = 1.0;
+		double recombWeight, penalty = 0.1;
 		getMutAndRecombNumber();
 		recombWeight = float(nmutation)/float(nrecomb)*rho/mu*penalty;
 		PDrate = penalty*rho+mu;
@@ -786,6 +815,26 @@ public:
         return make_pair(nedges,nexcluded);
     }
     
+	
+	void ComputeLocalLikelihoods(){
+		for (unsigned i = 0; i < rRangeMax; i++)
+			LocalLikelihoods.push_back(1.0);
+		for (vector<ARNode>::iterator nt = nodes.begin() + 1 + nleaves; nt != nodes.end(); ++nt){
+			for (map<NodeId, std::pair<double, double> >::iterator et = nt->edgesCh.begin(); et != nt->edgesCh.end(); ++et){
+				for (vector< ARGchild >::iterator cht = nt->child.begin(); cht != nt->child.end(); ++cht){
+					if (cht->id != et->first)
+						continue;
+					double el = et->second.first * log(et->second.second) - et->second.second - LogFactorial(et->second.first);
+					for (unsigned i = cht->lRange; i < cht->rRange; i++){
+						LocalLikelihoods[i] += el;
+					}
+				}
+			}
+		}
+		for (unsigned i = 0; i < rRangeMax; i++){
+			cout << i << "\t" << mapToBp[i] << "\t" << LocalLikelihoods[i] << endl;
+		}
+	}
     
 #ifdef OUTPUT_RANGE_DISTRIBUTION
     void outputRangeDistributions()
@@ -844,6 +893,11 @@ public:
     {
         assert (popl > 0);
         assert (popr > 0);
+
+		cerr << "WARNING @ line 846: mapToBp[] is artificially modified" << endl;
+		for (Position i = 0; i < mapToBp.size(); ++i){
+			mapToBp[i] = i;
+		}
 
         // Reset counts
         for (std::vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
@@ -1221,61 +1275,6 @@ private:
 		}
     }
 	
-/*	void ExcludeNodes(){
-		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
-			NodeId nodeRef = it - nodes.begin();
-			double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
-	        double C1 = 0.0, C2 = 0.0;
-		
-	        for (map<NodeId, pair<double, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
-				A1 += it->second.second;
-				B1 += it->second.second*nodes[it->first].timestamp;
-				C1 += it->second.first;
-			}
-		
-	        for (map<NodeId, pair<double, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
-				if (it->first == 0)
-					continue;
-				A2 += it->second.second;
-				B2 += it->second.second*nodes[it->first].timestamp;
-				C2 += it->second.first;
-			}
-			if (C1 + C2 == 0)
-				continue;
-	        
-			map<NodeId, pair<double, double> > edgesChNew, edgesPNew;
-			assert(edgesChNew.size() == 0 && edgesPNew.size() == 0);
-			for (map<NodeId, pair<double, double> >::iterator et = nodes[ nodeRef ].edgesP.begin(); et != nodes[ nodeRef ].edgesP.end(); ++et){
-				for (vector<struct ARGchild>::iterator ct = nodes[ et->first ].сhild.begin(); ct != nodes[ et->first ].end(); ++ct){
-					if (ct->id != et->first)
-						continue;
-					for (vector<struct ARGchild>::iterator cсt = nodes[ nodeRef ].сhild.begin(); cct != nodes[ nodeRef ].end(); ++cct){
-						if (ct.lbp < cct.rbp || ct.rbp > cct.lbp){
-							continue;
-						}
-						Position leftR, rightR;
-						if (rangeMode){
-							leftR = ct.lbp>cct.lbp?ct.lbp:cct.lbp;
-							rightR = ct.rbp<cct.rbp?ct.rbp:cct.rbp;
-					 	}
-						else{
-							leftR = ct.lRange>cct.lRange?ct.lRange:cct.lRange;
-							rightR = ct.rRange<cct.rRange?ct.rRange:cct.rRange;
-						}
-						edgesChNew[cct->id].first = 0.0;
-						edgesChNew[cct->id].second += (rightR-leftR+1)*PDrate ;
-						edgesPNew[et->first].first = 0.0;
-						edgesPNew[et->first].second += (rightR-leftR+1)*PDrate;
-					}
-				}
-			}
-			for (map<NodeId, pair<double, double> >::iterator et = nodes[ nodeRef ].edgesP.begin(); et != nodes[ nodeRef ].edgesP.end(); ++et){
-				nodes[ et->first ].edgesCh
-			}
-		}
-		
-	}*/
-	
 	double ComputeConfigProb(double x, double A1, double B1, double C1, double A2, double B2, double C2){
 		double prob;
 		if (B1/A1 < B2/A2){
@@ -1287,6 +1286,40 @@ private:
 			prob *= exp(-(-A1*x + B1 + A2*x - B2) );
 		}
 		return prob;
+	}
+	
+	double LogFactorial(unsigned k){
+		double f = 0.0, i;
+		for (i = 2; i < k + 1; i++)
+			f += log(i);
+		return f;
+	}
+	
+	void ComputeWeights(){
+		for (std::vector<ARNode>::iterator nt = nodes.begin() + 1 + nleaves; nt != nodes.end(); ++nt){
+			double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
+	        double C1 = 0.0001, C2 = 0.0001;
+	        for (map<NodeId, pair<double, double> >::iterator it = nt->edgesCh.begin(); it != nt->edgesCh.end(); ++it){
+				if (nodes[it->first].timestamp < 0)
+					continue;
+				A1 += it->second.second;
+				B1 += it->second.second*nodes[it->first].timestamp;
+				C1 += it->second.first;
+			}
+		
+	        for (map<NodeId, pair<double, double> >::iterator it = nt->edgesP.begin(); it != nt->edgesP.end(); ++it){
+				if (it->first == 0)
+					continue;
+				if (nodes[it->first].timestamp < 0)
+					continue;
+				A2 += it->second.second;
+				B2 += it->second.second*nodes[it->first].timestamp;
+				C2 += it->second.first;
+			}
+			double prob = log(ComputeConfigProb(nt->timestamp, A1, B1, C1, A2, B2, C2) );
+			double norm = C1*log(C1) - C1 + C2*log(C2) - C2;
+			nt->weight = prob - norm;
+		}
 	}
 	
 	bool CheckDoubleEqulity(double x, double y){
@@ -1534,14 +1567,17 @@ private:
 			if ( ComputeConfigProb(new_time, A1, B1, C1, A2, B2, C2) > prob ){
 				nodes[nodeRef].timestamp = new_time;
 				prob = ComputeConfigProb(new_time, A1, B1, C1, A2, B2, C2);
+				nodes[nodeRef].weight = prob;
 			}
 		if (ComputeConfigProb(B1/A1, A1, B1, C1, A2, B2, C2) > prob){
 			nodes[nodeRef].timestamp = B1/A1;
 			prob = ComputeConfigProb(B1/A1, A1, B1, C1, A2, B2, C2);
+			nodes[nodeRef].weight = prob;
 		}
 		if (ComputeConfigProb(B2/A2, A1, B1, C1, A2, B2, C2) > prob){
 			nodes[nodeRef].timestamp = B2/A2;
 			prob = ComputeConfigProb(B2/A2, A1, B1, C1, A2, B2, C2);
+			nodes[nodeRef].weight = prob;
 		}
     }
     
@@ -1611,6 +1647,7 @@ private:
 	Position lSliceRange, rSliceRange;
 	double min_time, max_time;
 	std::vector<NodeId> SliceNodes;
+	vector<double> LocalLikelihoods;
 public:
 	static bool rangeMode; //false = SNP, true = BP
 };
@@ -1669,7 +1706,7 @@ map<unsigned,unsigned> init_pop_map(const char *fn, unsigned popl, unsigned popr
 int main(int argc, char ** argv)
 {
 	Position sliceL, sliceR;
-	unsigned min_time, max_time;
+	double min_time, max_time;
 	unsigned popl = 1, popr = 1;
 	map<unsigned,unsigned> popmap;
     srand ( 85871701 );
@@ -1706,9 +1743,16 @@ int main(int argc, char ** argv)
 	
     unsigned output_mode = atoi_min(argv[6], 0);
 	
-    if (output_mode > 5)
+    if (output_mode > 6)
     {
-        cerr << "usage error: [output_mode] must be in the range 0-5." << endl;
+        cerr << "usage error: [output_mode] must be in the range 0-6." << endl;
+		cerr << "mode 0: no output" << endl;
+        cerr << "mode 1: comparing pairs from two populations" << endl;
+        cerr << "mode 2: comparing two population (much faster than mode 1)" << endl;
+        cerr << "mode 3: searching for graph clustering within a slice." << endl;
+        cerr << "mode 4: painting haplotypes based on clustering." << endl;
+        cerr << "mode 5: computing distribution of node impact to input haplotypes." << endl;
+        cerr << "mode 6: computing local tree likelihood." << endl;
         return 1;
     }
 	if (output_mode == 1 || output_mode == 2){
@@ -1726,15 +1770,17 @@ int main(int argc, char ** argv)
     	}
 	}
     if (output_mode == 1)
-        cerr << "comparing pairs from pop " << popl << " vs " << popr << endl;
+        cerr << "mode 1: comparing pairs from pop " << popl << " vs " << popr << endl;
     if (output_mode == 2)
-        cerr << "comparing population " << popl << " vs " << popr << endl;
+        cerr << "mode 2: comparing population " << popl << " vs " << popr << endl;
     if (output_mode == 3)
-        cerr << "Searching for graph clustering within a slice." << endl;
+        cerr << "mode 3: searching for graph clustering within a slice." << endl;
     if (output_mode == 4)
-        cerr << "Painting..." << endl;
+        cerr << "mode 4: painting." << endl;
     if (output_mode == 5)
-        cerr << "Computing node impact..." << endl;
+        cerr << "mode 5: computing node impact." << endl;
+    if (output_mode == 6)
+        cerr << "mode 6: computing local tree likelihood." << endl;
     // Read data from standard input
     ARGraph arg;
     if (!arg.ok())
@@ -1751,12 +1797,13 @@ int main(int argc, char ** argv)
 	if (output_mode == 3 || output_mode == 4 || output_mode == 5){
 		if (argc != 11){
 	        cerr << "usage error: [output_mode] = 3, 4, 5 need slice parameters. [slice_left] [slice_right] [min_time] [max_time]" << endl;
+			cerr << "Hint: set max_time = -1 to ignore time upper limit." << endl;
 	        return 1;
 		}
 		sliceL = atoi_min(argv[7], 0);//35000000;
 		sliceR = atoi_min(argv[8], 0);//55000000;
-		min_time = atoi_min(argv[9], 0);
-		max_time = atoi_min(argv[10], 0);
+		min_time = atoi_min(argv[9], -1);
+		max_time = atoi_min(argv[10], -1);
 		if (sliceL > sliceR){
 	        cerr << "usage error: [sliceL] should be less or equal to [sliceR] " << endl;
 	        return 1;
@@ -1832,13 +1879,18 @@ int main(int argc, char ** argv)
 		arg.OutputSlice();
 	}
 	if (output_mode == 4){
-		arg.ReadClust();
-		arg.PaintHaps();
+		unsigned clustNum = arg.ReadClust();
+		arg.PaintHaps(clustNum);
 		return 1;
 	}
 	if (output_mode == 5){
 		cerr << "Sampling nodes for impact distribution..." << endl;
-		arg.NodeImpactDistribution("node_impact/output/hrc_chr20_impact_time0_2_pos35_55_pos.txt", 3, 0, 2, false);
+		arg.NodeImpactDistribution("node_impact/hrc_chr20_impact_weights-1.txt", 3, min_time, max_time, false);
+//		arg.NodeImpactDistribution("node_impact/output/hrc_chr20_impact_time0_2_pos35_55_pos.txt", 3, 0, 2, false);
+	}
+	if (output_mode == 6){
+		cerr << "Computing local tree likelihoods." << endl;
+		arg.ComputeLocalLikelihoods();
 	}
     return 0;
 }
