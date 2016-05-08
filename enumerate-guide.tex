@@ -1,0 +1,193 @@
+\documentclass[11pt]{amsart}
+
+\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   % ... or a4paper or a5paper or ...
+%\geometry{landscape}                % Activate for for rotated page geometry
+%\usepackage[parfill]{parskip}    % Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{tikz}
+	\usetikzlibrary{positioning}
+	\usetikzlibrary{decorations.text}
+	\usetikzlibrary{decorations.pathmorphing}
+	\usetikzlibrary{shapes,shadows,arrows,calc}
+\usepackage{multirow}
+\hypersetup{
+	linktoc=true
+}
+\usepackage{mathrsfs}
+\usepackage{algorithm2e}
+\usepackage{csquotes}
+
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\T}{\mathbb{T}}
+\newcommand{\B}{\mathbb{B}}
+\newcommand{\HH}{\mathbb{H}}
+\newcommand{\LL}{\mathbb{L}}
+\newcommand{\Lp}{\mathbb{L}^p}
+\newcommand{\am}{\mathrm{am}}
+\newcommand\vd{\operatorname{visdist}}
+\newcommand{\Br}{\mathfrak{Br}}
+\newcommand{\tcPBWT}{tc\mathcal{PBWT}}
+\newcommand{\PBWT}{\mathcal{PBWT}}
+\newcommand{\ARG}{\mathcal{ARG}}
+\newcommand{\Lcal}{\mathcal{L}}
+\newcommand{\Bcal}{\mathcal{B}}
+
+\newcommand*{\rom}[1]{\expandafter\@slowromancap\romannumeral #1@}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{conjecture}{Conjecture}
+\newtheorem{question}{Question}
+\newtheorem*{thnn}{Theorem}
+\newtheorem*{prnn}{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\newtheorem{comment}{Comment}
+\newtheorem{example}{Example}
+\newtheorem{exercise}{Exercise}
+\newtheorem{hypothesis}{Hypothesis}
+\newtheorem{conclusion}{Conclusion}
+
+
+
+%\newcommand{\T}{\mathds{T}}
+%\newcommand{\N}{\mathds{N}}
+%\newcommand{\R}{\mathds{R}}
+%\newcommand{\Z}{\mathds{Z}}
+%\newcommand{\B}{\mathds{B}}
+%\newcommand{\C}{\mathds{C}}
+
+\begin{document}
+
+%\title{Tree consistent $\PBWT$ and their application to reconstructing Ancestral Recombination Graphs and related problems}
+\title{Enumerate-example: guide}
+%\titlerunning{Tree consistent $\PBWT$ data structure for ARGs inference}
+\author{Vladimir Shchur }
+%\authorrunning{Tree consistent $\PBWT$ and their application to reconstructing ARGs}
+%\institute{Wellcome Trust Sanger Institute,\\ CB10 1SA Hinxton, Cambridgeshire, UK\\
+%\url{vs3@sanger.co.uk}}
+\address{vlshchur@gmail.com}
+%\date{}                                           % Activate to display a given date or no date
+\maketitle
+
+
+
+%\tableofcontents
+
+
+\section{Installing}
+	The \texttt{./enumerate-example} is available as a part of the \texttt{argentum} project at \url{https://github.com/nvalimak/argentum}.
+
+\section{Brief overview}
+
+	A proper command line is not implemented yet. The following arguments should be given even if they are not used.
+	\begin{displayquote}
+		\texttt{./enumerate-example  [rangeMode] [initMethod] [max\_iter] [exCycles] [counter] [output\_mode]}
+	\end{displayquote}
+
+	\texttt{./enumerate-example} reads ARG in enumerate format (see below) from the standard input.
+
+	There are three main running phases of enumerate-example. The first phase initialising ARG times. The second phase improves time estimation through iterative process. The third phase outputs a summary.
+
+	Example:
+	\begin{displayquote}
+		\texttt{gunzip -c data.txt.gz | ./enumerate-example pop\_map.txt 1 1 50 0 1000 0}
+	\end{displayquote}
+
+\section{Input format (tab delimited)}
+
+	First line is of the form
+	\begin{displayquote}
+		\texttt{ARGraph 6000 1317668 1311669}
+	\end{displayquote}
+	where the first number is the number of leaves, the second number is the maximal node id and the last number is the total number of nodes in the graph. In this example we have an ARG with $6000$ leaves and $1311669$ nodes (including leaves).
+
+	Each node is described in the following form
+	\begin{displayquote}
+		\texttt{parent 16602 2 1\\
+			child 5528 4062 5235 337569 399302 1\\
+			child 1347 4062 5235 337569 399302 0\\
+			mutation 1347 4256 348494}
+	\end{displayquote}
+	Here the first line states that the node with id 16602 is described and this node has two child nodes and one mutation entry.
+
+	A line describing a child (in fact an oriented edge from a parent to a child)
+	\begin{displayquote}
+		\texttt{child 5528 4062 5235 337569 399302 1}
+	\end{displayquote}
+	means: child node id is $5528$, the edge spans positions $[4062, 5235]$ in SNP coordinates and $[337569, 399302]$ in base-pairs. $1$ means that a recombination was inferred on the edge, $0$ - otherwise.
+
+	A line describing mutation
+	\begin{displayquote}
+		\texttt{mutation 1347 4256 348494}
+	\end{displayquote}
+	means that a mutation occurred on the edge connecting the (parent) node to the child with id $1347$. Mutation coordinates are $4256$ (in SNPs) and $348494$ (in base-pairs).
+
+\section{Global parameters}
+	\texttt{[rangeMode]} sets which coordinates (SNPs or BPs) will be used for the computations.
+	
+	\texttt{[counter]} sets the progress output step for iterative operations.
+
+\section{Time initialisation and refinement}
+	\texttt{[initMethod]} the method to initialize node times.
+	\begin{itemize}
+		\item \texttt{1} assigning times based on expectations of lengths of child edges;
+		\item \texttt{2} assigning times in order to keep the condition time(parent) > time(child) (set [exCycles] = 1 in this case).
+	\end{itemize}
+	
+	\texttt{[exCycles]} controls if cycles should be deleted (\texttt{1}) or not (\texttt{0}) from the ARG topology.
+	
+	\texttt{[max\_iter]} number of iterations for time update.
+	
+\section{Output modes}
+
+	\texttt{[output\_mode]}
+	\begin{itemize}
+		\item \texttt{0} no output (may be useful for debug)
+		\item \texttt{1, 2} getting coalescent times between two populations. (2 is much faster than 1)
+		\item \texttt{3} getting ARG slice and outputting information for FastModularity and graph clustering scripts.
+		\item \texttt{4} painting haplotypes based on clustering from FastModularity.
+		\item \texttt{5} getting nodes from the slice in a certain time period and getting leaf distribution under them.
+		\item \texttt{6} local tree likelihood.
+	\end{itemize}
+
+\section{Output modes \texttt{1} and \texttt{2} }
+	Mode \texttt{1} is rather slow as it converts ARG back to local tree. Mode \texttt{2} is much faster and uses ARG shared structure. In both modes, the following arguments should be added to the command line:
+	\begin{displayquote}
+		\texttt{[pops\_map.txt] [pop1] [pop2]}
+	\end{displayquote}
+	
+	\texttt{[population\_map.txt]} is the tab delimited file which maps a haplotype to a population in the format
+	\begin{displayquote}
+		\texttt{51	1\\
+		934	1\\
+		1274	2}
+	\end{displayquote}
+	which means that haplotypes 51 and 934 are from the first population and haplotype 1274 is from the second population. The file does not necessary contain information about all nodes.
+	
+	\texttt{[pop1] [pop2]} - IDs of populations to be compared (should be consistent with \texttt{[population\_map.txt]} file).
+
+\section{Output modes \texttt{3}, \texttt{4}  and \texttt{5} }
+	The following parameters should be added to the command
+	\begin{displayquote}
+		\texttt{[slice\_left] [slice\_right] [min\_time] [max\_time]}
+	\end{displayquote}
+	These parameters define a slice (a part) of the ARG: genomic region (\texttt{[slice\_left]} and \texttt{[slice\_right]}) and time period ((\texttt{[min\_time]} and (\texttt{[max\_time]})
+	
+	In mode \texttt{5} \texttt{[population\_map.txt]} is not supported yet. It is assumed that the number of haplotypes is equal in each population.
+	
+\end{document}
