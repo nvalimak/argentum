@@ -74,7 +74,7 @@
 \begin{document}
 
 %\title{Tree consistent $\PBWT$ and their application to reconstructing Ancestral Recombination Graphs and related problems}
-\title{Enumerate-example: guide}
+\title{time\_estimate: guide}
 %\titlerunning{Tree consistent $\PBWT$ data structure for ARGs inference}
 \author{Vladimir Shchur }
 %\authorrunning{Tree consistent $\PBWT$ and their application to reconstructing ARGs}
@@ -90,22 +90,22 @@
 
 
 \section{Installing}
-	The \texttt{./enumerate-example} is available as a part of the \texttt{argentum} project at \url{https://github.com/nvalimak/argentum}.
+	The \texttt{./time\_estimate} is available as a part of the \texttt{argentum} project at \url{https://github.com/nvalimak/argentum}.
 
 \section{Brief overview}
 
 	A proper command line is not implemented yet. The following arguments should be given even if they are not used.
 	\begin{displayquote}
-		\texttt{./enumerate-example  [rangeMode] [initMethod] [max\_iter] [exCycles] [counter] [output\_mode]}
+		\texttt{./time\_estimate  [rangeMode] [initMethod] [max\_iter] [exCycles] [counter] [output\_mode]}
 	\end{displayquote}
 
-	\texttt{./enumerate-example} reads ARG in enumerate format (see below) from the standard input.
+	\texttt{./time\_estimate} reads ARG in enumerate format (see below) from the standard input. The enumerate format is one of the output formats for the \texttt{./main}.
 
-	There are three main running phases of enumerate-example. The first phase initialising ARG times. The second phase improves time estimation through iterative process. The third phase outputs a summary.
+	There are three main running phases of \texttt{time\_estimate}. The first phase initialising ARG times. The second phase improves time estimation through iterative process. The third phase outputs a summary.
 
 	Example:
 	\begin{displayquote}
-		\texttt{gunzip -c data.txt.gz | ./enumerate-example pop\_map.txt 1 1 50 0 1000 0}
+		\texttt{gunzip -c data.txt.gz | ./time\_estimate pop\_map.txt 1 1 50 0 1000 0}
 	\end{displayquote}
 
 \section{Input format (tab delimited)}
@@ -146,7 +146,7 @@
 	\texttt{[initMethod]} the method to initialize node times.
 	\begin{itemize}
 		\item \texttt{1} assigning times based on expectations of lengths of child edges;
-		\item \texttt{2} assigning times in order to keep the condition time(parent) > time(child) (set [exCycles] = 1 in this case).
+		\item \texttt{2} assigning times in order to keep the condition time(parent) $>$ time(child) (set [exCycles] = 1 in this case).
 	\end{itemize}
 	
 	\texttt{[exCycles]} controls if cycles should be deleted (\texttt{1}) or not (\texttt{0}) from the ARG topology.

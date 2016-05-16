@@ -12,12 +12,12 @@
  *    Leaf nodes are represented by id value in range from 1 to the total number of leaves. 
  *
  * Small usage example:
- *       ./main --input test.input --plaintext --verbose --debug --no-prediction --enumerate | ./enumerate-example
+ *       ./main --input test.input --plaintext --verbose --debug --no-prediction --enumerate | ./time_estimate
  *
  * For large data, you need to recompile all the software with compiler optimizations (`-O2 -DNDEBUG` recommended)
  * and use commandline options e.g.
  *
- *       ./main --input <(zcat large.vcf.gz) --vcf --verbose --no-prediction --enumerate | ./enumerate-example
+ *       ./main --input <(zcat large.vcf.gz) --vcf --verbose --no-prediction --enumerate | ./time_estimate
  *
  */
 #include <iostream>
@@ -230,7 +230,7 @@ public:
         // here
         assert (nleaves > 0);
 #ifdef VALIDATE_STRUCTURE
-        cerr << "warning: VALIDATE_STRUCTURE was defined in enumerate_example.cpp; validating data structure now, which can take large amount of time on large inputs." << endl;
+        cerr << "warning: VALIDATE_STRUCTURE was defined in time_estimate.cpp; validating data structure now, which can take large amount of time on large inputs." << endl;
         for (Position i = 0; i <= rRangeMax; i++)
             if (!traverseCol(i))
                 return false;
@@ -528,7 +528,7 @@ public:
 		cerr << selectedNodes << " nodes sampled for node impact distribution out of " << eligibleNodes << "within time period " << t_min << " to " << t_max << "." << endl;
 	}
 	
-//	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./enumerate-example 0 1 200 1 100 2 ... > tmp.txt
+//	gunzip -c data/hrc_chr20_ARG_subset.txt.gz | ./time_estimate 0 1 200 1 100 2 ... > tmp.txt
 	
 	void DebugReset(vector<bool>& leaves){
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
@@ -739,8 +739,8 @@ public:
 		}
 	}
 	
-	void initializeEdges(bool exclude = false){
-		double recombWeight, penalty = 0.1;
+	void initializeEdges(double penalty, bool exclude = false){
+		double recombWeight;
 		getMutAndRecombNumber();
 		recombWeight = float(nmutation)/float(nrecomb)*rho/mu*penalty;
 		PDrate = penalty*rho+mu;
@@ -815,7 +815,6 @@ public:
         return make_pair(nedges,nexcluded);
     }
     
-	
 	void ComputeLocalLikelihoods(){
 		for (unsigned i = 0; i < rRangeMax; i++)
 			LocalLikelihoods.push_back(1.0);
@@ -831,6 +830,9 @@ public:
 				}
 			}
 		}
+	}
+	
+	void OutputLocalLikelihoods(){
 		for (unsigned i = 0; i < rRangeMax; i++){
 			cout << i << "\t" << mapToBp[i] << "\t" << LocalLikelihoods[i] << endl;
 		}
@@ -887,7 +889,23 @@ public:
         }
         return updateNext;
     }
-        
+
+	double GetLikelihoodTreshhold(double level){
+		if (level > 1.0 || level < 0.0){
+			cerr << "Warning @ GetLikelihoodTreshhold(): level should be between 0.0 and 1.0. Forced: level = 1.0." << endl;
+			level = 1.0;
+		}
+		vector<double> sorted;
+		sorted = LocalLikelihoods;
+		sort( sorted.begin(), sorted.end() );
+		cerr << "First element of unsorted vector: " << LocalLikelihoods[0] << endl;
+		cerr << "First element of   sorted vector: " << sorted[0] << endl;
+		int thInd = (int) ( (1-level) * sorted.size() );
+		if ( thInd >= sorted.size() )
+			thInd -= sorted.size();
+		return sorted[thInd];
+	}
+
     // Collect population popl vs popr information for the leaf nodes in the given popmap
     void outputPopInfo(unsigned popl, unsigned popr, map<unsigned,unsigned> const &popmap)
     {
@@ -898,6 +916,7 @@ public:
 		for (Position i = 0; i < mapToBp.size(); ++i){
 			mapToBp[i] = i;
 		}
+		double likelihoodTH = GetLikelihoodTreshhold(0.01);
 
         // Reset counts
         for (std::vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
@@ -932,19 +951,21 @@ public:
              *
              * Increments the total_npairs value of each node by (rRange - lRange + 1) * (number of pairs).
              */
-            for (unsigned j = 0; j < nodes.size(); ++j)
-                if (nodes[j].popl_count > 0 && nodes[j].popr_count > 0)
-                {
-                    unsigned long npairs = 0;
-                    for (vector<struct ARGchild>::iterator it = nodes[j].child.begin(); it != nodes[j].child.end(); ++it)
-                        if (it->lRange <= lRange && rRange <= it->rRange)
-                            for (vector<struct ARGchild>::iterator jt = it + 1; jt != nodes[j].child.end(); ++jt)
-                                if (jt->lRange <= lRange && rRange <= jt->rRange)
-                                    npairs += (nodes[it->id].popl_count * nodes[jt->id].popr_count) + (nodes[it->id].popr_count * nodes[jt->id].popl_count);
+			if ( likelihoodTH <= LocalLikelihoods[i] ){
+	            for (unsigned j = 0; j < nodes.size(); ++j)
+	                if (nodes[j].popl_count > 0 && nodes[j].popr_count > 0)
+	                {
+	                    unsigned long npairs = 0;
+	                    for (vector<struct ARGchild>::iterator it = nodes[j].child.begin(); it != nodes[j].child.end(); ++it)
+	                        if (it->lRange <= lRange && rRange <= it->rRange)
+	                            for (vector<struct ARGchild>::iterator jt = it + 1; jt != nodes[j].child.end(); ++jt)
+	                                if (jt->lRange <= lRange && rRange <= jt->rRange)
+	                                    npairs += (nodes[it->id].popl_count * nodes[jt->id].popr_count) + (nodes[it->id].popr_count * nodes[jt->id].popl_count);
 
-                    // (number of base-pairs) * (number of pairs)
-                    nodes[j].total_npairs += (unsigned long)(mapToBp[rRange] - mapToBp[lRange] + 1) * npairs;
-                }
+	                    // (number of base-pairs) * (number of pairs)
+	                    nodes[j].total_npairs += (unsigned long)(mapToBp[rRange] - mapToBp[lRange] + 1) * npairs;
+	                }
+			}
             
             // Update popl_count and popr_count values 
             for (vector<NodeId>::iterator it = nextUpdate[rRange].begin(); it != nextUpdate[rRange].end(); ++it)
@@ -1001,9 +1022,9 @@ private:
     bool inputError(unsigned nentries, string msg)
     {
         if (nentries == ~0u)
-            cerr << "enumerate-example error: input failed while reading header " << msg << "." << endl;
+            cerr << "time_estimate error: input failed while reading header " << msg << "." << endl;
         else
-            cerr << "enumerate-example error: input failed at step " << msg << " after " << nentries << " input entries remain." << endl;
+            cerr << "time_estimate error: input failed at step " << msg << " after " << nentries << " input entries remain." << endl;
         return false;
     }
 	
@@ -1721,9 +1742,6 @@ int main(int argc, char ** argv)
 		cerr << "     exCycles      - Exclude cycles for time update (include = 0, exclude = 1)." << endl;
 		cerr << "     counter       - Step for output information while iteration process.." << endl;
 		cerr << "     output_mode   - Disable(0)/enable(1) the output of population distances." << endl;
-        cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
-        cerr << "     pop1          - Population to compare against" << endl;
-        cerr << "     pop2          - another population/same population." << endl;
         cerr << "     input         - standard input (pipe from `./main --enumerate`)" << endl;
         cerr << "     output        - standard output" << endl;
         return 1;
@@ -1758,6 +1776,9 @@ int main(int argc, char ** argv)
 	if (output_mode == 1 || output_mode == 2){
 		if (argc != 10){
 	        cerr << "usage error: [output_mode] = 1, 2 need population information. [pops_map.txt] [pop1] [pop2]" << endl;
+	        cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
+	        cerr << "     pop1          - Population to compare against" << endl;
+	        cerr << "     pop2          - another population/same population." << endl;
 	        return 1;
 		}
 		popl = atoi_min(argv[8], 1);
@@ -1785,7 +1806,7 @@ int main(int argc, char ** argv)
     ARGraph arg;
     if (!arg.ok())
     {
-        cerr << "enumerate-example error: unable to read standard input and construct the ARGraph class!" << endl;
+        cerr << "time_estimate error: unable to read standard input and construct the ARGraph class!" << endl;
         return 1;
     }
     
@@ -1823,7 +1844,7 @@ int main(int argc, char ** argv)
         pair<unsigned,unsigned> tmp = arg.numberOfExcludedNodes();
         cerr << "Number of edges = " << tmp.first << ", number of excluded edges = " << tmp.second << endl;
     }
-    arg.initializeEdges(excludeCycles);
+    arg.initializeEdges(1.0, excludeCycles);
 	arg.CountConflictEdges();
     cerr << "Updating times..." << endl;
 
@@ -1840,6 +1861,7 @@ int main(int argc, char ** argv)
 		else
 			arg.iterateTimes(false);  // Random traversal
     }
+	arg.ComputeLocalLikelihoods();
 
     if (output_mode == 1)
     {
@@ -1890,7 +1912,7 @@ int main(int argc, char ** argv)
 	}
 	if (output_mode == 6){
 		cerr << "Computing local tree likelihoods." << endl;
-		arg.ComputeLocalLikelihoods();
+		arg.OutputLocalLikelihoods();
 	}
     return 0;
 }

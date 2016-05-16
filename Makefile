@@ -3,7 +3,7 @@ CPPFLAGS=-std=c++0x -Wall -ansi -pedantic -g -O2
 DISBALEDOPTIMIZATIONFLAGS = -DNDEBUG
 OBJ = Configuration.o InputReader.o NewickTree.o Tree.o TreeController.o TreeControllerSimple.o TreeDistance.o
 
-all: main main-simple enumerate-example newickcomp newick2dot newick2timestamp newick2clustersize newick2imbalance-density newick2qdist rand-matrix scrm2bin 
+all: main main-simple time_estimate newickcomp newick2dot newick2timestamp newick2clustersize newick2imbalance-density newick2qdist rand-matrix scrm2bin 
 
 main: main.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main main.o $(OBJ)
@@ -11,8 +11,8 @@ main: main.o $(OBJ)
 main-simple: main-simple.o $(OBJ)
 	$(CC) $(CPPFLAGS) -o main-simple main-simple.o $(OBJ)
 
-enumerate-example: enumerate-example.o
-	$(CC) $(CPPFLAGS) -o enumerate-example enumerate-example.o
+time_estimate: time_estimate.o
+	$(CC) $(CPPFLAGS) -o time_estimate time_estimate.o
 
 newickcomp: newickcomp.o NewickTree.o
 	$(CC) $(CPPFLAGS) -o newickcomp newickcomp.o NewickTree.o
@@ -48,7 +48,7 @@ dot: main
 	for i in *.dot; do dot -Tpng $$i > $${i%.dot}.png; done
 
 clean:
-	rm -f main main-simple enumerate-example newickcomp newick2dot newick2timestamp newick2clustersize newick2imbalance-density rand-matrix scrm2bin *.o *~ *.dot *.png
+	rm -f main main-simple time_sestimate newickcomp newick2dot newick2timestamp newick2clustersize newick2imbalance-density rand-matrix scrm2bin *.o *~ *.dot *.png
 
 depend:
 	g++ -MM -std=c++11 *.cpp > dependencies.mk
