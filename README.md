@@ -29,9 +29,7 @@ SCRM files (without the SCRM tree) can be processed as, for example:
 Time estimation
 ---
 Use `--enumerate` for `./main` to extract an ARG as a single graph with node ranges.
-`./enumerate-example` reads the standard output in the enumerate format. Example:
-
-    gunzip -c example.txt.gz | ./enumerate-example pop_map.txt 1 2 200 1 3 1 0 2 40
+`./enumerate-example` reads the standard output in the enumerate format. Please see guide\_time\_estimate.pdf for instructions.
 
 Graph slice
 ---
