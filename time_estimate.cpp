@@ -32,6 +32,7 @@
 #include <cassert>
 #include <cmath>
 #include <limits>
+#include <random>
 using namespace std;
 
 // Note: disable this for large inputs
@@ -57,6 +58,11 @@ public:
 			cerr << endl;
 		}
 	}
+	
+	struct ReportTMP{
+		double time, weight;
+		Position pos;
+	};
 	
     struct ARGchild
     {
@@ -120,8 +126,10 @@ public:
 		unsigned clustId;
 		bool reached, reset;
 		double weight;
+		double cumulTime, cumulWeight;
+		vector< ReportTMP > timeDistr;
         ARNode()
-            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0), reached(false), reset(true), weight(1.0)
+            : child(), mutation(), edgesKnown(false), edgesChNum(0), edgesPNum(0), childToCheck(0), timestamp(-1.0), inStack(false), timeAssigned(false), popl_count(0), popr_count(0), total_npairs(0), sliceDegree(0), inComponent(false), clustId(0), reached(false), reset(true), weight(1.0), cumulTime(0), cumulWeight(0)
         {   }
 
         // Return parent node at step i and next rRange 
@@ -275,6 +283,9 @@ public:
 
 	void setNodeRanges(){
 		for (vector< ARNode >::iterator it = nodes.begin(); it != nodes.end(); ++it){
+			bool printEnable = false;
+			if (it - nodes.begin() == 604 && false)
+				printEnable = true;
 			it->lNodeRange = rangeMode?rbpMax:rRangeMax + 2;
 			it->rNodeRange = 0;
 			if (it->child.size() == 0){
@@ -282,13 +293,23 @@ public:
 				it->rNodeRange = rangeMode?rbpMax:rRangeMax + 1;
 			}
 			for (vector< ARGchild >::iterator itt = it->child.begin(); itt != it->child.end(); ++itt){
-				if ( it->lNodeRange > rangeMode?itt->lbp:itt->lRange ){
-					it->lNodeRange = rangeMode?itt->lbp:itt->lRange;
+				if (printEnable){
+					Position tmp1 = rangeMode?itt->lbp:itt->lRange;
+					Position tmp2 = rangeMode?itt->rbp:itt->rRange;
+					cerr << "chRange: " << tmp1 << "\t" << tmp2 << endl;
 				}
-				if ( it->rNodeRange < rangeMode?itt->rbp:itt->rRange ){
+				if ( it->lNodeRange > (rangeMode?itt->lbp:itt->lRange) ){
+					if (printEnable) cerr << "lRange update from " << it->lNodeRange;
+					it->lNodeRange = rangeMode?itt->lbp:itt->lRange;
+					if (printEnable) cerr << "\tto " << it->lNodeRange << endl;
+				}
+				if ( it->rNodeRange < (rangeMode?itt->rbp:itt->rRange) ){
+					if (printEnable) cerr << "lRange update from " << it->rNodeRange;
 					it->rNodeRange = rangeMode?itt->rbp:itt->rRange;
+					if (printEnable) cerr << "\tto " << it->rNodeRange << endl;
 				}
 			}
+			if (printEnable) cerr << "Range: " << it->lNodeRange << "\t" << it->rNodeRange << endl;
 		}
 	}
 	
@@ -575,10 +596,22 @@ public:
 		nodes[nodeRef].reset = false;
 		unsigned lr = nodes[nodeRef].lNodeRange;
 		unsigned rr = nodes[nodeRef].rNodeRange;
+		
+		bool printEnabled = false;
+		if (nodeRef == 831 && false)
+			printEnabled = true;
+		
 		while( stack.size() ){
 			NodeId curNode = stack.back();
+			if ( printEnabled )
+				cerr << curNode << endl;
 			stack.pop_back();
 			for (vector< ARGchild >::iterator itt = nodes[curNode].child.begin(); itt != nodes[curNode].child.end(); ++itt){
+				if ( printEnabled ){
+					cerr << "\t" << itt->id << "\t" << nodes[itt->id].reached << endl;
+					cerr << "\t\t" << nodes[itt->id].lNodeRange << "\t" << nodes[itt->id].rNodeRange << endl;
+					cerr << "\t\t" << lr << "\t" << rr << endl;
+				}
 				if (itt->id <= nleaves && itt->id != 0){
 					leaves[itt->id - 1] = true;
 					continue;
@@ -616,6 +649,262 @@ public:
 				nodes[itt->id].reset = true;
 			}
 		}
+	}
+
+	void PrintEnumerateARG(){
+		cout << "ARGraph\t" << nleaves << "\t" << nodes.size() - 1 << "\t" << nodes.size() << "\n";
+		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it){
+			NodeId curNode = it - nodes.begin();
+			cout << "parent\t" << curNode << "\t" << it->child.size() << "\t" << it->mutation.size() << "\n";
+			for (vector< ARGchild >::iterator itt = nodes[curNode].child.begin(); itt != nodes[curNode].child.end(); ++itt){
+				cout << "child\t" << itt->id << "\t" << itt->lRange << "\t" << itt->rRange << "\t" << itt->lbp << "\t" << itt->rbp << "\t" << itt->recomb << "\n";
+			}
+			for (vector< Mutation >::iterator itt = it->mutation.begin(); itt != it->mutation.end(); ++itt){
+				cout << "mutation\t" << it->child[itt->id].id << "\t" << itt->pos << "\t" << itt->bp << "\n";
+			}
+		}
+	}
+
+	void PrintSLE(){
+		cerr << "Number of variables: " << nodes.size() - 1 - nleaves << endl;
+		cout << "parent\tchild\tx" << endl;
+		for (vector< ARNode >::iterator it = nodes.begin() + 1 + nleaves; it != nodes.end(); ++it){
+			NodeId nodeRef = it - nodes.begin();
+			for (map<NodeId, pair<double, double> >::iterator cht = it->edgesCh.begin(); cht != it->edgesCh.end(); ++cht){
+				unsigned chId;
+				if (cht->first > nleaves)
+					chId = cht->first - nleaves;
+				else
+					chId = 0;
+				cout << nodeRef - nleaves << "\t" << chId << "\t" << cht->second.first/cht->second.second << endl;
+			}
+		}
+	}
+	
+	struct tree_node{
+		NodeId arg_id;
+		vector <unsigned> edges;
+	};
+	
+	struct tree_edge{
+//		unsigned parent;
+		unsigned child;
+		double events;
+		double weight;
+	};
+	
+	pair<unsigned, unsigned> SampleLocalTree(std::default_random_engine& generator){
+//		std::default_random_engine generator;
+//		generator.seed(time(NULL));
+		std::exponential_distribution<double> exp_distr(0.1);
+		static unsigned fail = 0, success = 0;
+		for (vector<tree_node>::reverse_iterator it = treeNodes.rbegin(); it != treeNodes.rend(); ++it){
+			if ( it->arg_id <= nleaves && it->arg_id != 0)
+				continue;
+			double alpha = 0;
+			double beta  = 1;
+			double t = 0;
+			double totalWeight = 0;
+			double minTime = 0;
+			for (vector<unsigned>::iterator et = it->edges.begin(); et != it->edges.end(); ++et){
+				NodeId childId = treeEdges[*et].child;
+				alpha += treeEdges[*et].events;
+				t += nodes[childId].timestamp*treeEdges[*et].weight;
+				totalWeight += treeEdges[*et].weight;
+				if (minTime < nodes[childId].timestamp)
+					minTime = nodes[childId].timestamp;
+			}
+			assert(it->edges.size() > 0);
+			assert(totalWeight > 0);
+			t = t/totalWeight;
+			bool flag = false;
+			if(minTime <= t + 100*alpha/totalWeight){
+				unsigned counter = 0;
+				std::gamma_distribution<double> gamma_distr(alpha, beta);
+				nodes[it->arg_id].timestamp = minTime;
+				while( nodes[it->arg_id].timestamp <= minTime ){
+					if (counter == 5000){
+						flag = true;
+						break;
+					}
+					nodes[it->arg_id].timestamp = t + gamma_distr(generator)/totalWeight;
+					counter++;
+				}
+				if(!flag)
+					success++;
+			}
+			else
+				flag = true;
+			if (flag){
+				nodes[it->arg_id].timestamp = minTime + exp_distr(generator)/totalWeight;
+				fail++;
+			}
+		}
+		return make_pair(success, fail);
+	}
+	
+	pair<unsigned, unsigned> TreeSampler(unsigned rep, std::default_random_engine& generator, Position pos){
+		static unsigned fail = 0, success = 0;
+		unsigned treeProbNull = 0, treeProbNotNull = 0;
+		for (unsigned i = 0; i < rep; i++){
+			pair<unsigned, unsigned> fs = SampleLocalTree(generator);
+			success += fs.first;
+			fail += fs.second;
+			double treeProb = 1;
+			bool fTmp = false;
+			NodeId checkNode = 573;
+			for (vector<tree_node>::iterator it = treeNodes.begin(); it != treeNodes.end(); ++it){
+//				if ( it->arg_id <= nleaves && it->arg_id != 0)
+//					continue;
+				double parentTime = nodes[it->arg_id].timestamp;
+				for (vector<unsigned>::iterator et = it->edges.begin(); et != it->edges.end(); ++et){
+					NodeId childId = treeEdges[*et].child;
+					double childTime = nodes[childId].timestamp;
+					if (childTime >= parentTime){
+						cerr << "id = " << it->arg_id << endl;
+						cerr << "childId = " << childId << endl;
+						cerr << "childTime = " << childTime << endl;
+						cerr << "parentTime = " << parentTime << endl;
+						exit(1);
+					}
+					assert(parentTime - childTime >= 0);
+					double lambda = (parentTime - childTime)*treeEdges[*et].weight;
+					treeProb = treeProb*Pois(lambda, treeEdges[*et].events);
+				}
+				if (it->arg_id == checkNode){
+					fTmp = true;
+				}
+			}
+			if (fTmp && false){
+				ReportTMP r;
+				r.time = nodes[checkNode].timestamp;
+				r.weight = treeProb;
+				r.pos = pos;
+				nodes[checkNode].timeDistr.push_back(r);
+			}
+			if(treeProb == 0)
+				treeProbNull++;
+			else 
+				treeProbNotNull++;
+			for (vector<tree_node>::iterator it = treeNodes.begin(); it != treeNodes.end(); ++it){
+				nodes[it->arg_id].cumulTime   += nodes[it->arg_id].timestamp*treeProb;
+				nodes[it->arg_id].cumulWeight += treeProb;
+			}
+		}
+		return make_pair(success, fail);
+	}
+	
+	void EstimateTimesByLocalTrees(unsigned rep){
+		unsigned fail = 0, success = 0;
+		unsigned counter = 0;
+		std::default_random_engine generator;
+		for (unsigned i = 0; i < rRangeMax; i++){
+			counter++;
+			if (counter%10000 == 0)
+				cerr << counter << " positions processed." << endl;
+			GetLocalTree( i );
+			pair<unsigned, unsigned> fs = TreeSampler(rep, generator, i);
+			success += fs.first;
+			fail += fs.second;
+		}
+		nodes[0].timestamp = -1;
+		for (vector< ARNode >::iterator it = nodes.begin() + 1 + nleaves; it != nodes.end(); ++it){
+			assert(!isnan(it->cumulWeight));
+			it->timestamp = it->cumulTime/it->cumulWeight;
+		}
+//		NodeId checkNode = 573;
+//		cout << "Times sampled: " << nodes[checkNode].timeDistr.size() << endl;
+//		for (vector< ReportTMP >::iterator pt = nodes[checkNode].timeDistr.begin(); pt != nodes[checkNode].timeDistr.end(); ++pt){
+//			cout << pt->pos << "\t" << pt->time << "\t" << pt->weight << endl;
+//		}
+		cerr << "Sampled with gamma: " << success << endl;
+		cerr << "Sampled with exp:   " << fail << endl;
+	}
+	
+	double Pois(double lambda, double k){
+		double prob = pow(lambda, k);
+		prob = prob*exp(-lambda);
+		prob = prob/tgamma(k+1);
+		return prob;
+	}
+	
+	void GetLocalTree(Position position){
+		tree_node node;
+		tree_edge edge;
+		map<NodeId, unsigned> nodesMap;
+//		vector <NodeId> nodes;
+		
+		treeNodes.clear();
+		treeEdges.clear();
+		
+		vector<NodeId> stack;
+		double penalty = 1.0;
+		double recombWeight = double(nmutation)/double(nrecomb)*rho/mu*penalty;
+		static bool flagTmp = true;
+		if (flagTmp){
+			cerr << "rho = " << rho << endl;
+			cerr << "event rate = " << mu+rho*penalty << endl;
+		}
+		flagTmp = false;
+/*		for (unsigned i = 0; i < nleaves; i++){
+			node.arg_id = i + 1;
+			tree_nodes.push_back(node);
+		}*/
+		stack.push_back(0);
+		node.arg_id = 0;
+		node.edges.clear();
+		treeNodes.push_back(node);
+		nodesMap[0] = 0;
+		while(stack.size() > 0){
+			NodeId curNode = stack.back();
+			stack.pop_back();
+			for (vector< ARGchild >::iterator cht = nodes[curNode].child.begin(); cht != nodes[curNode].child.end(); ++cht){
+				if (position >= cht->lRange && position <= cht->rRange){
+					node.edges.clear();
+//					nodes[cht->id] = nodes.size();
+					node.arg_id = cht->id;
+//					edge.parent = curNode;
+					edge.child = cht->id;
+					double eventNum = 0;
+					for (vector<struct Mutation>::iterator mut = nodes[curNode].mutation.begin(); mut != nodes[curNode].mutation.end(); ++mut){
+						if (nodes[curNode].child[mut->id].id == cht->id)
+							eventNum++;
+					}
+					if (cht->recomb)
+						eventNum += recombWeight;
+					edge.events = eventNum;
+					edge.weight = (mu+rho*penalty)*(cht->rbp - cht->lbp + 1);
+					stack.push_back(cht->id);
+					treeNodes.push_back(node);
+					nodesMap[cht->id] = treeNodes.size() - 1;
+					treeEdges.push_back(edge);
+					treeNodes[ nodesMap[curNode] ].edges.push_back(treeEdges.size() - 1);
+				}
+			}
+		}
+	}
+	
+	void PrintLocalTree(Position pos){
+		GetLocalTree(pos);
+		for (vector<tree_node>::iterator it = treeNodes.begin(); it != treeNodes.end(); ++it){
+			cout << it->arg_id << "\t" << nodes[it->arg_id].timestamp << endl;
+			for (vector<unsigned>::iterator et = it->edges.begin(); et != it->edges.end(); ++et)
+				cout << "\t" << treeEdges[*et].child << "\t" << treeEdges[*et].weight << "\t" << treeEdges[*et].events << endl;
+		}
+	}
+	
+	Position GetPosbyNodeId(NodeId nid){
+		Position pos = 0;
+		for (vector< ARGchild >::iterator itt = nodes[nid].child.begin(); itt != nodes[nid].child.end(); ++itt){
+			pos = (itt->rRange + itt->lRange)/2;
+			break;
+		}
+		return pos;
+	}
+	
+	void PrintNode(NodeId nid){
+		for (vector< ARGchild >::iterator itt = nodes[nid].child.begin(); itt != nodes[nid].child.end(); ++itt)
+			cerr << itt->id << "\t" << itt->lRange << "\t" << itt->rRange << endl;
 	}
 
     void assignTimes(int method)
@@ -668,7 +957,7 @@ public:
         }
     }
 
-    void iterateTimes(bool output = false)//1 for f1, 2 for f2, 3 for f3
+    void iterateTimes(bool output, bool keep_order)//1 for f1, 2 for f2, 3 for f3
     {
         // Initialize Knuth shuffle on first call to this method
         if (knuthShuffle.empty())
@@ -698,7 +987,7 @@ public:
 		for (unsigned i = 1; i < nodes.size(); ++i){
 			NodeId nodeRef = knuthShuffle[i];
 			double old_time = nodes[nodeRef].timestamp;
-			UpdateTime(nodeRef);
+			UpdateTime(nodeRef, keep_order);
 			double abs_change = nodes[nodeRef].timestamp - old_time;
 			double rel_change = 0;
 			if (nodes[nodeRef].timestamp != 0)
@@ -787,8 +1076,11 @@ public:
 		for (vector< ARNode >::iterator it = nodes.begin() + 1; it != nodes.end(); ++it)
 			for (std::map<NodeId, std::pair<double, double> >::iterator itt = it->edgesCh.begin(); itt != it->edgesCh.end(); ++itt){
 				nedges++;
-				if (it->timestamp < nodes[ itt->first ].timestamp)
+				if (it->timestamp < nodes[ itt->first ].timestamp){
 					counter++;
+//					cerr << "node 1 = " << it - nodes.begin() << ", time = " << it->timestamp << endl;
+//					cerr << "node 2 = " << itt->first << ", time = " << nodes[ itt->first ].timestamp << endl;
+				}
 			}
 		cerr << "Number of conflicts is " << counter << " of " << nedges << endl;
 	}
@@ -916,7 +1208,6 @@ public:
 		for (Position i = 0; i < mapToBp.size(); ++i){
 			mapToBp[i] = i;
 		}
-		double likelihoodTH = GetLikelihoodTreshhold(0.01);
 
         // Reset counts
         for (std::vector<ARNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
@@ -951,20 +1242,19 @@ public:
              *
              * Increments the total_npairs value of each node by (rRange - lRange + 1) * (number of pairs).
              */
-			if ( likelihoodTH <= LocalLikelihoods[i] ){
-	            for (unsigned j = 0; j < nodes.size(); ++j)
-	                if (nodes[j].popl_count > 0 && nodes[j].popr_count > 0)
-	                {
-	                    unsigned long npairs = 0;
-	                    for (vector<struct ARGchild>::iterator it = nodes[j].child.begin(); it != nodes[j].child.end(); ++it)
-	                        if (it->lRange <= lRange && rRange <= it->rRange)
-	                            for (vector<struct ARGchild>::iterator jt = it + 1; jt != nodes[j].child.end(); ++jt)
-	                                if (jt->lRange <= lRange && rRange <= jt->rRange)
-	                                    npairs += (nodes[it->id].popl_count * nodes[jt->id].popr_count) + (nodes[it->id].popr_count * nodes[jt->id].popl_count);
 
-	                    // (number of base-pairs) * (number of pairs)
-	                    nodes[j].total_npairs += (unsigned long)(mapToBp[rRange] - mapToBp[lRange] + 1) * npairs;
-	                }
+            for (unsigned j = 0; j < nodes.size(); ++j){
+				if (nodes[j].popl_count > 0 && nodes[j].popr_count > 0){
+                    unsigned long npairs = 0;
+                    for (vector<struct ARGchild>::iterator it = nodes[j].child.begin(); it != nodes[j].child.end(); ++it){
+                        if (it->lRange <= lRange && rRange <= it->rRange)
+                            for (vector<struct ARGchild>::iterator jt = it + 1; jt != nodes[j].child.end(); ++jt)
+                                if (jt->lRange <= lRange && rRange <= jt->rRange)
+                                    npairs += (nodes[it->id].popl_count * nodes[jt->id].popr_count) + (nodes[it->id].popr_count * nodes[jt->id].popl_count);
+					}
+                    // (number of base-pairs) * (number of pairs)
+                    nodes[j].total_npairs += (unsigned long)(mapToBp[rRange] - mapToBp[lRange] + 1) * npairs;
+                }
 			}
             
             // Update popl_count and popr_count values 
@@ -1101,6 +1391,7 @@ private:
                 arnode.child.push_back(argchild);
 #ifdef OUTPUT_RANGE_DISTRIBUTION
                 arnode.rangeDist[argchild.rRange-argchild.lRange+1] += 1;
+				argchild.timestamp = 0;
 #endif
             }
             while (nmut--)
@@ -1194,7 +1485,7 @@ private:
         }  
         nodes[nodeRef].timestamp = 0;
 		
-		double ts = -2.0;
+		double ts = -1.0 - 10000.0;
 		
 		for (unsigned i = 0; i < nodes[nodeRef].child.size(); i++){
 			if (!nodes[nodeRef].child[i].include)
@@ -1202,7 +1493,7 @@ private:
 			if (ts < nodes[ nodes[nodeRef].child[i].id ].timestamp)
 				ts = nodes[ nodes[nodeRef].child[i].id ].timestamp;
 		}	
-        nodes[ nodeRef ].timestamp = ts+1.0;
+        nodes[ nodeRef ].timestamp = ts+10000.0;
     }
 
     void assignTime(NodeId nodeRef)
@@ -1443,7 +1734,7 @@ private:
         nodes[nodeRef].timestamp = new_time;
     }
 	
-    void UpdateTime(NodeId nodeRef) //f3 - "children vs parents"
+    void UpdateTime2(NodeId nodeRef, bool keep_order) //f3 - "children vs parents"
     {		
         if (nodeRef == 0)
         {
@@ -1458,10 +1749,13 @@ private:
 
 		double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
         double C1 = 0.0001, C2 = 0.0001;
+		double lower_lim = -1, upper_lim = -1;
 		
         for (map<NodeId, pair<double, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
 			if (nodes[it->first].timestamp < 0)
 				continue;
+			if (lower_lim < nodes[it->first].timestamp)
+				lower_lim = nodes[it->first].timestamp;
 			A1 += it->second.second;
 			B1 += it->second.second*nodes[it->first].timestamp;
 			C1 += it->second.first;
@@ -1472,6 +1766,8 @@ private:
 				continue;
 			if (nodes[it->first].timestamp < 0)
 				continue;
+			if (upper_lim == -1 || upper_lim > nodes[it->first].timestamp)
+				upper_lim = nodes[it->first].timestamp;
 			A2 += it->second.second;
 			B2 += it->second.second*nodes[it->first].timestamp;
 			C2 += it->second.first;
@@ -1567,7 +1863,8 @@ private:
 			else if (lEnd <= x2 && x2 <= rEnd)
 				new_time = x2;
 			else{
-				cerr << "node " << nodeRef << endl;
+				new_time = (B1/A1 + B2/A2 )/2;
+/*				cerr << "node " << nodeRef << endl;
 				cerr << "t = " << nodes[nodeRef].timestamp << endl;
 				cerr << "A1 = " << A1 << "\tB1 = " << B1 << "\tC1 = " << C1 << endl;
 				cerr << "A2 = " << A2 << "\tB2 = " << B2 << "\tC2 = " << C2 << endl;
@@ -1579,7 +1876,7 @@ private:
 				cerr << "x1 = " << x1 << endl;
 				cerr << "x2 = " << x2 << endl;
 				assert(false);
-				new_time = (C2*B1 + C1*B2)/(C1*A2+C2*A1);
+				new_time = (C2*B1 + C1*B2)/(C1*A2+C2*A1);*/
 			}
 			assert( !isnan(new_time) );
 			assert( !isinf(new_time) );
@@ -1600,6 +1897,83 @@ private:
 			prob = ComputeConfigProb(B2/A2, A1, B1, C1, A2, B2, C2);
 			nodes[nodeRef].weight = prob;
 		}
+		if (keep_order && ( nodes[nodeRef].timestamp < lower_lim || nodes[nodeRef].timestamp > upper_lim ) ){
+			nodes[nodeRef].timestamp = lower_lim;
+			prob = ComputeConfigProb(lower_lim, A1, B1, C1, A2, B2, C2);
+			nodes[nodeRef].weight = prob;
+			double prob1 = ComputeConfigProb(upper_lim, A1, B1, C1, A2, B2, C2);
+			if (prob1 > prob){
+				nodes[nodeRef].timestamp = upper_lim;
+				nodes[nodeRef].weight = prob1;
+			}
+		}
+    }
+	
+    void UpdateTime(NodeId nodeRef, bool keep_order) //f3 - "children vs parents"
+    {		
+        if (nodeRef == 0)
+        {
+            nodes[ nodeRef ].timestamp = -1;
+            return;
+        }
+        if (nodeRef <= nleaves && nodeRef != 0)
+        {
+            nodes[ nodeRef ].timestamp = 0;
+            return;
+        }
+
+		double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
+        double C1 = 0.0, C2 = 0.0;
+		double lower_lim = -3, upper_lim = -3;
+		double new_time;
+		
+        for (map<NodeId, pair<double, double> >::iterator it = nodes[ nodeRef ].edgesCh.begin(); it != nodes[ nodeRef ].edgesCh.end(); ++it){
+			if (nodes[it->first].timestamp < 0)
+				continue;
+			if (lower_lim < nodes[it->first].timestamp)
+				lower_lim = nodes[it->first].timestamp;
+			A1 += it->second.second;
+			B1 += it->second.second*nodes[it->first].timestamp;
+			C1 += it->second.first;
+		}
+		
+        for (map<NodeId, pair<double, double> >::iterator it = nodes[ nodeRef ].edgesP.begin(); it != nodes[ nodeRef ].edgesP.end(); ++it){
+			if (it->first == 0)
+				continue;
+			if (nodes[it->first].timestamp < 0)
+				continue;
+			if (upper_lim == -3 || upper_lim > nodes[it->first].timestamp)
+				upper_lim = nodes[it->first].timestamp;
+			A2 += it->second.second;
+			B2 += it->second.second*nodes[it->first].timestamp;
+			C2 += it->second.first;
+		}
+		
+		if (A1 + A2 == 0){
+			nodes[nodeRef].timestamp = -2;
+			return;
+		}
+		
+		if ( CheckDoubleEqulity(A1, A2) ){
+			new_time = (C2*B1/A1 + C1*B2/A2)/(C1 + C2);
+			if (keep_order && lower_lim >= 0 && new_time < lower_lim){
+				new_time = lower_lim;
+			}
+			if (keep_order && upper_lim >= 0 && new_time > upper_lim){
+				new_time = upper_lim;
+			}
+			nodes[nodeRef].timestamp = new_time;
+			return;
+		}
+		
+		new_time = (C1 + C2 + B1 - B2)/(A1 - A2);
+		if (new_time < 0)
+			new_time = 0;
+		if ( keep_order && lower_lim >= 0 && new_time < lower_lim )
+			new_time = lower_lim;
+		if ( keep_order && upper_lim >= 0 && new_time > upper_lim )
+			new_time = upper_lim;
+		nodes[nodeRef].timestamp = new_time;
     }
     
     pair<NodeId,Position> getLCATime(Position i, NodeId x, NodeId y)
@@ -1669,6 +2043,8 @@ private:
 	double min_time, max_time;
 	std::vector<NodeId> SliceNodes;
 	vector<double> LocalLikelihoods;
+	vector<tree_node> treeNodes;
+	vector<tree_edge> treeEdges;
 public:
 	static bool rangeMode; //false = SNP, true = BP
 };
@@ -1765,7 +2141,7 @@ int main(int argc, char ** argv)
     {
         cerr << "usage error: [output_mode] must be in the range 0-6." << endl;
 		cerr << "mode 0: no output" << endl;
-        cerr << "mode 1: comparing pairs from two populations" << endl;
+        cerr << "mode 1: output in enumerate format (TODO)" << endl;
         cerr << "mode 2: comparing two population (much faster than mode 1)" << endl;
         cerr << "mode 3: searching for graph clustering within a slice." << endl;
         cerr << "mode 4: painting haplotypes based on clustering." << endl;
@@ -1773,7 +2149,7 @@ int main(int argc, char ** argv)
         cerr << "mode 6: computing local tree likelihood." << endl;
         return 1;
     }
-	if (output_mode == 1 || output_mode == 2){
+	if (output_mode == 2){
 		if (argc != 10){
 	        cerr << "usage error: [output_mode] = 1, 2 need population information. [pops_map.txt] [pop1] [pop2]" << endl;
 	        cerr << "     pops_map.txt  - text file that lists pairs of <node id, pop id>" << endl;
@@ -1791,7 +2167,7 @@ int main(int argc, char ** argv)
     	}
 	}
     if (output_mode == 1)
-        cerr << "mode 1: comparing pairs from pop " << popl << " vs " << popr << endl;
+        cerr << "mode 1: extracting ARG in enumerate format." << endl;
     if (output_mode == 2)
         cerr << "mode 2: comparing population " << popl << " vs " << popr << endl;
     if (output_mode == 3)
@@ -1850,42 +2226,34 @@ int main(int argc, char ** argv)
 
     // Iterate time updates max_iter times
     unsigned iter = 0;
+	bool keep_order = excludeCycles;
     while (iter < max_iter)
     {
         iter ++;
 		if (iter % counter == 0 || iter < 3 ){
 			cerr << "Iterating times (" << iter << "/" << max_iter << ")" << endl;
-			arg.iterateTimes(true);
+			arg.iterateTimes(true, keep_order);
 			arg.CountConflictEdges();
 		}
 		else
-			arg.iterateTimes(false);  // Random traversal
+			arg.iterateTimes(false, keep_order);  // Random traversal
     }
 	arg.ComputeLocalLikelihoods();
 
+	arg.initializeEdges(1.0, false);
+//	arg.EstimateTimesByLocalTrees(10);
+//	arg.CountConflictEdges();
+
     if (output_mode == 1)
     {
-        cerr << "Extracting leaf-pair times..." << endl;
-        cout << "x\ty\tlRange\trRange\tlbp\trbp\tnode\ttimestamp\tweight\tprobability\n";
-        for(map<unsigned,unsigned>::iterator it = popmap.begin(); it != popmap.end(); ++it)
-        {
-            if (it->second != popl)
-                continue;
-            map<unsigned,unsigned>::iterator itt = popmap.begin();
-            while (itt->second != popr && itt != popmap.end())
-                ++itt;
-            while (itt != popmap.end())
-            {
-                assert(it->second == popl);  // Compare exactly these populations
-                assert(itt->second == popr);
-
-                if (it->first != itt->first  && (popl != popr || it->first < itt->first))
-                    arg.outputTimes(it->first, itt->first);
-            
-                do ++itt;
-                while (itt->second != popr && itt != popmap.end());
-            }
-    	}
+        cerr << "Extracting ARG in enumerate format..." << endl;
+//		arg.PrintEnumerateARG();
+//		arg.PrintSLE();
+		NodeId nid = 950;
+		Position pos;
+		pos = arg.GetPosbyNodeId(nid);
+		cerr << "Printing tree at position " << pos << endl;
+		arg.PrintLocalTree(pos);
     }
     if (output_mode == 2)
     {
