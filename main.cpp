@@ -191,8 +191,14 @@ unsigned output_newick(InputReader &ir, direction_t direction, PointerTree &tree
         unsigned increasingStep = direction == direction_forward ? step : ir.size()-step-1;
         unsigned decreasingStep = ir.size()-increasingStep-1;
         tc.assignLabels(ir.col(step));
+		if (step == 0)
+			prev_pos = 0;
+		else
+			prev_pos = ir.position(step-1);
+		if (step < 5)
+			cerr << "debug step " << step << ":\t" << ir.position(step) << endl;
         tree.outputNewick("-", ir.position(step) - prev_pos);
-        prev_pos = ir.position(step);        
+			
         tc.rewind(ir.col(step), decreasingStep, 0);
 
         total_intnodes += tc.countInternalNodes();
