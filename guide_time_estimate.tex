@@ -16,7 +16,7 @@
 	\usetikzlibrary{shapes,shadows,arrows,calc}
 \usepackage{multirow}
 \hypersetup{
-	linktoc=true
+	linktoc=all
 }
 \usepackage{mathrsfs}
 \usepackage{algorithm2e}
@@ -114,22 +114,22 @@
 	\begin{displayquote}
 		\texttt{ARGraph 6000 1317668 1311669}
 	\end{displayquote}
-	where the first number is the number of leaves, the second number is the maximal node id and the last number is the total number of nodes in the graph. In this example we have an ARG with $6000$ leaves and $1311669$ nodes (including leaves).
+	where the first number is the number of leaves ($m$), the second number is the maximal node id and the last number is the total number of nodes in the graph. In this example we have an ARG with $6000$ leaves and $1311669$ nodes (including leaves).
 
-	Each node is described in the following form
+	Each (internal) node is described in the following form
 	\begin{displayquote}
 		\texttt{parent 16602 2 1\\
 			child 5528 4062 5235 337569 399302 1\\
 			child 1347 4062 5235 337569 399302 0\\
 			mutation 1347 4256 348494}
 	\end{displayquote}
-	Here the first line states that the node with id 16602 is described and this node has two child nodes and one mutation entry.
+	Here the first line states that the node with id 16602 is described and this node has two child nodes and one mutation entry. 
 
 	A line describing a child (in fact an oriented edge from a parent to a child)
 	\begin{displayquote}
 		\texttt{child 5528 4062 5235 337569 399302 1}
 	\end{displayquote}
-	means: child node id is $5528$, the edge spans positions $[4062, 5235]$ in SNP coordinates and $[337569, 399302]$ in base-pairs. $1$ means that a recombination was inferred on the edge, $0$ - otherwise.
+	means: child node id is $5528$, the edge spans positions $[4062, 5235]$ in SNP coordinates and $[337569, 399302]$ in base-pairs. $1$ means that a recombination was inferred on the edge, $0$ - otherwise. Note that leaves have ids numbered from $1$ \dots $m$: these ids will appear on \texttt{child} lines, but not on \texttt{parent} lines.
 
 	A line describing mutation
 	\begin{displayquote}
